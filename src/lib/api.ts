@@ -1,8 +1,18 @@
 import { tokenStorage } from "./auth";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-  "http://localhost:5000/api";
+/**
+ * API base URL:
+ * - Local:  `.env.local` → http://localhost:5000/api
+ * - Prod:   `.env.production` → http://187.127.121.252:5000/api
+ * Fallback: localhost in development, production host otherwise.
+ */
+const PRODUCTION_API_URL = "http://187.127.121.252:5000/api";
+const LOCAL_API_URL = "http://localhost:5000/api";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production" ? PRODUCTION_API_URL : LOCAL_API_URL)
+).replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;
@@ -106,6 +116,8 @@ export const api = {
     apiRequest<T>(path, { method: "POST", body, auth }),
   put: <T>(path: string, body?: unknown, auth = true) =>
     apiRequest<T>(path, { method: "PUT", body, auth }),
+  patch: <T>(path: string, body?: unknown, auth = true) =>
+    apiRequest<T>(path, { method: "PATCH", body, auth }),
   delete: <T>(path: string, auth = true) =>
     apiRequest<T>(path, { method: "DELETE", auth }),
 };

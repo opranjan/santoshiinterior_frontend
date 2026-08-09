@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import {
@@ -11,8 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leadsApi, type LeadDto } from "@/services/crmApi";
+import { leadsApi, storesApi, usersApi, type LeadDto } from "@/services/crmApi";
+import { ApiError } from "@/lib/api";
 import { enumToLabel, formatDate, labelToEnum } from "@/lib/mappers";
+import LeadsEmptyState from "@/components/leads/LeadsEmptyState";
+import LeadExplorerModal from "@/components/leads/LeadExplorerModal";
+import BulkLeadActionsModal, {
+  type AssigneeOption,
+  type BulkLeadAction,
+} from "@/components/leads/BulkLeadActionsModal";
 
 type LeadStatus =
   | "Created"
@@ -55,7 +63,9 @@ type Lead = {
   source: string;
   status: LeadStatus;
   salesOwner: string;
+  salesOwnerId: string | null;
   assignedTo: string;
+  assignedToId: string | null;
   description: string;
   latestRemark: string;
   tentativeStart: string;
@@ -64,6 +74,8 @@ type Lead = {
   createdAt: string;
   updatedAt: string;
   followUps: FollowUpEntry[];
+  quotationCount: number;
+  latestQuotationId: string | null;
 };
 
 const salesTeam = [
@@ -401,51 +413,125 @@ const columns = [
   "Actions",
 ] as const;
 
+const teamAssigneeOptions: AssigneeOption[] = [
+  { id: "team-procurement", name: "Procurement", kind: "team" },
+  { id: "team-supervisor", name: "Project/Supervisor team", kind: "team" },
+  { id: "team-sales-south", name: "SALES TEAM SOUTH GOA", kind: "team" },
+  { id: "team-design", name: "Designing TEAM", kind: "team" },
+];
+
+function mapLeadDto(dto: LeadDto): Lead {
+  return {
+    id: dto.id,
+    clientName: dto.clientName,
+    phone: dto.phone,
+    email: dto.email || "",
+    store: dto.store?.name || "",
+    projectName: dto.projectName || "",
+    projectType: dto.projectType || "",
+    scope: dto.scope || "",
+    budget: dto.budget || "",
+    source: dto.source || "",
+    status: (enumToLabel(dto.status) || "New") as LeadStatus,
+    salesOwner: dto.salesOwner?.name || "Unassigned",
+    salesOwnerId: dto.salesOwnerId || dto.salesOwner?.id || null,
+    assignedTo: dto.assignedTo?.name || "Unassigned",
+    assignedToId: dto.assignedToId || dto.assignedTo?.id || null,
+    description: dto.description || "",
+    latestRemark: dto.latestRemark || "",
+    tentativeStart: formatDate(dto.tentativeStart),
+    financialYear: dto.financialYear || "",
+    tags: dto.tags || "",
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+    quotationCount: dto._count?.quotations ?? dto.quotations?.length ?? 0,
+    latestQuotationId: dto.quotations?.[0]?.id || null,
+    followUps: (dto.followUps || []).map((f) => ({
+      id: f.id,
+      date: formatDate(f.date),
+      type: (enumToLabel(f.type) || "Call") as FollowUpType,
+      note: f.note || "",
+      by: f.by?.name || "",
+      nextDate: formatDate(f.nextDate),
+      nextTime: f.nextTime || "",
+    })),
+  };
+}
+
+function leadQuoteHref(lead: Lead) {
+  if (lead.quotationCount === 1 && lead.latestQuotationId) {
+    return `/quotations/${lead.latestQuotationId}`;
+  }
+  return `/sales/leads/${lead.id}?module=quotations`;
+}
+
 export default function LeadsTable() {
+  const searchParams = useSearchParams();
+  const storeFilterId = searchParams.get("storeId") || "";
+  const [storeFilterName, setStoreFilterName] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([]);
+  const [assigneesLoading, setAssigneesLoading] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const fetchLeads = async () => {
+    const data = await leadsApi.list({
+      limit: 100,
+      ...(storeFilterId ? { storeId: storeFilterId } : {}),
+    });
+    setLeads(data.items.map(mapLeadDto));
+  };
+
+  useEffect(() => {
+    if (!storeFilterId) {
+      setStoreFilterName("");
+      return;
+    }
+    (async () => {
+      try {
+        const store = await storesApi.get(storeFilterId);
+        setStoreFilterName(store.name);
+      } catch {
+        setStoreFilterName("");
+      }
+    })();
+  }, [storeFilterId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setAssigneesLoading(true);
+        const data = await usersApi.list({ limit: 200 });
+        if (cancelled) return;
+        const users = (data.items || []).map((u) => ({
+          id: u.id,
+          name: u.name,
+          kind: "user" as const,
+        }));
+        setAssigneeOptions([...users, ...teamAssigneeOptions]);
+      } catch {
+        if (!cancelled) {
+          setAssigneeOptions([...teamAssigneeOptions]);
+        }
+      } finally {
+        if (!cancelled) setAssigneesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         setLoading(true);
-        const data = await leadsApi.list({ limit: 100 });
-        if (cancelled) return;
-        setLeads(
-          data.items.map((dto: LeadDto): Lead => ({
-            id: dto.id,
-            clientName: dto.clientName,
-            phone: dto.phone,
-            email: dto.email || "",
-            store: dto.store?.name || "",
-            projectName: dto.projectName || "",
-            projectType: dto.projectType || "",
-            scope: dto.scope || "",
-            budget: dto.budget || "",
-            source: dto.source || "",
-            status: (enumToLabel(dto.status) || "New") as LeadStatus,
-            salesOwner: dto.salesOwner?.name || "Unassigned",
-            assignedTo: dto.assignedTo?.name || "Unassigned",
-            description: dto.description || "",
-            latestRemark: dto.latestRemark || "",
-            tentativeStart: formatDate(dto.tentativeStart),
-            financialYear: dto.financialYear || "",
-            tags: dto.tags || "",
-            createdAt: dto.createdAt,
-            updatedAt: dto.updatedAt,
-            followUps: (dto.followUps || []).map((f) => ({
-              id: f.id,
-              date: formatDate(f.date),
-              type: (enumToLabel(f.type) || "Call") as FollowUpType,
-              note: f.note || "",
-              by: f.by?.name || "",
-              nextDate: formatDate(f.nextDate),
-              nextTime: f.nextTime || "",
-            })),
-          }))
-        );
+        await fetchLeads();
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load leads");
@@ -457,7 +543,7 @@ export default function LeadsTable() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storeFilterId]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All Status" | LeadStatus>(
     "All Status"
@@ -472,6 +558,7 @@ export default function LeadsTable() {
   const [fuNote, setFuNote] = useState("");
   const [fuNextDate, setFuNextDate] = useState("");
   const [historyLeadId, setHistoryLeadId] = useState<string | null>(null);
+  const [explorerLead, setExplorerLead] = useState<Lead | null>(null);
 
   const filteredLeads = useMemo(() => {
     let list = leads.filter((lead) => {
@@ -522,6 +609,11 @@ export default function LeadsTable() {
 
   const leadsValueLabel = "₹ 0";
 
+  const hasActiveFilters =
+    !!search.trim() ||
+    statusFilter !== "All Status" ||
+    otherFilter !== "none";
+
   const allVisibleSelected =
     filteredLeads.length > 0 &&
     filteredLeads.every((l) => selected.includes(l.id));
@@ -554,12 +646,70 @@ export default function LeadsTable() {
     }
   };
 
-  const handleAssign = (leadId: string, assignee: string) => {
+  const handleAssign = async (leadId: string, assigneeName: string) => {
+    const option = assigneeOptions.find((o) => o.name === assigneeName);
+    const assignedToId =
+      assigneeName === "Unassigned" ? null : option?.id || null;
+
     setLeads((prev) =>
       prev.map((lead) =>
-        lead.id === leadId ? { ...lead, assignedTo: assignee } : lead
+        lead.id === leadId
+          ? {
+              ...lead,
+              assignedTo: assigneeName,
+              assignedToId,
+            }
+          : lead
       )
     );
+
+    if (assigneeName !== "Unassigned" && !option?.id) return;
+
+    try {
+      await leadsApi.update(leadId, { assignedToId });
+    } catch {
+      await fetchLeads();
+    }
+  };
+
+  const handleBulkApply = async (payload: {
+    action: BulkLeadAction;
+    assigneeIds?: string[];
+    status?: string;
+    source?: string;
+    projectType?: string;
+  }) => {
+    const userIds =
+      payload.assigneeIds?.filter(
+        (id) => !id.startsWith("team-") && assigneeOptions.some((o) => o.id === id)
+      ) || [];
+
+    if (
+      (payload.action === "MOVE_TO" || payload.action === "ADD_ASSIGNEE") &&
+      !userIds.length
+    ) {
+      throw new Error("Select at least one user to assign");
+    }
+
+    setBulkBusy(true);
+    try {
+      await leadsApi.bulkUpdate({
+        leadIds: selected,
+        action: payload.action,
+        assigneeIds: userIds.length ? userIds : payload.assigneeIds,
+        status: payload.status ? labelToEnum(payload.status) : undefined,
+        source: payload.source,
+        projectType: payload.projectType,
+      });
+      setSelected([]);
+      await fetchLeads();
+    } catch (err) {
+      throw new Error(
+        err instanceof ApiError ? err.message : "Bulk action failed"
+      );
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   const handleStatusChange = (leadId: string, status: LeadStatus) => {
@@ -640,6 +790,22 @@ export default function LeadsTable() {
       {loading && (
         <div className="mb-4 text-sm text-gray-500">Loading leads...</div>
       )}
+      {storeFilterId && storeFilterName ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
+          <span className="text-gray-700 dark:text-gray-300">
+            Showing leads for store:{" "}
+            <strong className="text-gray-900 dark:text-white/90">
+              {storeFilterName}
+            </strong>
+          </span>
+          <Link
+            href="/sales/leads"
+            className="font-medium text-brand-600 hover:text-brand-700"
+          >
+            View all leads
+          </Link>
+        </div>
+      ) : null}
     <div className="space-y-4">
       {/* Stats + actions */}
       <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
@@ -780,7 +946,35 @@ export default function LeadsTable() {
         </div>
       </div>
 
-      {/* Table */}
+      {selected.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#E85D75]/30 bg-[#E85D75]/5 px-4 py-3 dark:border-[#E85D75]/20 dark:bg-[#E85D75]/10">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Selected {selected.length}
+          </span>
+          <button
+            type="button"
+            onClick={() => setBulkOpen(true)}
+            className="inline-flex h-9 items-center rounded-lg border border-[#E85D75] px-4 text-sm font-medium text-[#E85D75] transition hover:bg-[#E85D75]/10"
+          >
+            Action
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected([])}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+          >
+            Clear selection
+          </button>
+        </div>
+      ) : null}
+
+      {/* Table / empty state */}
+      {!loading && filteredLeads.length === 0 ? (
+        <LeadsEmptyState
+          filtered={hasActiveFilters || leads.length > 0}
+          onClearFilters={resetFilters}
+        />
+      ) : (
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="max-w-full overflow-x-auto">
           <div className="min-w-[2200px]">
@@ -865,9 +1059,13 @@ export default function LeadsTable() {
                               />
                             </svg>
                           </span>
-                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                          <button
+                            type="button"
+                            onClick={() => setExplorerLead(lead)}
+                            className="font-medium text-gray-800 text-theme-sm hover:text-[#E85D75] dark:text-white/90"
+                          >
                             {lead.clientName}
-                          </span>
+                          </button>
                         </div>
                       </TableCell>
 
@@ -972,15 +1170,25 @@ export default function LeadsTable() {
                           <select
                             value={lead.assignedTo}
                             onChange={(e) =>
-                              handleAssign(lead.id, e.target.value)
+                              void handleAssign(lead.id, e.target.value)
                             }
                             className="h-8 max-w-[120px] rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
                           >
-                            {salesTeam.map((member) => (
-                              <option key={member} value={member}>
-                                {member}
+                            <option value="Unassigned">Unassigned</option>
+                            {assigneeOptions
+                              .filter((o) => o.kind !== "team")
+                              .map((member) => (
+                                <option key={member.id} value={member.name}>
+                                  {member.name}
+                                </option>
+                              ))}
+                            {!assigneeOptions.some(
+                              (o) => o.name === lead.assignedTo
+                            ) && lead.assignedTo !== "Unassigned" ? (
+                              <option value={lead.assignedTo}>
+                                {lead.assignedTo}
                               </option>
-                            ))}
+                            ) : null}
                           </select>
                         </div>
                       </TableCell>
@@ -1066,13 +1274,13 @@ export default function LeadsTable() {
                             </button>
                           )}
                           <Link
-                            href={`/sales/quotations/new?from=lead&id=${lead.id}`}
+                            href={leadQuoteHref(lead)}
                             className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
                           >
                             Quote
                           </Link>
                           <Link
-                            href="/sales/leads/new"
+                            href={`/sales/leads/${lead.id}?module=details`}
                             className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
                           >
                             Edit
@@ -1082,20 +1290,12 @@ export default function LeadsTable() {
                     </TableRow>
                   );
                 })}
-
-                {filteredLeads.length === 0 && (
-                  <TableRow>
-                    <TableCell className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
-                      No leads match your filters. Try clearing search or add a
-                      new lead.
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
           </div>
         </div>
       </div>
+      )}
 
       {/* Follow-up Modal */}
       {followUpLeadId && (
@@ -1290,6 +1490,29 @@ export default function LeadsTable() {
           </div>
         </div>
       )}
+
+      <LeadExplorerModal
+        lead={
+          explorerLead
+            ? {
+                id: explorerLead.id,
+                clientName: explorerLead.clientName,
+                projectName: explorerLead.projectName,
+              }
+            : null
+        }
+        open={Boolean(explorerLead)}
+        onClose={() => setExplorerLead(null)}
+      />
+
+      <BulkLeadActionsModal
+        open={bulkOpen}
+        onClose={() => !bulkBusy && setBulkOpen(false)}
+        selectedCount={selected.length}
+        assigneeOptions={assigneeOptions}
+        loading={assigneesLoading || bulkBusy}
+        onApply={handleBulkApply}
+      />
     </div>
     </div>
   );

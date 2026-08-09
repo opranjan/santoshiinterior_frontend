@@ -39,6 +39,12 @@ export type StoreDto = {
   openedOn?: string | null;
   createdAt: string;
   updatedAt: string;
+  _count?: {
+    leads?: number;
+    projects?: number;
+    users?: number;
+    quotations?: number;
+  };
 };
 
 export const storesApi = {
@@ -86,18 +92,61 @@ export type LeadDto = {
     nextDate?: string | null;
     nextTime?: string | null;
   }>;
+  quotations?: Array<{ id: string }>;
+  _count?: { quotations: number };
+};
+
+export type LeadQuotationSummaryBucket = {
+  count: number;
+  amount: number;
+};
+
+export type LeadWorkspaceDto = {
+  lead: LeadDto;
+  quotations: Array<{
+    id: string;
+    title: string;
+    status: string;
+    amount: number | string;
+    version: number;
+    createdAt: string;
+    updatedAt: string;
+    clientName: string;
+  }>;
+  quotationSummary: {
+    total: LeadQuotationSummaryBucket;
+    internalPending: LeadQuotationSummaryBucket;
+    clientNegotiation: LeadQuotationSummaryBucket;
+    clientAccepted: LeadQuotationSummaryBucket;
+  };
+  followUps: NonNullable<LeadDto["followUps"]>;
+  counts: {
+    quotations: number;
+    followUps: number;
+    deals: number;
+  };
 };
 
 export const leadsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<LeadDto>>("/leads", query),
   get: (id: string) => api.get<LeadDto>(`/leads/${id}`),
+  getWorkspace: (id: string) =>
+    api.get<LeadWorkspaceDto>(`/leads/${id}/workspace`),
   create: (body: Record<string, unknown>) => api.post<LeadDto>("/leads", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.put<LeadDto>(`/leads/${id}`, body),
   remove: (id: string) => api.delete<{ id: string }>(`/leads/${id}`),
   addFollowUp: (id: string, body: Record<string, unknown>) =>
     api.post(`/leads/${id}/follow-ups`, body),
+  bulkUpdate: (body: {
+    leadIds: string[];
+    action: string;
+    assigneeIds?: string[];
+    status?: string;
+    source?: string;
+    projectType?: string;
+  }) => api.post<{ updated: number }>("/leads/bulk", body),
 };
 
 export type CustomerDto = {
@@ -142,8 +191,33 @@ export type DashboardDto = {
     projects: number;
     activeProjects: number;
     quotations: number;
+    quotationsSent: number;
     revenueCollected: number | string;
+    revenueThisMonth: number | string;
+    pendingPayments: number | string;
+    pendingPaymentCount: number;
+    warrantyOpen: number;
+    warrantyOverdue: number;
   };
+  pipeline: Array<{ stage: string; count: number }>;
+  storePerformance: Array<{
+    id: string;
+    store: string;
+    city: string;
+    leads: number;
+    projects: number;
+    revenue: number;
+    conversion: string;
+  }>;
+  followUpsDue: Array<{
+    id: string;
+    leadId: string;
+    client: string;
+    store: string;
+    type: string;
+    when: string;
+    overdue: boolean;
+  }>;
   recentLeads: LeadDto[];
   recentProjects: Array<{
     id: string;
@@ -154,11 +228,70 @@ export type DashboardDto = {
     store?: { id: string; name: string } | null;
     assignedTo?: { id: string; name: string } | null;
   }>;
+  recentQuotations: Array<{
+    id: string;
+    title: string;
+    client: string;
+    amount: number;
+    status: string;
+    store?: { id: string; name: string } | null;
+    createdAt: string;
+  }>;
 };
 
 export const dashboardApi = {
   get: (storeId?: string) =>
     api.get<DashboardDto>("/dashboard", storeId ? { storeId } : undefined),
+};
+
+export type DesignGenerationDto = {
+  id: string;
+  mode: "designing" | "elevation";
+  style: string;
+  scope: string;
+  userPrompt?: string | null;
+  enrichedPrompt?: string | null;
+  analysis?: string | null;
+  sourceImageUrl?: string | null;
+  resultImageUrl: string;
+  createdAt: string;
+};
+
+export const designApi = {
+  history: () => api.get<DesignGenerationDto[]>("/design/history"),
+  generate: async (payload: {
+    mode: "designing" | "elevation";
+    style: string;
+    scope: string;
+    prompt?: string;
+    image: File;
+  }) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("mode", payload.mode);
+    form.append("style", payload.style);
+    form.append("scope", payload.scope);
+    if (payload.prompt?.trim()) form.append("prompt", payload.prompt.trim());
+    form.append("image", payload.image);
+
+    const res = await fetch(`${base}/design/generate`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        json?.error?.message || json?.message || "Image generation failed"
+      );
+    }
+    return json.data as DesignGenerationDto;
+  },
 };
 
 export const projectsApi = {
@@ -173,6 +306,7 @@ export const projectsApi = {
 export const quotationsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/quotations", query),
+  get: (id: string) => api.get<Record<string, unknown>>(`/quotations/${id}`),
   create: (body: Record<string, unknown>) => api.post("/quotations", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/quotations/${id}`, body),
@@ -238,11 +372,57 @@ export const usersApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<AuthUser>>("/users", query),
   get: (id: string) => api.get<AuthUser>(`/users/${id}`),
+  listRoles: () =>
+    api.get<
+      Array<{
+        key: string;
+        label: string;
+        global: boolean;
+        description: string;
+        permissions: string[];
+      }>
+    >("/users/roles"),
+  listGroups: () =>
+    api.get<{
+      stores: Array<{
+        id: string;
+        name: string;
+        code: string;
+        _count: { users: number };
+      }>;
+      unassignedActiveUsers: number;
+    }>("/users/groups"),
   create: (body: Record<string, unknown>) =>
     api.post<AuthUser>("/users", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.put<AuthUser>(`/users/${id}`, body),
+  deactivate: (id: string) => api.patch<AuthUser>(`/users/${id}/deactivate`),
+  activate: (id: string) => api.patch<AuthUser>(`/users/${id}/activate`),
   remove: (id: string) => api.delete<{ id: string }>(`/users/${id}`),
+};
+
+export const rolesApi = {
+  listPermissions: () =>
+    api.get<
+      Array<{
+        id: string;
+        label: string;
+        description: string;
+        permissions: Array<{ key: string; label: string; hint: string }>;
+      }>
+    >("/roles/permissions/catalog"),
+  list: () => api.get<import("@/lib/permissions").AccessRoleDto[]>("/roles"),
+  get: (id: string) =>
+    api.get<import("@/lib/permissions").AccessRoleDto>(`/roles/${id}`),
+  create: (body: Record<string, unknown>) =>
+    api.post<import("@/lib/permissions").AccessRoleDto>("/roles", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<import("@/lib/permissions").AccessRoleDto>(`/roles/${id}`, body),
+  duplicate: (id: string) =>
+    api.post<import("@/lib/permissions").AccessRoleDto>(
+      `/roles/${id}/duplicate`
+    ),
+  remove: (id: string) => api.delete<{ id: string }>(`/roles/${id}`),
 };
 
 export type SettingDto = {
@@ -257,8 +437,168 @@ export type SettingDto = {
 export const settingsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<SettingDto>>("/settings", query),
-  getByKey: (key: string) => api.get<SettingDto>(`/settings/key/${encodeURIComponent(key)}`),
+  getByKey: (key: string) =>
+    api.get<SettingDto>(`/settings/key/${encodeURIComponent(key)}`),
   upsertByKey: (key: string, value: unknown) =>
     api.put<SettingDto>(`/settings/key/${encodeURIComponent(key)}`, { value }),
   remove: (id: string) => api.delete<{ id: string }>(`/settings/${id}`),
+  /** @deprecated Prefer quotationCatalogsApi.getBundle — still backed by relational DB */
+  getQuotationCatalogs: () =>
+    api.get<SettingDto>("/settings/quotation-catalogs"),
+  /** @deprecated Prefer quotationCatalogsApi.saveBundle */
+  saveQuotationCatalogs: (value: unknown) =>
+    api.put<SettingDto>("/settings/quotation-catalogs", { value }),
+  getQuotationSettings: () =>
+    api.get<SettingDto>("/settings/quotation-settings"),
+  /** @deprecated Prefer quotationSettingsApi.saveProfile */
+  saveQuotationSettings: (value: unknown) =>
+    api.put<SettingDto>("/settings/quotation-settings", { value }),
+};
+
+export type QuotationCatalogBundle = {
+  catalogs: Array<Record<string, unknown>>;
+  categories: Array<Record<string, unknown>>;
+  uoms: Array<Record<string, unknown>>;
+};
+
+export const quotationCatalogsApi = {
+  getBundle: () =>
+    api.get<QuotationCatalogBundle>("/quotation-catalogs/bundle"),
+  saveBundle: (value: unknown) =>
+    api.put<QuotationCatalogBundle>("/quotation-catalogs/bundle", value),
+  get: (id: string) =>
+    api.get<Record<string, unknown>>(`/quotation-catalogs/${id}`),
+  create: (body: unknown) =>
+    api.post<Record<string, unknown>>("/quotation-catalogs", body),
+  update: (id: string, body: unknown) =>
+    api.put<Record<string, unknown>>(`/quotation-catalogs/${id}`, body),
+  remove: (id: string) =>
+    api.delete<{ id: string; deletedItems?: number; catalogName?: string }>(
+      `/quotation-catalogs/${id}`
+    ),
+  createCategory: (body: unknown) =>
+    api.post<Record<string, unknown>>("/quotation-catalogs/categories", body),
+  updateCategory: (id: string, body: unknown) =>
+    api.put<Record<string, unknown>>(
+      `/quotation-catalogs/categories/${id}`,
+      body
+    ),
+  removeCategory: (id: string) =>
+    api.delete<{ id: string }>(`/quotation-catalogs/categories/${id}`),
+  createUom: (body: unknown) =>
+    api.post<Record<string, unknown>>("/quotation-catalogs/uoms", body),
+  updateUom: (id: string, body: unknown) =>
+    api.put<Record<string, unknown>>(`/quotation-catalogs/uoms/${id}`, body),
+  removeUom: (id: string) =>
+    api.delete<{ id: string }>(`/quotation-catalogs/uoms/${id}`),
+  saveItem: (catalogId: string, body: unknown) =>
+    api.post<Record<string, unknown>>(
+      `/quotation-catalogs/${catalogId}/items`,
+      body
+    ),
+  deleteItem: (catalogId: string, itemId: string) =>
+    api.delete<{ id: string }>(
+      `/quotation-catalogs/${catalogId}/items/${itemId}`
+    ),
+};
+
+export type QuotationTemplateDto = {
+  id: string;
+  name: string;
+  font: string;
+  colours: string[];
+  isDefault?: boolean;
+  watermarkUrl?: string | null;
+  layout?: unknown[];
+};
+
+export type QuotationTemplateDetailDto = QuotationTemplateDto & {
+  watermarkUrl: string | null;
+  layout: unknown[];
+};
+
+export type QuotationSettingsBundle = {
+  templates: QuotationTemplateDto[];
+  config: Record<string, unknown>;
+  modular: Record<string, unknown>;
+  approval: Record<string, unknown>;
+};
+
+export const quotationSettingsApi = {
+  getBundle: () =>
+    api.get<QuotationSettingsBundle>("/quotation-settings/bundle"),
+  saveProfile: (body: {
+    config?: Record<string, unknown>;
+    modular?: Record<string, unknown>;
+    approval?: Record<string, unknown>;
+  }) => api.put<QuotationSettingsBundle>("/quotation-settings/bundle", body),
+  createTemplate: (body: {
+    name: string;
+    font?: string;
+    colours?: string[];
+    isDefault?: boolean;
+  }) =>
+    api.post<QuotationTemplateDto>("/quotation-settings/templates", body),
+  updateTemplate: (
+    id: string,
+    body: {
+      name?: string;
+      font?: string;
+      colours?: string[];
+      isDefault?: boolean;
+    }
+  ) =>
+    api.put<QuotationTemplateDto>(`/quotation-settings/templates/${id}`, body),
+  setDefaultTemplate: (id: string) =>
+    api.put<QuotationTemplateDto>(
+      `/quotation-settings/templates/${id}/default`,
+      {}
+    ),
+  deleteTemplate: (id: string) =>
+    api.delete<{ id: string; message?: string }>(
+      `/quotation-settings/templates/${id}`
+    ),
+  getTemplate: (id: string) =>
+    api.get<QuotationTemplateDetailDto>(`/quotation-settings/templates/${id}`),
+  updateTemplateDesign: (
+    id: string,
+    body: {
+      name?: string;
+      font?: string;
+      colours?: string[];
+      layout?: unknown[];
+      watermarkUrl?: string | null;
+    }
+  ) =>
+    api.put<QuotationTemplateDetailDto>(
+      `/quotation-settings/templates/${id}/design`,
+      body
+    ),
+  uploadWatermark: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("watermark", file);
+    const res = await fetch(
+      `${base}/quotation-settings/templates/${id}/watermark`,
+      {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      }
+    );
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(payload?.error?.message || payload?.message || "Upload failed");
+    }
+    return payload.data as QuotationTemplateDetailDto;
+  },
+  removeWatermark: (id: string) =>
+    api.delete<QuotationTemplateDetailDto>(
+      `/quotation-settings/templates/${id}/watermark`
+    ),
 };

@@ -295,19 +295,27 @@ export default function CustomersTable() {
     (async () => {
       try {
         setLoading(true);
-        const [customerData, storeData] = await Promise.all([
+        const [customerData, storeData] = await Promise.allSettled([
           customersApi.list({ limit: 100 }),
           storesApi.list({ limit: 100 }),
         ]);
         if (cancelled) return;
-        setStoreOptions(
-          storeData.items.map((s) => ({ id: s.id, name: s.name }))
-        );
-        if (storeData.items[0]) {
-          setForm((prev) => ({ ...prev, store: storeData.items[0].name }));
+
+        if (customerData.status === "rejected") {
+          throw customerData.reason;
         }
+
+        if (storeData.status === "fulfilled") {
+          setStoreOptions(
+            storeData.value.items.map((s) => ({ id: s.id, name: s.name }))
+          );
+          if (storeData.value.items[0]) {
+            setForm((prev) => ({ ...prev, store: storeData.value.items[0].name }));
+          }
+        }
+
         setCustomers(
-          customerData.items.map((dto: CustomerDto): Customer => ({
+          customerData.value.items.map((dto: CustomerDto): Customer => ({
             id: dto.id,
             name: dto.name,
             phone: dto.phone,

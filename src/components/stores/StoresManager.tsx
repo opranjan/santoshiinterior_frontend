@@ -29,9 +29,16 @@ type Store = {
   staffCount: number;
   openLeads: number;
   activeProjects: number;
+  quotationCount: number;
   monthlyRevenue: number;
   status: StoreStatus;
   openedOn: string;
+};
+
+type ConfirmAction = {
+  type: "delete" | "close" | "reopen";
+  storeId: string;
+  storeName: string;
 };
 
 const mapStore = (dto: StoreDto): Store => {
@@ -52,9 +59,10 @@ const mapStore = (dto: StoreDto): Store => {
     phone: dto.phone,
     email: dto.email || "",
     manager: dto.manager?.name || "Unassigned",
-    staffCount: 0,
-    openLeads: 0,
-    activeProjects: 0,
+    staffCount: dto._count?.users ?? 0,
+    openLeads: dto._count?.leads ?? 0,
+    activeProjects: dto._count?.projects ?? 0,
+    quotationCount: dto._count?.quotations ?? 0,
     monthlyRevenue: 0,
     status,
     openedOn: toIsoDate(dto.openedOn) || "",
@@ -95,6 +103,16 @@ export default function StoresManager() {
   const [statusFilter, setStatusFilter] = useState<"All" | StoreStatus>("All");
   const [view, setView] = useState<"cards" | "table">("cards");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
+    null
+  );
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const flash = (msg: string) => {
+    setNotice(msg);
+    window.setTimeout(() => setNotice(""), 2500);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -164,13 +182,147 @@ export default function StoresManager() {
     );
     try {
       await storesApi.update(id, { status: labelToEnum(status) });
-    } catch {
+      flash(
+        status === "Inactive"
+          ? "Store closed"
+          : status === "Active"
+            ? "Store reopened"
+            : "Store status updated"
+      );
+    } catch (err) {
       setStores(prev);
+      setError(err instanceof Error ? err.message : "Failed to update status");
     }
   };
 
+  const runConfirmAction = async () => {
+    if (!confirmAction) return;
+    setActionBusy(true);
+    setError("");
+    const { type, storeId, storeName } = confirmAction;
+    const prev = stores;
+    try {
+      if (type === "delete") {
+        await storesApi.remove(storeId);
+        setStores((current) => current.filter((s) => s.id !== storeId));
+        if (selectedId === storeId) setSelectedId(null);
+        flash(`Deleted “${storeName}”`);
+      } else {
+        const nextStatus: StoreStatus =
+          type === "close" ? "Inactive" : "Active";
+        setStores((current) =>
+          current.map((s) =>
+            s.id === storeId ? { ...s, status: nextStatus } : s
+          )
+        );
+        await storesApi.update(storeId, { status: labelToEnum(nextStatus) });
+        flash(
+          type === "close"
+            ? `Closed “${storeName}”`
+            : `Reopened “${storeName}”`
+        );
+      }
+      setConfirmAction(null);
+    } catch (err) {
+      setStores(prev);
+      setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const storeLeadsHref = (id: string) => `/sales/leads?storeId=${id}`;
+  const storeTeamHref = (id: string) => `/settings/team?storeId=${id}`;
+
+  const renderStoreActions = (store: Store, compact = false) => (
+    <div className={`flex flex-wrap items-center gap-1 ${compact ? "" : "gap-2"}`}>
+      <button
+        type="button"
+        onClick={() => setSelectedId(store.id)}
+        className="text-sm font-medium text-brand-500 hover:text-brand-600"
+      >
+        View
+      </button>
+      <span className="text-gray-300 dark:text-gray-600">·</span>
+      <Link
+        href={`/stores/new?edit=${store.id}`}
+        className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
+      >
+        Edit
+      </Link>
+      <span className="text-gray-300 dark:text-gray-600">·</span>
+      <Link
+        href={storeLeadsHref(store.id)}
+        className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
+      >
+        Leads
+      </Link>
+      <span className="text-gray-300 dark:text-gray-600">·</span>
+      <Link
+        href={storeTeamHref(store.id)}
+        className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
+      >
+        Team
+      </Link>
+      {store.status !== "Inactive" ? (
+        <>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <button
+            type="button"
+            onClick={() =>
+              setConfirmAction({
+                type: "close",
+                storeId: store.id,
+                storeName: store.name,
+              })
+            }
+            className="text-sm font-medium text-amber-600 hover:text-amber-700"
+          >
+            Close
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="text-gray-300 dark:text-gray-600">·</span>
+          <button
+            type="button"
+            onClick={() =>
+              setConfirmAction({
+                type: "reopen",
+                storeId: store.id,
+                storeName: store.name,
+              })
+            }
+            className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+          >
+            Reopen
+          </button>
+        </>
+      )}
+      <span className="text-gray-300 dark:text-gray-600">·</span>
+      <button
+        type="button"
+        onClick={() =>
+          setConfirmAction({
+            type: "delete",
+            storeId: store.id,
+            storeName: store.name,
+          })
+        }
+        className="text-sm font-medium text-error-500 hover:text-error-600"
+      >
+        Delete
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
+      {notice && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+          {notice}
+        </div>
+      )}
       {error && (
         <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10">
           {error}
@@ -347,35 +499,8 @@ export default function StoresManager() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-800">
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(store.id)}
-                  className="text-sm font-medium text-brand-500 hover:text-brand-600"
-                >
-                  View
-                </button>
-                <span className="text-gray-300 dark:text-gray-600">·</span>
-                <Link
-                  href={`/stores/new?edit=${store.id}`}
-                  className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
-                >
-                  Edit
-                </Link>
-                <span className="text-gray-300 dark:text-gray-600">·</span>
-                <Link
-                  href="/sales/leads"
-                  className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
-                >
-                  Leads
-                </Link>
-                <span className="text-gray-300 dark:text-gray-600">·</span>
-                <Link
-                  href="/settings/team"
-                  className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
-                >
-                  Team
-                </Link>
+              <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-800">
+                {renderStoreActions(store)}
               </div>
             </div>
           ))}
@@ -477,21 +602,7 @@ export default function StoresManager() {
                         </div>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-start">
-                        <div className="flex flex-col gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId(store.id)}
-                            className="text-left text-sm font-medium text-brand-500 hover:text-brand-600"
-                          >
-                            View
-                          </button>
-                          <Link
-                            href={`/stores/new?edit=${store.id}`}
-                            className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
-                          >
-                            Edit
-                          </Link>
-                        </div>
+                        {renderStoreActions(store, true)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -549,6 +660,7 @@ export default function StoresManager() {
                 ["Staff", String(selected.staffCount)],
                 ["Open Leads", String(selected.openLeads)],
                 ["Active Projects", String(selected.activeProjects)],
+                ["Quotations", String(selected.quotationCount)],
                 ["Monthly Revenue", formatINR(selected.monthlyRevenue)],
                 ["Opened On", formatDate(selected.openedOn)],
               ].map(([label, value]) => (
@@ -567,28 +679,137 @@ export default function StoresManager() {
                   Edit Store
                 </Button>
               </Link>
-              <Link href="/sales/leads">
+              <Link href={storeLeadsHref(selected.id)}>
                 <Button size="sm" variant="outline" className="w-full">
-                  View Store Leads
+                  View Store Leads ({selected.openLeads})
                 </Button>
               </Link>
-              <Link href="/settings/team">
+              <Link href={storeTeamHref(selected.id)}>
                 <Button size="sm" variant="outline" className="w-full">
-                  Manage Team
+                  Manage Team ({selected.staffCount})
                 </Button>
               </Link>
+              {selected.status !== "Inactive" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-amber-700"
+                  onClick={() =>
+                    setConfirmAction({
+                      type: "close",
+                      storeId: selected.id,
+                      storeName: selected.name,
+                    })
+                  }
+                >
+                  Close Store
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-emerald-700"
+                  onClick={() =>
+                    setConfirmAction({
+                      type: "reopen",
+                      storeId: selected.id,
+                      storeName: selected.name,
+                    })
+                  }
+                >
+                  Reopen Store
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-error-500"
+                onClick={() =>
+                  setConfirmAction({
+                    type: "delete",
+                    storeId: selected.id,
+                    storeName: selected.name,
+                  })
+                }
+              >
+                Delete Store
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
                 className="w-full"
                 onClick={() => setSelectedId(null)}
               >
-                Close
+                Dismiss
               </Button>
             </div>
           </div>
         </div>
       )}
+
+      {confirmAction ? (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white/90">
+              {confirmAction.type === "delete"
+                ? "Delete store?"
+                : confirmAction.type === "close"
+                  ? "Close store?"
+                  : "Reopen store?"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {confirmAction.type === "delete" ? (
+                <>
+                  Permanently delete <strong>{confirmAction.storeName}</strong>?
+                  This only works if the store has no leads, projects,
+                  quotations, or team members.
+                </>
+              ) : confirmAction.type === "close" ? (
+                <>
+                  Close <strong>{confirmAction.storeName}</strong>? It will be
+                  marked inactive and hidden from active operations. You can
+                  reopen it later.
+                </>
+              ) : (
+                <>
+                  Reopen <strong>{confirmAction.storeName}</strong> and mark it
+                  active again?
+                </>
+              )}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => setConfirmAction(null)}
+                className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => void runConfirmAction()}
+                className={`inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-white disabled:opacity-50 ${
+                  confirmAction.type === "delete"
+                    ? "bg-error-500 hover:bg-error-600"
+                    : confirmAction.type === "close"
+                      ? "bg-amber-600 hover:bg-amber-700"
+                      : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {actionBusy
+                  ? "Please wait…"
+                  : confirmAction.type === "delete"
+                    ? "Delete store"
+                    : confirmAction.type === "close"
+                      ? "Close store"
+                      : "Reopen store"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

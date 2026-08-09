@@ -12,6 +12,10 @@ import Button from "@/components/ui/button/Button";
 import { ChevronDownIcon } from "@/icons/index";
 import { leadsApi, storesApi } from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
+import {
+  formatProjectLabel,
+  randomProjectCode,
+} from "@/lib/leadProjectLabel";
 
 const leadSourceOptions = [
   { value: "Walk-in", label: "Walk-in" },
@@ -82,7 +86,9 @@ export default function LeadForm() {
   const [storeId, setStoreId] = useState("");
   const [source, setSource] = useState("");
   const [clientAddress, setClientAddress] = useState("");
-  const [projectName, setProjectName] = useState("");
+  const [projectName, setProjectName] = useState(() =>
+    formatProjectLabel(randomProjectCode())
+  );
   const [status, setStatus] = useState("NEW");
   const [budget, setBudget] = useState("");
   const [scope, setScope] = useState("");

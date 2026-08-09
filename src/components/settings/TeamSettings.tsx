@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
@@ -116,6 +118,8 @@ function mapUser(user: AuthUser): TeamMember {
 }
 
 export default function TeamSettings() {
+  const searchParams = useSearchParams();
+  const storeFilterId = searchParams.get("storeId") || "";
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [storeOptions, setStoreOptions] = useState<
     Array<{ id: string; name: string }>
@@ -139,11 +143,15 @@ export default function TeamSettings() {
     setError("");
     try {
       const [users, stores] = await Promise.all([
-        usersApi.list({ limit: 100 }),
+        usersApi.list({
+          limit: 100,
+          ...(storeFilterId ? { storeId: storeFilterId } : {}),
+        }),
         storesApi.list({ limit: 100 }),
       ]);
       setStoreOptions(stores.items.map((s) => ({ id: s.id, name: s.name })));
       setMembers(users.items.map(mapUser));
+      if (storeFilterId) setInviteStoreId(storeFilterId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load team");
     } finally {
@@ -153,7 +161,7 @@ export default function TeamSettings() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [storeFilterId]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -284,6 +292,23 @@ export default function TeamSettings() {
           {notice}
         </div>
       )}
+      {storeFilterId ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
+          <span className="text-gray-700 dark:text-gray-300">
+            Showing team members for store:{" "}
+            <strong className="text-gray-900 dark:text-white/90">
+              {storeOptions.find((s) => s.id === storeFilterId)?.name ||
+                "Selected store"}
+            </strong>
+          </span>
+          <Link
+            href="/settings/team"
+            className="font-medium text-brand-600 hover:text-brand-700"
+          >
+            View all team
+          </Link>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>

@@ -44,8 +44,11 @@ export type Quotation = {
   status: QuotationStatus;
   validTill: string;
   createdAt: string;
+  updatedAt?: string;
   createdBy: string;
   version: number;
+  itemCount?: number;
+  isModular?: boolean;
 };
 
 const statusColor: Record<

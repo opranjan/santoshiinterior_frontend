@@ -8,9 +8,24 @@ export type AuthUser = {
   email: string;
   phone?: string | null;
   role: string;
+  roleLabel?: string | null;
+  dateOfBirth?: string | null;
+  managerId?: string | null;
+  manager?: { id: string; name: string } | null;
+  accessRoleId?: string | null;
+  accessRole?: {
+    id: string;
+    key: string;
+    label: string;
+    isGlobal: boolean;
+    baseRole: string;
+    permissions?: string[];
+  } | null;
   storeId?: string | null;
   isActive?: boolean;
   avatarUrl?: string | null;
+  lastLoginAt?: string | null;
+  lastActiveAt?: string | null;
   store?: { id: string; name: string; code: string } | null;
 };
 

@@ -8,12 +8,14 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import TextArea from "@/components/form/input/TextArea";
 import Button from "@/components/ui/button/Button";
-import { storesApi } from "@/services/crmApi";
+import { storesApi, usersApi } from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
 import { labelToEnum } from "@/lib/mappers";
 
 const selectClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+
+type ManagerOption = { id: string; name: string };
 
 export default function StoreForm() {
   const router = useRouter();
@@ -29,6 +31,8 @@ export default function StoreForm() {
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [managerId, setManagerId] = useState("");
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [status, setStatus] = useState("Active");
   const [openedOn, setOpenedOn] = useState("");
   const [gstin, setGstin] = useState("");
@@ -39,6 +43,21 @@ export default function StoreForm() {
   const [savedMsg, setSavedMsg] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busyAction, setBusyAction] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const users = await usersApi.list({ limit: 100 });
+        setManagers(
+          users.items.map((u) => ({ id: u.id, name: u.name || u.email }))
+        );
+      } catch {
+        /* optional */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!editId) return;
@@ -53,6 +72,7 @@ export default function StoreForm() {
         setAddress(store.address || "");
         setPhone(store.phone);
         setEmail(store.email || "");
+        setManagerId(store.managerId || "");
         setStatus(
           store.status === "COMING_SOON"
             ? "Coming Soon"
@@ -70,6 +90,32 @@ export default function StoreForm() {
     })();
   }, [editId]);
 
+  const buildPayload = () => {
+    const openedOnValue =
+      openedOn &&
+      /^\d{4}-\d{2}-\d{2}$/.test(openedOn) &&
+      Number(openedOn.slice(0, 4)) >= 1900
+        ? `${openedOn}T00:00:00.000Z`
+        : null;
+
+    return {
+      name: name.trim(),
+      code: code.trim().toUpperCase(),
+      city: city.trim(),
+      state,
+      pincode: pincode || null,
+      address: address || null,
+      phone: phone.trim(),
+      email: email || null,
+      managerId: managerId || null,
+      status: labelToEnum(status),
+      openedOn: openedOnValue,
+      gstin: gstin || null,
+      workingHours: workingHours || null,
+      notes: notes || null,
+    };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavedMsg("");
@@ -84,28 +130,7 @@ export default function StoreForm() {
     }
 
     setLoading(true);
-
-    // HTML date inputs can produce invalid years; only send a real YYYY-MM-DD
-    const openedOnValue =
-      openedOn && /^\d{4}-\d{2}-\d{2}$/.test(openedOn) && Number(openedOn.slice(0, 4)) >= 1900
-        ? `${openedOn}T00:00:00.000Z`
-        : null;
-
-    const payload = {
-      name: name.trim(),
-      code: code.trim().toUpperCase(),
-      city: city.trim(),
-      state,
-      pincode: pincode || null,
-      address: address || null,
-      phone: phone.trim(),
-      email: email || null,
-      status: labelToEnum(status),
-      openedOn: openedOnValue,
-      gstin: gstin || null,
-      workingHours: workingHours || null,
-      notes: notes || null,
-    };
+    const payload = buildPayload();
 
     try {
       if (isEdit && editId) {
@@ -120,6 +145,51 @@ export default function StoreForm() {
       setError(err instanceof ApiError ? err.message : "Failed to save store");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const closeStore = async () => {
+    if (!editId) return;
+    setBusyAction(true);
+    setError("");
+    try {
+      await storesApi.update(editId, { status: "INACTIVE" });
+      setStatus("Inactive");
+      setSavedMsg("Store closed successfully.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to close store");
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const reopenStore = async () => {
+    if (!editId) return;
+    setBusyAction(true);
+    setError("");
+    try {
+      await storesApi.update(editId, { status: "ACTIVE" });
+      setStatus("Active");
+      setSavedMsg("Store reopened successfully.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to reopen store");
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const deleteStore = async () => {
+    if (!editId) return;
+    setBusyAction(true);
+    setError("");
+    try {
+      await storesApi.remove(editId);
+      router.push("/stores");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete store");
+      setConfirmDelete(false);
+    } finally {
+      setBusyAction(false);
     }
   };
 
@@ -160,8 +230,23 @@ export default function StoreForm() {
               className={selectClass}
             >
               <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="Inactive">Inactive (Closed)</option>
               <option value="Coming Soon">Coming Soon</option>
+            </select>
+          </div>
+          <div>
+            <Label>Store Manager</Label>
+            <select
+              value={managerId}
+              onChange={(e) => setManagerId(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Unassigned</option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -265,6 +350,51 @@ export default function StoreForm() {
         </div>
       </ComponentCard>
 
+      {isEdit ? (
+        <ComponentCard
+          title="Store Operations"
+          desc="Close, reopen, or permanently remove this store location."
+        >
+          <div className="flex flex-wrap gap-3">
+            {status !== "Inactive" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busyAction}
+                onClick={() => void closeStore()}
+              >
+                Close Store
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busyAction}
+                onClick={() => void reopenStore()}
+              >
+                Reopen Store
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="text-error-500"
+              disabled={busyAction}
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete Store
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            Closing marks the store inactive. Delete only works when there are
+            no linked leads, projects, quotations, or team members.
+          </p>
+        </ComponentCard>
+      ) : null}
+
       {(error || savedMsg) && (
         <p className={`text-sm ${error ? "text-error-500" : "text-success-600"}`}>
           {error || savedMsg}
@@ -281,6 +411,36 @@ export default function StoreForm() {
           </Button>
         </Link>
       </div>
+
+      {confirmDelete ? (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-semibold text-gray-900">Delete store?</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Permanently delete <strong>{name || "this store"}</strong>? This
+              cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={busyAction}
+                onClick={() => setConfirmDelete(false)}
+                className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busyAction}
+                onClick={() => void deleteStore()}
+                className="inline-flex h-10 items-center rounded-lg bg-error-500 px-4 text-sm font-medium text-white hover:bg-error-600"
+              >
+                {busyAction ? "Deleting…" : "Delete store"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }

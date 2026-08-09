@@ -754,3 +754,185 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+
+/* Quotation maker — print / Save as PDF (layout only, no app chrome) */
+@media print {
+  @page {
+    margin: 8mm;
+    size: A4 portrait;
+  }
+
+  html,
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html.quotation-printing .no-print,
+  .quotation-printing .no-print,
+  .quotation-print-sheet .no-print {
+    display: none !important;
+  }
+
+  /* Always strip editor chrome from the quotation document in PDF */
+  .quotation-print-sheet .maker-upload-slot,
+  .quotation-print-sheet [class*="border-dashed"] {
+    border: none !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background: transparent !important;
+  }
+
+  .quotation-print-sheet .group {
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  .quotation-print-sheet [class*="ring-"] {
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  .quotation-print-sheet .maker-image-frame,
+  .quotation-print-sheet .maker-upload-slot {
+    overflow: hidden !important;
+  }
+
+  .quotation-print-sheet .maker-upload-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  html.quotation-printing,
+  html.quotation-printing body,
+  html.quotation-printing .min-h-screen,
+  html.quotation-printing .admin-main-content,
+  html.quotation-printing .admin-page-content,
+  html.quotation-printing .quotation-maker-shell,
+  html.quotation-printing .quotation-print-wrap,
+  html.quotation-printing main,
+  html.quotation-printing .overflow-auto,
+  html.quotation-printing .overflow-x-auto,
+  html.quotation-printing .overflow-y-auto,
+  html.quotation-printing .custom-scrollbar {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  html.quotation-printing ::-webkit-scrollbar,
+  html.quotation-printing ::-webkit-scrollbar-thumb,
+  html.quotation-printing ::-webkit-scrollbar-track {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+
+  html.quotation-printing .admin-main-content {
+    margin-left: 0 !important;
+    max-width: none !important;
+  }
+
+  html.quotation-printing .admin-page-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  html.quotation-printing .quotation-maker-shell {
+    margin: 0 !important;
+    min-height: auto !important;
+    background: white !important;
+  }
+
+  html.quotation-printing .quotation-print-wrap {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  html.quotation-printing .quotation-print-sheet {
+    box-shadow: none !important;
+    max-width: none !important;
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  html.quotation-printing .print-page-break,
+  html.quotation-printing .print-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  html.quotation-printing .print-break-after {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  html.quotation-printing .quotation-print-sheet input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  html.quotation-printing .quotation-print-sheet table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  html.quotation-printing .quotation-print-sheet th,
+  html.quotation-printing .quotation-print-sheet td {
+    border: 1px solid #111 !important;
+  }
+
+  html.quotation-printing [class*="ring-"] {
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  /* Remove editor dashed upload outlines and block chrome in PDF */
+  html.quotation-printing .quotation-print-sheet [class*="border-dashed"],
+  html.quotation-printing .quotation-print-sheet [class*="ring-"] {
+    border-style: none !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  html.quotation-printing .quotation-print-sheet [contenteditable="true"] {
+    outline: none !important;
+  }
+
+  html.quotation-printing .quotation-print-sheet button {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html.quotation-printing .quotation-print-sheet img {
+    border: none !important;
+  }
+
+  html.quotation-printing * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  html.quotation-printing *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}

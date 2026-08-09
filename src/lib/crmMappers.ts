@@ -40,8 +40,22 @@ export function mapQuotation(dto: Record<string, unknown>) {
     status: enumToLabel(String(dto.status || "DRAFT")),
     validTill: formatDate(dto.validTill as string | null),
     createdAt: formatDate(dto.createdAt as string | null),
+    updatedAt: formatDate(
+      (dto.updatedAt as string | null) || (dto.createdAt as string | null)
+    ),
     createdBy: mapUserName(createdBy),
     version: Number(dto.version || 1),
+    itemCount: Array.isArray(dto.items)
+      ? dto.items.length
+      : Number(dto.itemCount || 0),
+    isModular:
+      Boolean(dto.isModular) ||
+      String(dto.projectType || "")
+        .toLowerCase()
+        .includes("modular") ||
+      String(dto.notes || "")
+        .toLowerCase()
+        .includes("modular"),
   };
 }
 
