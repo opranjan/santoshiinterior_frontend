@@ -125,12 +125,20 @@ export function elementToFlowBlock(kind: TemplateElementKind): FlowBlock {
     };
   }
   if (kind === "customProjectDetails") {
-    const block = createFlowBlock("richtext");
-    return { ...block, title: "Project Details", html: "<p>Project details</p>" };
+    return {
+      id: `blk-pd-${Date.now()}`,
+      type: "richtext",
+      title: "Project Details",
+      html: "<p>Project details</p>",
+    };
   }
   if (kind === "contentBlock") {
-    const block = createFlowBlock("richtext");
-    return { ...block, title: "Content", html: "<p>Content</p>" };
+    return {
+      id: `blk-cb-${Date.now()}`,
+      type: "richtext",
+      title: "Content",
+      html: "<p>Content</p>",
+    };
   }
   return createFlowBlock(mapped as Parameters<typeof createFlowBlock>[0]);
 }

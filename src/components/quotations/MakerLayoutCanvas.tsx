@@ -840,17 +840,14 @@ export default function MakerLayoutCanvas({
       body = (
         <div
           className={`${
-            block.pageBreak === "before" ||
-            (block.type === "image" && block.pageBreak === "before")
+            imgBlock.pageBreak === "before"
               ? "border-t-2 border-dashed border-[#E85D75]/50 pt-3 print:border-0 print:pt-0 print-break-before"
               : ""
           }${
-            block.type === "image" && block.pageBreak === "after"
-              ? " print-break-after"
-              : ""
+            imgBlock.pageBreak === "after" ? " print-break-after" : ""
           }`}
         >
-          {(block.type === "image" ? block.pageBreak : "none") === "before" ? (
+          {imgBlock.pageBreak === "before" ? (
             <p className="no-print mb-1 text-center text-[10px] font-medium uppercase tracking-wide text-[#E85D75]">
               Page break before
             </p>

@@ -1,7 +1,28 @@
 /**
  * Shared helpers for mapping CRM API DTOs into UI table shapes.
  */
+import type {
+  Quotation,
+  QuotationStatus,
+} from "@/components/quotations/QuotationsTable";
 import { enumToLabel, formatDate, materialCategoryToLabel, paymentMethodToLabel, warrantyTypeToLabel } from "@/lib/mappers";
+
+const QUOTATION_STATUSES: QuotationStatus[] = [
+  "Draft",
+  "Sent",
+  "Viewed",
+  "Accepted",
+  "Rejected",
+  "Revised",
+  "Expired",
+];
+
+function toQuotationStatus(value: string): QuotationStatus {
+  const label = enumToLabel(value);
+  return QUOTATION_STATUSES.includes(label as QuotationStatus)
+    ? (label as QuotationStatus)
+    : "Draft";
+}
 
 export function mapStoreName(
   store?: { name?: string } | null
@@ -21,7 +42,7 @@ export function toIsoDateOrNull(value?: string | null) {
   return value;
 }
 
-export function mapQuotation(dto: Record<string, unknown>) {
+export function mapQuotation(dto: Record<string, unknown>): Quotation {
   const store = dto.store as { name?: string } | null | undefined;
   const createdBy = dto.createdBy as { name?: string } | null | undefined;
   return {
@@ -29,7 +50,7 @@ export function mapQuotation(dto: Record<string, unknown>) {
     title: String(dto.title || ""),
     sourceType: (String(dto.sourceType || "LEAD") === "CLIENT"
       ? "Client"
-      : "Lead") as "Lead" | "Client",
+      : "Lead") as Quotation["sourceType"],
     sourceId: String(dto.leadId || dto.customerId || ""),
     clientName: String(dto.clientName || ""),
     phone: String(dto.phone || ""),
@@ -37,7 +58,7 @@ export function mapQuotation(dto: Record<string, unknown>) {
     store: mapStoreName(store),
     projectType: String(dto.projectType || ""),
     amount: Number(dto.amount || 0),
-    status: enumToLabel(String(dto.status || "DRAFT")),
+    status: toQuotationStatus(String(dto.status || "DRAFT")),
     validTill: formatDate(dto.validTill as string | null),
     createdAt: formatDate(dto.createdAt as string | null),
     updatedAt: formatDate(

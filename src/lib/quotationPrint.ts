@@ -185,7 +185,7 @@ function stripEditorChrome(root: ParentNode) {
       ? root
       : root.querySelector(".quotation-print-sheet");
 
-  if (sheet) {
+  if (sheet instanceof HTMLElement) {
     sheet.classList.remove("min-h-[720px]", "shadow-sm", "p-6", "sm:p-10", "max-w-[860px]", "mx-auto");
     sheet.style.minHeight = "0";
     sheet.style.padding = "0";
