@@ -253,6 +253,7 @@ export type DesignGenerationDto = {
   enrichedPrompt?: string | null;
   analysis?: string | null;
   sourceImageUrl?: string | null;
+  sourceImageUrls?: string[] | null;
   resultImageUrl: string;
   createdAt: string;
 };
@@ -264,7 +265,7 @@ export const designApi = {
     style: string;
     scope: string;
     prompt?: string;
-    image: File;
+    images: File[];
   }) => {
     const { tokenStorage } = await import("@/lib/auth");
     const base = (
@@ -276,7 +277,7 @@ export const designApi = {
     form.append("style", payload.style);
     form.append("scope", payload.scope);
     if (payload.prompt?.trim()) form.append("prompt", payload.prompt.trim());
-    form.append("image", payload.image);
+    payload.images.forEach((file) => form.append("image", file));
 
     const res = await fetch(`${base}/design/generate`, {
       method: "POST",

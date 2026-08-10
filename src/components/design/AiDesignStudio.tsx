@@ -11,6 +11,14 @@ type Props = {
   mode: AiStudioMode;
 };
 
+type SourcePreview = {
+  id: string;
+  file: File;
+  url: string;
+};
+
+const MAX_IMAGES = 6;
+
 const styles = [
   "Modern Minimal",
   "Contemporary",
@@ -31,9 +39,7 @@ export default function AiDesignStudio({ mode }: Props) {
     isDesign ? designScopes[0] : elevationScopes[0]
   );
   const [prompt, setPrompt] = useState("");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [sourceFile, setSourceFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState("");
+  const [sources, setSources] = useState<SourcePreview[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DesignGenerationDto | null>(null);
   const [history, setHistory] = useState<DesignGenerationDto[]>([]);
@@ -48,9 +54,11 @@ export default function AiDesignStudio({ mode }: Props) {
 
   useEffect(() => {
     return () => {
-      if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+      sources.forEach((item) => {
+        if (item.url.startsWith("blob:")) URL.revokeObjectURL(item.url);
+      });
     };
-  }, [previewUrl]);
+  }, [sources]);
 
   useEffect(() => {
     void designApi
@@ -61,18 +69,47 @@ export default function AiDesignStudio({ mode }: Props) {
       .catch(() => setHistory([]));
   }, [mode, result?.id]);
 
-  const setFile = (file?: File | null) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
-    setSourceFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setFileName(file.name);
+  const addFiles = (fileList?: FileList | File[] | null) => {
+    if (!fileList?.length) return;
+    const incoming = Array.from(fileList).filter((file) =>
+      file.type.startsWith("image/")
+    );
+    if (!incoming.length) return;
+
+    setSources((prev) => {
+      const remaining = MAX_IMAGES - prev.length;
+      if (remaining <= 0) return prev;
+      const next = incoming.slice(0, remaining).map((file) => ({
+        id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+        file,
+        url: URL.createObjectURL(file),
+      }));
+      return [...prev, ...next];
+    });
+    setResult(null);
+    setError("");
+  };
+
+  const removeSource = (id: string) => {
+    setSources((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target?.url.startsWith("blob:")) URL.revokeObjectURL(target.url);
+      return prev.filter((item) => item.id !== id);
+    });
+    setResult(null);
+  };
+
+  const clearSources = () => {
+    sources.forEach((item) => {
+      if (item.url.startsWith("blob:")) URL.revokeObjectURL(item.url);
+    });
+    setSources([]);
     setResult(null);
     setError("");
   };
 
   const generate = async () => {
-    if (!sourceFile || loading) return;
+    if (!sources.length || loading) return;
     try {
       setLoading(true);
       setError("");
@@ -81,7 +118,7 @@ export default function AiDesignStudio({ mode }: Props) {
         style,
         scope,
         prompt: prompt.trim() || defaultPrompt,
-        image: sourceFile,
+        images: sources.map((item) => item.file),
       });
       setResult(data);
     } catch (err) {
@@ -111,11 +148,11 @@ export default function AiDesignStudio({ mode }: Props) {
           {isDesign ? "AI Interior · ChatGPT" : "AI Elevation · ChatGPT"}
         </p>
         <h2 className="font-outfit mt-1 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
-          {isDesign ? "Design from one photo" : "Elevation from one photo"}
+          {isDesign ? "Design from your photos" : "Elevation from your photos"}
         </h2>
         <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
-          Upload a reference photo — GPT-4o analyzes it, DALL·E generates a
-          photorealistic concept saved to your design library.
+          Upload up to {MAX_IMAGES} reference photos, describe what you want, and
+          GPT-4o analyzes them before generating a photorealistic concept.
         </p>
       </div>
 
@@ -129,20 +166,24 @@ export default function AiDesignStudio({ mode }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-2">
           <div className="border-b border-gray-100 p-5 dark:border-gray-800 sm:p-7 lg:border-b-0 lg:border-r">
             <label className="mb-2 block text-sm font-medium text-gray-800 dark:text-white/90">
-              {isDesign ? "Room photo" : "Building photo"}
+              {isDesign ? "Room photos" : "Building photos"}{" "}
+              <span className="font-normal text-gray-400">
+                ({sources.length}/{MAX_IMAGES})
+              </span>
             </label>
             <input
               ref={fileRef}
               type="file"
               accept="image/png,image/jpeg,image/webp,image/jpg"
+              multiple
               className="hidden"
               onChange={(e) => {
-                setFile(e.target.files?.[0]);
+                addFiles(e.target.files);
                 e.target.value = "";
               }}
             />
 
-            {!previewUrl ? (
+            {sources.length === 0 ? (
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -154,7 +195,7 @@ export default function AiDesignStudio({ mode }: Props) {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragOver(false);
-                  setFile(e.dataTransfer.files?.[0]);
+                  addFiles(e.dataTransfer.files);
                 }}
                 className={`flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-12 text-center transition ${
                   dragOver
@@ -166,32 +207,69 @@ export default function AiDesignStudio({ mode }: Props) {
                   +
                 </span>
                 <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  Click or drop photo
+                  Click or drop photos
                 </span>
                 <span className="mt-1 text-xs text-gray-400">
-                  JPG or PNG · max 10 MB
+                  JPG, PNG, or WebP · up to {MAX_IMAGES} images · 10 MB each
                 </span>
               </button>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
-                <div className="relative aspect-[4/3] w-full bg-gray-100 dark:bg-gray-900">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={previewUrl}
-                    alt="Reference"
-                    className="absolute inset-0 h-full w-full object-contain"
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {sources.map((item) => (
+                    <div
+                      key={item.id}
+                      className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
+                    >
+                      <div className="aspect-square bg-gray-100 dark:bg-gray-900">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.url}
+                          alt={item.file.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeSource(item.id)}
+                        className="absolute right-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 transition group-hover:opacity-100"
+                      >
+                        Remove
+                      </button>
+                      <p className="truncate px-2 py-1 text-[10px] text-gray-500">
+                        {item.file.name}
+                      </p>
+                    </div>
+                  ))}
+
+                  {sources.length < MAX_IMAGES ? (
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-gray-400 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700"
+                    >
+                      <span className="text-xl">+</span>
+                      <span className="mt-1 text-[10px]">Add more</span>
+                    </button>
+                  ) : null}
                 </div>
-                <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2.5 dark:bg-white/[0.03]">
-                  <span className="truncate text-xs text-gray-600 dark:text-gray-400">
-                    {fileName}
-                  </span>
+
+                <div className="flex flex-wrap gap-2">
+                  {sources.length < MAX_IMAGES ? (
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                    >
+                      Add more photos
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-700"
+                    onClick={clearSources}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
                   >
-                    Change
+                    Clear all
                   </button>
                 </div>
               </div>
@@ -238,7 +316,7 @@ export default function AiDesignStudio({ mode }: Props) {
             </div>
 
             <label className="mb-2 mt-5 block text-sm font-medium text-gray-800 dark:text-white/90">
-              Your brief
+              Your prompt
             </label>
             <textarea
               rows={4}
@@ -247,12 +325,16 @@ export default function AiDesignStudio({ mode }: Props) {
               placeholder={defaultPrompt}
               className="w-full resize-none rounded-2xl border border-gray-200 bg-transparent px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              Describe colors, materials, layout changes, or mood. Leave blank to
+              use the default brief for your style and room.
+            </p>
 
             <Button
               size="sm"
               className="mt-4 w-full"
               onClick={() => void generate()}
-              disabled={!sourceFile || loading}
+              disabled={!sources.length || loading}
             >
               {loading
                 ? "Generating with ChatGPT…"
@@ -277,7 +359,7 @@ export default function AiDesignStudio({ mode }: Props) {
                 {result
                   ? `${result.style} · ${result.scope}`
                   : loading
-                    ? "Analyzing photo & generating…"
+                    ? "Analyzing photos & generating…"
                     : "Ready when you are"}
               </h3>
             </div>
@@ -290,7 +372,8 @@ export default function AiDesignStudio({ mode }: Props) {
                     <div className="h-full w-2/3 animate-pulse rounded-full bg-brand-600" />
                   </div>
                   <p className="mt-3 text-xs text-gray-500">
-                    Step 1: GPT-4o reads your photo · Step 2: DALL·E renders concept
+                    Step 1: GPT-4o reads your photo(s) · Step 2: image model
+                    renders concept
                   </p>
                 </div>
               ) : resultUrl ? (
@@ -307,13 +390,23 @@ export default function AiDesignStudio({ mode }: Props) {
                     <p className="text-sm font-medium text-gray-900 dark:text-white/90">
                       Concept saved to design library
                     </p>
+                    {result?.userPrompt ? (
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                        Prompt: {result.userPrompt}
+                      </p>
+                    ) : null}
                     {result?.analysis ? (
                       <p className="mt-1 line-clamp-2 text-xs text-gray-500">
                         AI read: {result.analysis}
                       </p>
                     ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => void generate()} disabled={loading}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void generate()}
+                        disabled={loading}
+                      >
                         Regenerate
                       </Button>
                       <Button size="sm" variant="outline" onClick={downloadResult}>
@@ -331,7 +424,7 @@ export default function AiDesignStudio({ mode }: Props) {
                     Your AI concept will appear here
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
-                    Reference photo → vision analysis → image generation
+                    Reference photos → vision analysis → image generation
                   </p>
                 </div>
               )}
