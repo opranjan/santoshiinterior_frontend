@@ -6,7 +6,7 @@ import { tokenStorage } from "./auth";
  * - Prod:   `.env.production` → http://187.127.121.252:5000/api
  * Fallback: localhost in development, production host otherwise.
  */
-const PRODUCTION_API_URL = "http://187.127.121.252:5000/api";
+const PRODUCTION_API_URL = "https://api.santoshiinteriors.in/api";     // "http://187.127.121.252:5000/api";
 const LOCAL_API_URL = "http://localhost:5000/api";
 
 const API_URL = (
