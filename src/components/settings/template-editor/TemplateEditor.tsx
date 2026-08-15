@@ -145,7 +145,7 @@ export default function TemplateEditor({ templateId }: { templateId: string }) {
 
   return (
     <div className="-mx-4 -mb-4 flex min-h-[calc(100vh-7rem)] flex-col md:-mx-6 md:-mb-6">
-      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
+      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
         <button
           type="button"
           onClick={() => router.push("/settings/quotations/settings")}
@@ -154,14 +154,24 @@ export default function TemplateEditor({ templateId }: { templateId: string }) {
         >
           ←
         </button>
-        <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900 sm:text-lg">
-          {design.name}
-        </h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
+            {design.name}
+          </h1>
+          <p className="text-xs text-gray-500">
+            Click any section to edit · then Save Template
+          </p>
+        </div>
+        {dirty ? (
+          <span className="hidden text-xs font-medium text-amber-600 sm:inline">
+            Unsaved changes
+          </span>
+        ) : null}
         <button
           type="button"
           disabled={!dirty || saving}
           onClick={() => void handleSave()}
-          className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-10 shrink-0 items-center rounded-lg px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           style={{ backgroundColor: dirty ? accent : "#d1d5db" }}
         >
           {saving ? "Saving…" : "Save Template"}

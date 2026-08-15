@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Button from "@/components/ui/button/Button";
 import { designApi, type DesignGenerationDto } from "@/services/crmApi";
 import { designAssetUrl } from "@/lib/designAssets";
+import DesignGeneratingLoader from "@/components/design/DesignGeneratingLoader";
 
 export type AiStudioMode = "designing" | "elevation";
 
@@ -19,25 +20,17 @@ type SourcePreview = {
 
 const MAX_IMAGES = 6;
 
-const styles = [
-  "Modern Minimal",
-  "Contemporary",
-  "Luxury",
-  "Japandi",
-  "Indian Fusion",
-];
-
-const designScopes = ["Living Room", "Kitchen", "Bedroom", "Full Home"];
-const elevationScopes = ["Front Elevation", "Side Elevation", "3D View"];
+const defaultPrompts = {
+  designing:
+    "Describe the interior style, colors, materials, and layout changes you want.",
+  elevation:
+    "Describe the facade materials, architectural style, and lighting you want.",
+};
 
 export default function AiDesignStudio({ mode }: Props) {
   const isDesign = mode === "designing";
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [style, setStyle] = useState(styles[0]);
-  const [scope, setScope] = useState(
-    isDesign ? designScopes[0] : elevationScopes[0]
-  );
   const [prompt, setPrompt] = useState("");
   const [sources, setSources] = useState<SourcePreview[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,12 +38,7 @@ export default function AiDesignStudio({ mode }: Props) {
   const [history, setHistory] = useState<DesignGenerationDto[]>([]);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
-
-  const scopes = isDesign ? designScopes : elevationScopes;
-
-  const defaultPrompt = isDesign
-    ? `Design this ${scope.toLowerCase()} in a ${style.toLowerCase()} style with warm lighting and premium finishes.`
-    : `Create a ${scope.toLowerCase()} in ${style.toLowerCase()} style with stone, wood panels, glass, and soft facade lighting.`;
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -115,9 +103,7 @@ export default function AiDesignStudio({ mode }: Props) {
       setError("");
       const data = await designApi.generate({
         mode,
-        style,
-        scope,
-        prompt: prompt.trim() || defaultPrompt,
+        prompt: prompt.trim() || undefined,
         images: sources.map((item) => item.file),
       });
       setResult(data);
@@ -131,14 +117,24 @@ export default function AiDesignStudio({ mode }: Props) {
 
   const resultUrl = result ? designAssetUrl(result.resultImageUrl) : null;
 
-  const downloadResult = () => {
-    if (!resultUrl) return;
-    const a = document.createElement("a");
-    a.href = resultUrl;
-    a.download = `${mode}-${result?.id || "concept"}.png`;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.click();
+  const downloadResult = async () => {
+    if (!result?.id || downloading) return;
+    try {
+      setDownloading(true);
+      setError("");
+      await designApi.download(result.id, mode);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const formatHistoryLabel = (item: DesignGenerationDto) => {
+    if (item.userPrompt?.trim()) {
+      return item.userPrompt.trim().slice(0, 40);
+    }
+    return new Date(item.createdAt).toLocaleDateString();
   };
 
   return (
@@ -151,8 +147,9 @@ export default function AiDesignStudio({ mode }: Props) {
           {isDesign ? "Design from your photos" : "Elevation from your photos"}
         </h2>
         <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
-          Upload up to {MAX_IMAGES} reference photos, describe what you want, and
-          GPT-4o analyzes them before generating a photorealistic concept.
+          Upload up to {MAX_IMAGES} reference photos and describe the changes you
+          want. The AI edits your photos directly — same approach as ChatGPT image
+          editing.
         </p>
       </div>
 
@@ -276,58 +273,18 @@ export default function AiDesignStudio({ mode }: Props) {
             )}
 
             <label className="mb-2 mt-6 block text-sm font-medium text-gray-800 dark:text-white/90">
-              Style
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {styles.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStyle(s)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                    style === s
-                      ? "bg-brand-700 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/[0.06] dark:text-gray-300"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
-            <label className="mb-2 mt-5 block text-sm font-medium text-gray-800 dark:text-white/90">
-              {isDesign ? "Room" : "View"}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {scopes.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setScope(s)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                    scope === s
-                      ? "bg-brand-700 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/[0.06] dark:text-gray-300"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
-            <label className="mb-2 mt-5 block text-sm font-medium text-gray-800 dark:text-white/90">
               Your prompt
             </label>
             <textarea
-              rows={4}
+              rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder={defaultPrompt}
+              placeholder={defaultPrompts[mode]}
               className="w-full resize-none rounded-2xl border border-gray-200 bg-transparent px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
             />
             <p className="mt-1.5 text-xs text-gray-400">
-              Describe colors, materials, layout changes, or mood. Leave blank to
-              use the default brief for your style and room.
+              Describe what you want — style, colors, materials, layout, or mood.
+              Leave blank for a general photorealistic concept from your photos.
             </p>
 
             <Button
@@ -336,11 +293,24 @@ export default function AiDesignStudio({ mode }: Props) {
               onClick={() => void generate()}
               disabled={!sources.length || loading}
             >
-              {loading
-                ? "Generating with ChatGPT…"
-                : isDesign
-                  ? "Generate Design"
-                  : "Generate Elevation"}
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  Creating image
+                  <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="design-typing-dot h-1 w-1 rounded-full bg-current"
+                        style={{ animationDelay: `${i * 0.18}s` }}
+                      />
+                    ))}
+                  </span>
+                </span>
+              ) : isDesign ? (
+                "Generate Design"
+              ) : (
+                "Generate Elevation"
+              )}
             </Button>
           </div>
 
@@ -357,25 +327,18 @@ export default function AiDesignStudio({ mode }: Props) {
               </p>
               <h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
                 {result
-                  ? `${result.style} · ${result.scope}`
+                  ? isDesign
+                    ? "Interior concept"
+                    : "Elevation concept"
                   : loading
-                    ? "Analyzing photos & generating…"
+                    ? "Creating your image…"
                     : "Ready when you are"}
               </h3>
             </div>
 
             <div className="my-6 flex flex-1 items-center justify-center">
               {loading ? (
-                <div className="w-full max-w-xs text-center">
-                  <div className="mx-auto mb-4 h-14 w-14 animate-pulse rounded-2xl bg-brand-700/90" />
-                  <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
-                    <div className="h-full w-2/3 animate-pulse rounded-full bg-brand-600" />
-                  </div>
-                  <p className="mt-3 text-xs text-gray-500">
-                    Step 1: GPT-4o reads your photo(s) · Step 2: image model
-                    renders concept
-                  </p>
-                </div>
+                <DesignGeneratingLoader mode={mode} />
               ) : resultUrl ? (
                 <div className="w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700">
                   <div className="relative aspect-[4/3] w-full bg-gray-100 dark:bg-gray-900">
@@ -409,8 +372,13 @@ export default function AiDesignStudio({ mode }: Props) {
                       >
                         Regenerate
                       </Button>
-                      <Button size="sm" variant="outline" onClick={downloadResult}>
-                        Download
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void downloadResult()}
+                        disabled={downloading}
+                      >
+                        {downloading ? "Downloading…" : "Download"}
                       </Button>
                     </div>
                   </div>
@@ -450,12 +418,12 @@ export default function AiDesignStudio({ mode }: Props) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={designAssetUrl(item.resultImageUrl)}
-                    alt={item.scope}
+                    alt={formatHistoryLabel(item)}
                     className="h-full w-full object-cover"
                   />
                 </div>
                 <p className="truncate px-2 py-1.5 text-[11px] text-gray-600 dark:text-gray-400">
-                  {item.style} · {item.scope}
+                  {formatHistoryLabel(item)}
                 </p>
               </button>
             ))}

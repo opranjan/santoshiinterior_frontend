@@ -2,6 +2,12 @@
 
 import React from "react";
 import type { FlowBlock } from "@/components/quotations/MakerLayoutCanvas";
+import MakerRichTextEditor, {
+  DEFAULT_BANK_HTML,
+  DEFAULT_COMPANY_HTML,
+  DEFAULT_TERMS_HTML,
+  defaultPreparedHtml,
+} from "@/components/quotations/MakerRichTextEditor";
 import { DRAG_MIME, elementToFlowBlock, type TemplateElementKind } from "@/lib/quotationTemplateEditor";
 
 const accent = "#E85D75";
@@ -33,41 +39,10 @@ function blockLabel(block: FlowBlock): string {
   }
 }
 
-function BlockPreview({ block }: { block: FlowBlock }) {
-  if (block.type === "image") {
-    return (
-      <div className="flex h-28 w-full items-center justify-center rounded-md border border-dashed border-[#E85D75]/60 bg-[#E85D75]/[0.03] text-sm text-[#E85D75]">
-        Upload Image
-      </div>
-    );
-  }
-  if (block.type === "heading") {
-    return (
-      <p className="py-2 text-center font-serif text-xl font-semibold" style={{ color: accent }}>
-        {block.text}
-      </p>
-    );
-  }
-  if (block.type === "items" || block.type === "summary" || block.type === "payment") {
-    return (
-      <div className="rounded-md border border-gray-300 px-3 py-4 text-center text-xs text-gray-500">
-        {blockLabel(block)} preview
-      </div>
-    );
-  }
-  if (block.type === "detailsRow") {
-    return (
-      <div className="grid grid-cols-2 gap-3 text-xs text-gray-600">
-        <div className="rounded border border-gray-200 p-3">Company column</div>
-        <div className="rounded border border-gray-200 p-3">Prepared for column</div>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-md border border-gray-200 px-3 py-3 text-xs text-gray-600">
-      {blockLabel(block)}
-    </div>
-  );
+function ensureHtml(value: string | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "<p></p>") return fallback;
+  return value!;
 }
 
 type Props = {
@@ -96,6 +71,14 @@ export default function TemplateLayoutCanvas({
       : `${apiBase}${watermarkUrl}`
     : null;
 
+  const updateBlock = (id: string, patch: Partial<FlowBlock>) => {
+    onLayoutChange(
+      layout.map((block) =>
+        block.id === id ? ({ ...block, ...patch } as FlowBlock) : block
+      )
+    );
+  };
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
@@ -114,6 +97,106 @@ export default function TemplateLayoutCanvas({
 
   const remove = (id: string) => {
     onLayoutChange(layout.filter((b) => b.id !== id));
+  };
+
+  const renderBlock = (block: FlowBlock) => {
+    if (block.type === "image") {
+      return (
+        <div className="flex h-28 w-full items-center justify-center rounded-md border border-dashed border-[#E85D75]/60 bg-[#E85D75]/[0.03] text-sm text-[#E85D75]">
+          Upload Image (configured per quotation)
+        </div>
+      );
+    }
+
+    if (block.type === "heading") {
+      return (
+        <input
+          value={block.text}
+          onChange={(e) => updateBlock(block.id, { text: e.target.value })}
+          className="w-full border-0 bg-transparent text-center font-serif text-2xl font-semibold outline-none"
+          style={{ color: primaryColour || accent }}
+        />
+      );
+    }
+
+    if (block.type === "items" || block.type === "summary" || block.type === "payment") {
+      return (
+        <div className="rounded-md border border-gray-300 px-3 py-4 text-center text-xs text-gray-500">
+          {blockLabel(block)} — filled automatically when making a quotation
+        </div>
+      );
+    }
+
+    if (block.type === "detailsRow") {
+      return (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <MakerRichTextEditor
+            inline
+            value={ensureHtml(block.companyHtml, DEFAULT_COMPANY_HTML)}
+            onChange={(html) => updateBlock(block.id, { companyHtml: html })}
+          />
+          <MakerRichTextEditor
+            inline
+            value={ensureHtml(block.preparedHtml, defaultPreparedHtml())}
+            onChange={(html) => updateBlock(block.id, { preparedHtml: html })}
+          />
+        </div>
+      );
+    }
+
+    if (block.type === "company") {
+      return (
+        <MakerRichTextEditor
+          inline
+          value={ensureHtml(block.html, DEFAULT_COMPANY_HTML)}
+          onChange={(html) => updateBlock(block.id, { html })}
+        />
+      );
+    }
+
+    if (block.type === "preparedFor") {
+      return (
+        <MakerRichTextEditor
+          inline
+          value={ensureHtml(block.html, defaultPreparedHtml())}
+          onChange={(html) => updateBlock(block.id, { html })}
+        />
+      );
+    }
+
+    if (block.type === "richtext") {
+      const fallback =
+        block.title.toLowerCase().includes("bank")
+          ? DEFAULT_BANK_HTML
+          : block.title.toLowerCase().includes("terms")
+            ? DEFAULT_TERMS_HTML
+            : "<p>Enter content…</p>";
+      return (
+        <MakerRichTextEditor
+          title={block.title}
+          value={ensureHtml(block.html, fallback)}
+          onChange={(html) => updateBlock(block.id, { html })}
+        />
+      );
+    }
+
+    if (block.type === "pageBreak") {
+      return (
+        <div className="flex items-center gap-3 py-2">
+          <div className="h-px flex-1 border-t border-dashed border-[#E85D75]/60" />
+          <span className="text-xs font-medium uppercase tracking-wide text-[#E85D75]">
+            Page break
+          </span>
+          <div className="h-px flex-1 border-t border-dashed border-[#E85D75]/60" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-md border border-gray-200 px-3 py-3 text-xs text-gray-600">
+        {blockLabel(block)}
+      </div>
+    );
   };
 
   return (
@@ -147,12 +230,13 @@ export default function TemplateLayoutCanvas({
               key={block.id}
               className="group relative rounded-lg border border-transparent hover:border-[#E85D75]/30"
             >
-              <div className="absolute -top-3 right-0 z-20 hidden gap-1 group-hover:flex">
+              <div className="absolute -top-3 right-0 z-20 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                 <button
                   type="button"
                   disabled={index === 0}
                   onClick={() => move(index, -1)}
                   className="rounded bg-white px-2 py-0.5 text-xs shadow border border-gray-200 disabled:opacity-40"
+                  aria-label="Move up"
                 >
                   ↑
                 </button>
@@ -161,6 +245,7 @@ export default function TemplateLayoutCanvas({
                   disabled={index === layout.length - 1}
                   onClick={() => move(index, 1)}
                   className="rounded bg-white px-2 py-0.5 text-xs shadow border border-gray-200 disabled:opacity-40"
+                  aria-label="Move down"
                 >
                   ↓
                 </button>
@@ -168,6 +253,7 @@ export default function TemplateLayoutCanvas({
                   type="button"
                   onClick={() => remove(block.id)}
                   className="rounded bg-white px-2 py-0.5 text-xs text-[#E85D75] shadow border border-gray-200"
+                  aria-label="Remove section"
                 >
                   ×
                 </button>
@@ -175,7 +261,7 @@ export default function TemplateLayoutCanvas({
               <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
                 {blockLabel(block)}
               </p>
-              <BlockPreview block={block} />
+              {renderBlock(block)}
             </div>
           ))}
 

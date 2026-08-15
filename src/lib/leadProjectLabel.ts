@@ -21,22 +21,40 @@ export function formatProjectLabel(code: string): string {
   return `Project - ${code}`;
 }
 
-/** Display label for a lead's project row. */
-export function getLeadProjectLabel(
-  leadId: string,
-  projectName?: string | null
+/** User-facing project name on a lead (ignores auto-generated placeholders). */
+export function getLeadProjectName(
+  projectName?: string | null,
+  convertedProjectName?: string | null
 ): string {
+  if (convertedProjectName?.trim()) {
+    return convertedProjectName.trim();
+  }
   const trimmed = projectName?.trim();
-  if (trimmed && isAutoProjectLabel(trimmed)) {
+  if (trimmed && !isAutoProjectLabel(trimmed)) {
     return trimmed;
   }
-  return formatProjectLabel(projectCodeFromLeadId(leadId));
+  return "";
+}
+
+/** Display label for a lead workspace header. */
+export function getLeadProjectLabel(
+  leadId: string,
+  projectName?: string | null,
+  convertedProjectName?: string | null
+): string {
+  const name = getLeadProjectName(projectName, convertedProjectName);
+  if (name) return name;
+  return `Lead ${leadId.slice(0, 8)}`;
 }
 
 /** Default quotation title when creating from a lead workspace. */
 export function getDefaultQuotationName(
   leadId: string,
-  projectName?: string | null
+  projectName?: string | null,
+  clientName?: string | null
 ): string {
-  return getLeadProjectLabel(leadId, projectName);
+  const name = getLeadProjectName(projectName);
+  if (name) return name;
+  if (clientName?.trim()) return `${clientName.trim()} Quotation`;
+  return `Lead ${leadId.slice(0, 8)}`;
 }

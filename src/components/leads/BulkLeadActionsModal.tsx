@@ -9,7 +9,8 @@ export type BulkLeadAction =
   | "UPDATE_STATUS"
   | "UPDATE_SOURCE"
   | "UPDATE_PROJECT_TYPE"
-  | "REMOVE_ASSIGNEE";
+  | "REMOVE_ASSIGNEE"
+  | "DELETE";
 
 export type AssigneeOption = {
   id: string;
@@ -23,6 +24,7 @@ type Props = {
   selectedCount: number;
   assigneeOptions: AssigneeOption[];
   loading?: boolean;
+  canDelete?: boolean;
   onApply: (payload: {
     action: BulkLeadAction;
     assigneeIds?: string[];
@@ -41,6 +43,7 @@ const actionOptions: Array<{ key: BulkLeadAction; label: string }> = [
   { key: "UPDATE_SOURCE", label: "Update Source" },
   { key: "UPDATE_PROJECT_TYPE", label: "Update Project Type" },
   { key: "REMOVE_ASSIGNEE", label: "Remove Assignee" },
+  { key: "DELETE", label: "Delete Leads" },
 ];
 
 const statusOptions = [
@@ -91,6 +94,8 @@ function actionVerb(action: BulkLeadAction | null) {
       return "Update Type";
     case "REMOVE_ASSIGNEE":
       return "Remove Assignee";
+    case "DELETE":
+      return "Delete";
     default:
       return "Apply";
   }
@@ -105,6 +110,7 @@ export default function BulkLeadActionsModal({
   selectedCount,
   assigneeOptions,
   loading = false,
+  canDelete = false,
   onApply,
 }: Props) {
   const [action, setAction] = useState<BulkLeadAction>("MOVE_TO");
@@ -159,6 +165,14 @@ export default function BulkLeadActionsModal({
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
+
+  const visibleActions = useMemo(
+    () =>
+      canDelete
+        ? actionOptions
+        : actionOptions.filter((opt) => opt.key !== "DELETE"),
+    [canDelete]
+  );
 
   const filteredAssignees = useMemo(() => {
     const q = assigneeSearch.trim().toLowerCase();
@@ -322,7 +336,7 @@ export default function BulkLeadActionsModal({
 
             {actionOpen ? (
               <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                {actionOptions.map((opt) => {
+                {visibleActions.map((opt) => {
                   const checked = action === opt.key;
                   return (
                     <button
@@ -490,6 +504,14 @@ export default function BulkLeadActionsModal({
                   </option>
                 ))}
               </select>
+            </div>
+          ) : null}
+
+          {action === "DELETE" ? (
+            <div className="rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+              {selectedCount} lead{selectedCount === 1 ? "" : "s"} will be
+              removed from the list. This is a soft delete — data is kept in the
+              database but hidden from the CRM.
             </div>
           ) : null}
 

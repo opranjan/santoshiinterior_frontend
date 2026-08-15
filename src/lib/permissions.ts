@@ -44,6 +44,8 @@ const IMPLIES: Record<string, string[]> = {
     "leads.manage",
     "customers.view",
     "customers.manage",
+    "messages.send",
+    "messages.view.all",
   ],
   "finance.full": ["finance.manage", "payments.manage", "purchaseorders.manage"],
   "reports.full": ["reports.store"],

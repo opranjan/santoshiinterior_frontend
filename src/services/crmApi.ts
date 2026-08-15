@@ -94,11 +94,27 @@ export type LeadDto = {
   }>;
   quotations?: Array<{ id: string }>;
   _count?: { quotations: number };
+  project?: { id: string; name: string } | null;
 };
 
 export type LeadQuotationSummaryBucket = {
   count: number;
   amount: number;
+};
+
+export type LeadMessageDto = {
+  id: string;
+  leadId: string;
+  direction: "INBOUND" | "OUTBOUND";
+  channel: string;
+  body?: string | null;
+  templateName?: string | null;
+  mediaUrl?: string | null;
+  externalId?: string | null;
+  status: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
+  sentBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type LeadWorkspaceDto = {
@@ -120,6 +136,7 @@ export type LeadWorkspaceDto = {
     clientAccepted: LeadQuotationSummaryBucket;
   };
   followUps: NonNullable<LeadDto["followUps"]>;
+  messages?: LeadMessageDto[];
   counts: {
     quotations: number;
     followUps: number;
@@ -147,6 +164,23 @@ export const leadsApi = {
     source?: string;
     projectType?: string;
   }) => api.post<{ updated: number }>("/leads/bulk", body),
+  bulkDelete: (leadIds: string[]) =>
+    api.post<{ updated: number }>("/leads/bulk", {
+      leadIds,
+      action: "DELETE",
+    }),
+  convertToProject: (
+    id: string,
+    payload: { projectId?: string; projectName?: string }
+  ) =>
+    api.post<{ project: { id: string; name: string }; lead: LeadDto }>(
+      `/leads/${id}/convert-to-project`,
+      payload
+    ),
+  listMessages: (id: string) =>
+    api.get<LeadMessageDto[]>(`/leads/${id}/messages`),
+  sendMessage: (id: string, body: { body?: string; templateName?: string; bodyValues?: string[] }) =>
+    api.post<LeadMessageDto>(`/leads/${id}/messages`, body),
 };
 
 export type CustomerDto = {
@@ -262,8 +296,8 @@ export const designApi = {
   history: () => api.get<DesignGenerationDto[]>("/design/history"),
   generate: async (payload: {
     mode: "designing" | "elevation";
-    style: string;
-    scope: string;
+    style?: string;
+    scope?: string;
     prompt?: string;
     images: File[];
   }) => {
@@ -274,8 +308,8 @@ export const designApi = {
     const token = tokenStorage.getAccessToken();
     const form = new FormData();
     form.append("mode", payload.mode);
-    form.append("style", payload.style);
-    form.append("scope", payload.scope);
+    if (payload.style?.trim()) form.append("style", payload.style.trim());
+    if (payload.scope?.trim()) form.append("scope", payload.scope.trim());
     if (payload.prompt?.trim()) form.append("prompt", payload.prompt.trim());
     payload.images.forEach((file) => form.append("image", file));
 
@@ -292,6 +326,20 @@ export const designApi = {
       );
     }
     return json.data as DesignGenerationDto;
+  },
+  download: async (id: string, mode: "designing" | "elevation") => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const { downloadDesignAsset } = await import("@/lib/designAssets");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const fallback = `${mode}-${id.slice(0, 8)}.png`;
+    await downloadDesignAsset(
+      `${base}/design/${id}/download`,
+      fallback,
+      token ? { Authorization: `Bearer ${token}` } : undefined
+    );
   },
 };
 

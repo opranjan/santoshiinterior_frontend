@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
@@ -13,8 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { projectsApi, storesApi } from "@/services/crmApi";
+import { leadsApi, projectsApi, storesApi } from "@/services/crmApi";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
+import { projectFormFromLead } from "@/lib/leadToProjectForm";
 
 type ProjectStatus =
   | "Kickoff"
@@ -259,6 +261,9 @@ const selectClass =
   "h-11 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
 
 export default function ProjectsTable() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromLeadHandled = useRef(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [storeOptions, setStoreOptions] = useState<
     { id: string; name: string }[]
@@ -273,6 +278,8 @@ export default function ProjectsTable() {
   const [typeFilter, setTypeFilter] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
+  const [sourceLeadId, setSourceLeadId] = useState<string | null>(null);
+  const [sourceLeadClientName, setSourceLeadClientName] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -352,6 +359,38 @@ export default function ProjectsTable() {
     };
   }, []);
 
+  useEffect(() => {
+    const fromLead = searchParams.get("fromLead");
+    if (!fromLead || fromLeadHandled.current || loading) return;
+
+    fromLeadHandled.current = true;
+
+    (async () => {
+      try {
+        const lead = await leadsApi.get(fromLead);
+        const prefilled = projectFormFromLead(lead, {
+          store: storeOptions[0]?.name || "Main Branch",
+          salesOwner: "Mukesh singh",
+          assignedTo: lead.assignedTo?.name || "Mukesh singh",
+        });
+        setForm((prev) => ({
+          ...prev,
+          ...prefilled,
+          status: "Kickoff",
+          progress: 0,
+          endDate: "",
+        }));
+        setSourceLeadId(fromLead);
+        setSourceLeadClientName(lead.clientName);
+        setEditing(null);
+        setShowAdd(true);
+        router.replace("/projects", { scroll: false });
+      } catch {
+        setError("Could not load lead details for new project.");
+      }
+    })();
+  }, [searchParams, loading, storeOptions, router]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return projects.filter((p) => {
@@ -416,6 +455,8 @@ export default function ProjectsTable() {
 
   const openAdd = () => {
     setEditing(null);
+    setSourceLeadId(null);
+    setSourceLeadClientName("");
     resetForm();
     setShowAdd(true);
   };
@@ -482,9 +523,17 @@ export default function ProjectsTable() {
           payload
         )) as Record<string, unknown>;
         setProjects((prev) => [mapProject(created), ...prev]);
+
+        if (sourceLeadId) {
+          await leadsApi.convertToProject(sourceLeadId, {
+            projectId: String(created.id),
+          });
+        }
       }
       setShowAdd(false);
       setEditing(null);
+      setSourceLeadId(null);
+      setSourceLeadClientName("");
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save project");
@@ -851,14 +900,24 @@ export default function ProjectsTable() {
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                {editing ? "Edit Project" : "New Project"}
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                  {editing ? "Edit Project" : "New Project"}
+                </h3>
+                {sourceLeadId && !editing ? (
+                  <p className="mt-1 text-sm text-brand-600 dark:text-brand-400">
+                    From lead: {sourceLeadClientName} — review and save to link
+                    this project
+                  </p>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => {
                   setShowAdd(false);
                   setEditing(null);
+                  setSourceLeadId(null);
+                  setSourceLeadClientName("");
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >

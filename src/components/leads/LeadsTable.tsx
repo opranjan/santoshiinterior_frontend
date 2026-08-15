@@ -15,12 +15,16 @@ import {
 import { leadsApi, storesApi, usersApi, type LeadDto } from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
 import { enumToLabel, formatDate, labelToEnum } from "@/lib/mappers";
+import { getLeadProjectName } from "@/lib/leadProjectLabel";
 import LeadsEmptyState from "@/components/leads/LeadsEmptyState";
 import LeadExplorerModal from "@/components/leads/LeadExplorerModal";
 import BulkLeadActionsModal, {
   type AssigneeOption,
   type BulkLeadAction,
 } from "@/components/leads/BulkLeadActionsModal";
+import ConvertLeadToProjectModal from "@/components/leads/ConvertLeadToProjectModal";
+import { useAuth } from "@/context/AuthContext";
+import { hasAnyPermission } from "@/lib/permissions";
 
 type LeadStatus =
   | "Created"
@@ -76,6 +80,8 @@ type Lead = {
   followUps: FollowUpEntry[];
   quotationCount: number;
   latestQuotationId: string | null;
+  convertedProjectId: string | null;
+  convertedProjectName: string | null;
 };
 
 const salesTeam = [
@@ -217,8 +223,8 @@ const columns = [
   "Phone",
   "Email",
   "Follow Up",
-  "Project Name",
-  "Assigned To",
+  "Project",
+  "Lead Owner",
   "Sales Owner",
   "Budget",
   "Scope",
@@ -241,6 +247,13 @@ const teamAssigneeOptions: AssigneeOption[] = [
   { id: "team-design", name: "Designing TEAM", kind: "team" },
 ];
 
+const LEAD_DELETE_PERMISSIONS = [
+  "sales.full",
+  "sales.manage",
+  "leads.manage",
+  "users.manage",
+];
+
 function mapLeadDto(dto: LeadDto): Lead {
   return {
     id: dto.id,
@@ -248,7 +261,7 @@ function mapLeadDto(dto: LeadDto): Lead {
     phone: dto.phone,
     email: dto.email || "",
     store: dto.store?.name || "",
-    projectName: dto.projectName || "",
+    projectName: getLeadProjectName(dto.projectName, dto.project?.name),
     projectType: dto.projectType || "",
     scope: dto.scope || "",
     budget: dto.budget || "",
@@ -267,6 +280,8 @@ function mapLeadDto(dto: LeadDto): Lead {
     updatedAt: dto.updatedAt,
     quotationCount: dto._count?.quotations ?? dto.quotations?.length ?? 0,
     latestQuotationId: dto.quotations?.[0]?.id || null,
+    convertedProjectId: dto.project?.id || null,
+    convertedProjectName: dto.project?.name || null,
     followUps: (dto.followUps || []).map((f) => ({
       id: f.id,
       date: formatDate(f.date),
@@ -287,6 +302,8 @@ function leadQuoteHref(lead: Lead) {
 }
 
 export default function LeadsTable() {
+  const { user } = useAuth();
+  const canDeleteLeads = hasAnyPermission(user, LEAD_DELETE_PERMISSIONS);
   const searchParams = useSearchParams();
   const storeFilterId = searchParams.get("storeId") || "";
   const [storeFilterName, setStoreFilterName] = useState("");
@@ -297,6 +314,7 @@ export default function LeadsTable() {
   const [assigneesLoading, setAssigneesLoading] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<Lead | null>(null);
 
   const fetchLeads = async () => {
     const data = await leadsApi.list({
@@ -380,6 +398,10 @@ export default function LeadsTable() {
   const [fuNextDate, setFuNextDate] = useState("");
   const [historyLeadId, setHistoryLeadId] = useState<string | null>(null);
   const [explorerLead, setExplorerLead] = useState<Lead | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [statusSavingId, setStatusSavingId] = useState<string | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const filteredLeads = useMemo(() => {
     let list = leads.filter((lead) => {
@@ -500,6 +522,10 @@ export default function LeadsTable() {
     source?: string;
     projectType?: string;
   }) => {
+    if (payload.action === "DELETE" && !canDeleteLeads) {
+      throw new Error("You do not have permission to delete leads");
+    }
+
     const userIds =
       payload.assigneeIds?.filter(
         (id) => !id.startsWith("team-") && assigneeOptions.some((o) => o.id === id)
@@ -533,9 +559,45 @@ export default function LeadsTable() {
     }
   };
 
-  const handleStatusChange = (leadId: string, status: LeadStatus) => {
-    setLeads((prev) =>
-      prev.map((lead) =>
+  const confirmDeleteLead = async () => {
+    if (!deleteTarget || deleteBusy) return;
+    try {
+      setDeleteBusy(true);
+      setError("");
+      await leadsApi.remove(deleteTarget.id);
+      setLeads((prev) => prev.filter((lead) => lead.id !== deleteTarget.id));
+      setSelected((prev) => prev.filter((id) => id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete lead");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!selected.length || deleteBusy || !canDeleteLeads) return;
+    try {
+      setDeleteBusy(true);
+      setError("");
+      const ids = [...selected];
+      await leadsApi.bulkDelete(ids);
+      setLeads((prev) => prev.filter((lead) => !ids.includes(lead.id)));
+      setSelected([]);
+      setBulkDeleteOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete selected leads"
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const handleStatusChange = async (leadId: string, status: LeadStatus) => {
+    const prev = leads;
+    setLeads((current) =>
+      current.map((lead) =>
         lead.id === leadId
           ? {
               ...lead,
@@ -546,6 +608,40 @@ export default function LeadsTable() {
           : lead
       )
     );
+
+    setStatusSavingId(leadId);
+    try {
+      await leadsApi.update(leadId, { status: labelToEnum(status) });
+    } catch {
+      setLeads(prev);
+      setError("Failed to save status. Please try again.");
+    } finally {
+      setStatusSavingId(null);
+    }
+  };
+
+  const openConvertModal = (lead: Lead) => {
+    setConvertTarget(lead);
+  };
+
+  const handleConvertSuccess = (result: {
+    project: { id: string; name: string };
+  }) => {
+    if (!convertTarget) return;
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === convertTarget.id
+          ? {
+              ...lead,
+              status: "Won",
+              convertedProjectId: result.project.id,
+              convertedProjectName: result.project.name,
+              projectName: result.project.name,
+            }
+          : lead
+      )
+    );
+    setConvertTarget(null);
   };
 
   const openFollowUpModal = (leadId: string) => {
@@ -779,6 +875,16 @@ export default function LeadsTable() {
           >
             Action
           </button>
+          {canDeleteLeads ? (
+            <button
+              type="button"
+              onClick={() => setBulkDeleteOpen(true)}
+              disabled={deleteBusy}
+              className="inline-flex h-9 items-center rounded-lg border border-error-300 bg-error-50 px-4 text-sm font-medium text-error-600 transition hover:bg-error-100 disabled:opacity-50 dark:border-error-500/40 dark:bg-error-500/10 dark:text-error-400"
+            >
+              Delete selected
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setSelected([])}
@@ -895,13 +1001,14 @@ export default function LeadsTable() {
                           <div className="inline-flex w-fit items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 dark:border-success-500/30 dark:bg-success-500/10">
                             <select
                               value={lead.status}
+                              disabled={statusSavingId === lead.id}
                               onChange={(e) =>
-                                handleStatusChange(
+                                void handleStatusChange(
                                   lead.id,
                                   e.target.value as LeadStatus
                                 )
                               }
-                              className="bg-transparent text-xs font-medium text-success-700 focus:outline-hidden dark:text-success-400"
+                              className="bg-transparent text-xs font-medium text-success-700 focus:outline-hidden disabled:opacity-60 dark:text-success-400"
                             >
                               {(
                                 [
@@ -923,7 +1030,9 @@ export default function LeadsTable() {
                           </div>
                           <span className="flex items-center gap-1 text-theme-xs text-gray-400">
                             <span>⏱</span>
-                            {relativeTime(lead.updatedAt)}
+                            {statusSavingId === lead.id
+                              ? "Saving…"
+                              : relativeTime(lead.updatedAt)}
                           </span>
                         </div>
                       </TableCell>
@@ -973,12 +1082,33 @@ export default function LeadsTable() {
                       </TableCell>
 
                       <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400">📄</span>
-                          <span className="text-gray-800 text-theme-sm dark:text-white/90">
-                            {lead.projectName || "—"}
-                          </span>
-                        </div>
+                        {lead.convertedProjectId ? (
+                          <div className="flex min-w-[140px] flex-col gap-1">
+                            <Badge size="sm" color="success">
+                              Converted
+                            </Badge>
+                            <Link
+                              href="/projects"
+                              className="text-sm font-medium text-gray-800 hover:text-brand-600 dark:text-white/90"
+                              title="Open in Projects"
+                            >
+                              {lead.convertedProjectName || lead.projectName}
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="flex min-w-[140px] flex-col gap-1.5">
+                            <Badge size="sm" color="light">
+                              No project
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() => openConvertModal(lead)}
+                              className="text-left text-xs font-medium text-brand-600 hover:text-brand-700"
+                            >
+                              Assign project →
+                            </button>
+                          </div>
+                        )}
                       </TableCell>
 
                       <TableCell className="px-3 py-3 text-start">
@@ -1106,6 +1236,32 @@ export default function LeadsTable() {
                           >
                             Edit
                           </Link>
+                          {lead.convertedProjectId ? (
+                            <Link
+                              href="/projects"
+                              className="text-sm font-medium text-success-600 hover:text-success-700"
+                              title={lead.convertedProjectName || "View project"}
+                            >
+                              View Project
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openConvertModal(lead)}
+                              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                            >
+                              Assign Project
+                            </button>
+                          )}
+                          {canDeleteLeads ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(lead)}
+                              className="text-sm font-medium text-error-500 hover:text-error-600"
+                            >
+                              Delete
+                            </button>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1332,8 +1488,105 @@ export default function LeadsTable() {
         selectedCount={selected.length}
         assigneeOptions={assigneeOptions}
         loading={assigneesLoading || bulkBusy}
+        canDelete={canDeleteLeads}
         onApply={handleBulkApply}
       />
+
+      <ConvertLeadToProjectModal
+        lead={
+          convertTarget
+            ? {
+                id: convertTarget.id,
+                clientName: convertTarget.clientName,
+                projectName: convertTarget.projectName,
+              }
+            : null
+        }
+        onClose={() => setConvertTarget(null)}
+        onSuccess={handleConvertSuccess}
+      />
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+              Delete lead?
+            </h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Remove <strong>{deleteTarget.clientName}</strong> (
+              {deleteTarget.id}) from the leads list? This is a soft delete —
+              the record is hidden but kept in the database.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => !deleteBusy && setDeleteTarget(null)}
+                disabled={deleteBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-error-500 hover:bg-error-600"
+                onClick={() => void confirmDeleteLead()}
+                disabled={deleteBusy}
+              >
+                {deleteBusy ? "Deleting…" : "Delete lead"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {bulkDeleteOpen ? (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+              Delete {selected.length} lead{selected.length === 1 ? "" : "s"}?
+            </h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Remove the selected leads from the list? This is a soft delete —
+              records are hidden but kept in the database.
+            </p>
+            <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+              {selected.slice(0, 8).map((id) => {
+                const lead = leads.find((item) => item.id === id);
+                return (
+                  <li key={id} className="truncate">
+                    {lead?.clientName || id} · {id}
+                  </li>
+                );
+              })}
+              {selected.length > 8 ? (
+                <li className="text-gray-400">
+                  +{selected.length - 8} more…
+                </li>
+              ) : null}
+            </ul>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => !deleteBusy && setBulkDeleteOpen(false)}
+                disabled={deleteBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-error-500 hover:bg-error-600"
+                onClick={() => void confirmBulkDelete()}
+                disabled={deleteBusy}
+              >
+                {deleteBusy
+                  ? "Deleting…"
+                  : `Delete ${selected.length} lead${selected.length === 1 ? "" : "s"}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
     </div>
   );

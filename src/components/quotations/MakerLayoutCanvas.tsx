@@ -1377,7 +1377,8 @@ export function createFlowBlock(
     | "richtext"
     | "bank"
     | "terms"
-    | "pageBreak"
+    | "pageBreak",
+  preparedOpts?: Parameters<typeof defaultPreparedHtml>[0]
 ): FlowBlock {
   const id = uid("blk");
   switch (kind) {
@@ -1414,12 +1415,16 @@ export function createFlowBlock(
         id,
         type: "detailsRow",
         companyHtml: DEFAULT_COMPANY_HTML,
-        preparedHtml: defaultPreparedHtml(),
+        preparedHtml: defaultPreparedHtml(preparedOpts),
       };
     case "company":
       return { id, type: "company", html: DEFAULT_COMPANY_HTML };
     case "preparedFor":
-      return { id, type: "preparedFor", html: defaultPreparedHtml() };
+      return {
+        id,
+        type: "preparedFor",
+        html: defaultPreparedHtml(preparedOpts),
+      };
     case "heading":
       return { id, type: "heading", text: "Estimate" };
     case "items":

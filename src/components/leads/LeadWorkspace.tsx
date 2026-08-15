@@ -15,7 +15,7 @@ import {
 import { enumToLabel, formatDate, labelToEnum } from "@/lib/mappers";
 import { mapQuotation } from "@/lib/crmMappers";
 import type { Quotation } from "@/components/quotations/QuotationsTable";
-import { getLeadProjectLabel } from "@/lib/leadProjectLabel";
+import { getLeadProjectName } from "@/lib/leadProjectLabel";
 import {
   LEAD_MODULES,
   leadModuleHref,
@@ -24,6 +24,8 @@ import {
 } from "@/lib/leadModules";
 import LeadExplorerModal from "./LeadExplorerModal";
 import LeadQuotationsPanel from "./LeadQuotationsPanel";
+import LeadCommunicationPanel from "./LeadCommunicationPanel";
+import ConvertLeadToProjectModal from "./ConvertLeadToProjectModal";
 
 function PlaceholderPanel({ title }: { title: string }) {
   return (
@@ -47,6 +49,7 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
   const [savingDetails, setSavingDetails] = useState(false);
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [convertOpen, setConvertOpen] = useState(false);
 
   const [detailsForm, setDetailsForm] = useState({
     clientName: "",
@@ -71,7 +74,7 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
         clientName: lead.clientName || "",
         phone: lead.phone || "",
         email: lead.email || "",
-        projectName: lead.projectName || "",
+        projectName: getLeadProjectName(lead.projectName, lead.project?.name),
         projectType: lead.projectType || "",
         budget: lead.budget || "",
         scope: lead.scope || "",
@@ -98,6 +101,20 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
   const lead = data?.lead;
   const statusLabel = lead ? enumToLabel(lead.status) : "New";
 
+  const detailsDirty = useMemo(() => {
+    if (!lead) return false;
+    return (
+      detailsForm.clientName !== (lead.clientName || "") ||
+      detailsForm.phone !== (lead.phone || "") ||
+      detailsForm.email !== (lead.email || "") ||
+      detailsForm.projectType !== (lead.projectType || "") ||
+      detailsForm.budget !== (lead.budget || "") ||
+      detailsForm.scope !== (lead.scope || "") ||
+      detailsForm.description !== (lead.description || "") ||
+      detailsForm.status !== (enumToLabel(lead.status) || "New")
+    );
+  }, [detailsForm, lead]);
+
   const quotationRows: Quotation[] = useMemo(() => {
     if (!data?.quotations) return [];
     return data.quotations.map((q) =>
@@ -123,7 +140,7 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
         clientName: detailsForm.clientName.trim(),
         phone: detailsForm.phone.trim(),
         email: detailsForm.email || null,
-        projectName: detailsForm.projectName || null,
+        projectName: getLeadProjectName(lead.projectName, lead.project?.name) || null,
         projectType: detailsForm.projectType || null,
         budget: detailsForm.budget || null,
         scope: detailsForm.scope || null,
@@ -175,8 +192,6 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
     );
   }
 
-  const projectLabel = getLeadProjectLabel(leadId, lead.projectName);
-
   return (
     <div className="space-y-0">
       {error ? (
@@ -189,7 +204,7 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
         <div className="grid grid-cols-2 gap-3 px-4 py-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
           {[
             ["CLIENT", lead.clientName],
-            ["LEAD", projectLabel],
+            ["PROJECT", lead.project ? lead.project.name : "Not assigned"],
             ["STARTED ON", lead.tentativeStart ? formatDate(lead.tentativeStart) : "—"],
             ["EXPECTED HANDOVER", "—"],
             ["STATUS", statusLabel],
@@ -201,7 +216,23 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
               <p className="mt-0.5 font-medium text-white/95">{value}</p>
             </div>
           ))}
-          <div className="flex items-end justify-start lg:justify-end">
+          <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
+            {lead.project ? (
+              <Link
+                href="/projects"
+                className="rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20"
+              >
+                View project
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConvertOpen(true)}
+                className="rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20"
+              >
+                Assign Project
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setExplorerOpen(true)}
@@ -290,8 +321,34 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
                 </select>
               </div>
               <div>
-                <Label>Project Name</Label>
-                <Input value={detailsForm.projectName} onChange={(e) => setDetailsForm((f) => ({ ...f, projectName: e.target.value }))} />
+                {lead.project ? (
+                  <>
+                    <Label>Assigned project</Label>
+                    <div className="mt-1">
+                      <Link
+                        href="/projects"
+                        className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                      >
+                        {lead.project.name}
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Label>Project assignment</Label>
+                    <p className="mt-1 text-sm text-gray-500">
+                      No project linked yet.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => setConvertOpen(true)}
+                    >
+                      Assign Project
+                    </Button>
+                  </>
+                )}
               </div>
               <div>
                 <Label>Project Type</Label>
@@ -310,10 +367,51 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
                 <TextArea rows={4} value={detailsForm.description} onChange={(v) => setDetailsForm((f) => ({ ...f, description: v }))} />
               </div>
             </div>
-            <div className="mt-4">
-              <Button size="sm" disabled={savingDetails} onClick={() => void saveDetails()}>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button size="sm" disabled={savingDetails || !detailsDirty} onClick={() => void saveDetails()}>
                 {savingDetails ? "Saving…" : "Save Details"}
               </Button>
+              {detailsDirty ? (
+                <span className="text-sm text-amber-600 dark:text-amber-400">
+                  You have unsaved changes
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {activeModule === "details" && detailsDirty ? (
+          <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+            <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Unsaved changes to lead details
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={savingDetails}
+                  onClick={() => {
+                    if (!lead) return;
+                    setDetailsForm({
+                      clientName: lead.clientName || "",
+                      phone: lead.phone || "",
+                      email: lead.email || "",
+                      projectName: getLeadProjectName(lead.projectName, lead.project?.name),
+                      projectType: lead.projectType || "",
+                      budget: lead.budget || "",
+                      scope: lead.scope || "",
+                      description: lead.description || "",
+                      status: enumToLabel(lead.status) || "New",
+                    });
+                  }}
+                >
+                  Discard
+                </Button>
+                <Button size="sm" disabled={savingDetails} onClick={() => void saveDetails()}>
+                  {savingDetails ? "Saving…" : "Save Details"}
+                </Button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -347,6 +445,18 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
           </div>
         ) : null}
 
+        {activeModule === "communication" && lead ? (
+          <LeadCommunicationPanel
+            leadId={leadId}
+            clientName={lead.clientName}
+            phone={lead.phone}
+            assignedToId={lead.assignedToId}
+            salesOwnerId={lead.salesOwnerId}
+            initialMessages={data?.messages || []}
+            onRefresh={() => void load()}
+          />
+        ) : null}
+
         {activeModule === "quotations" && data && lead ? (
           <LeadQuotationsPanel
             leadId={leadId}
@@ -366,10 +476,27 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
           />
         ) : null}
 
-        {!["summary", "details", "notes", "quotations"].includes(activeModule) ? (
+        {!["summary", "details", "notes", "quotations", "communication"].includes(activeModule) ? (
           <PlaceholderPanel title={LEAD_MODULES.find((m) => m.id === activeModule)?.label || "Module"} />
         ) : null}
       </div>
+
+      <ConvertLeadToProjectModal
+        lead={
+          convertOpen && lead
+            ? {
+                id: lead.id,
+                clientName: lead.clientName,
+                projectName: lead.projectName || undefined,
+              }
+            : null
+        }
+        onClose={() => setConvertOpen(false)}
+        onSuccess={() => {
+          setConvertOpen(false);
+          void load();
+        }}
+      />
 
       <LeadExplorerModal
         lead={{ id: lead.id, clientName: lead.clientName, projectName: lead.projectName || undefined }}

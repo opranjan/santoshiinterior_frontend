@@ -12,10 +12,6 @@ import Button from "@/components/ui/button/Button";
 import { ChevronDownIcon } from "@/icons/index";
 import { leadsApi, storesApi } from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
-import {
-  formatProjectLabel,
-  randomProjectCode,
-} from "@/lib/leadProjectLabel";
 
 const leadSourceOptions = [
   { value: "Walk-in", label: "Walk-in" },
@@ -72,7 +68,6 @@ const financialYearOptions = [
   { value: "2027-28", label: "2027-28" },
 ];
 
-const PROJECT_NAME_MAX = 255;
 
 export default function LeadForm() {
   const router = useRouter();
@@ -86,9 +81,6 @@ export default function LeadForm() {
   const [storeId, setStoreId] = useState("");
   const [source, setSource] = useState("");
   const [clientAddress, setClientAddress] = useState("");
-  const [projectName, setProjectName] = useState(() =>
-    formatProjectLabel(randomProjectCode())
-  );
   const [status, setStatus] = useState("NEW");
   const [budget, setBudget] = useState("");
   const [scope, setScope] = useState("");
@@ -138,7 +130,7 @@ export default function LeadForm() {
         clientAddress: clientAddress || null,
         storeId: storeId || null,
         source: source || null,
-        projectName: projectName || null,
+        projectName: null,
         projectType: projectType || null,
         scope: scope || null,
         budget: budget || null,
@@ -254,27 +246,9 @@ export default function LeadForm() {
 
       <ComponentCard
         title="Project Details"
-        desc="Project ownership, scope, budget, and timeline."
+        desc="Scope, budget, and timeline for this lead."
       >
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <Label htmlFor="projectName" className="mb-0">
-                Project Name
-              </Label>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                {projectName.length} / {PROJECT_NAME_MAX}
-              </span>
-            </div>
-            <Input
-              type="text"
-              id="projectName"
-              value={projectName}
-              maxLength={PROJECT_NAME_MAX}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="Enter Project Name"
-            />
-          </div>
           <div>
             <Label>Status</Label>
             <div className="relative">

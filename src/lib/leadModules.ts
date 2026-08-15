@@ -44,7 +44,7 @@ export const LEAD_MODULES: LeadModuleDef[] = [
   },
   { id: "finance-plan", label: "Finance Plan", ready: false, icon: "finance-plan" },
   { id: "site", label: "Site", ready: false, icon: "site" },
-  { id: "communication", label: "Communication", ready: false, icon: "communication" },
+  { id: "communication", label: "Communication", ready: true, icon: "communication" },
   { id: "vtour", label: "vTour", ready: false, icon: "vtour" },
 ];
 

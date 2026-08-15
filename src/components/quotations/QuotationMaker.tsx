@@ -26,6 +26,13 @@ import {
   buildMakerLayoutPayload,
   parseMakerLayout,
 } from "@/lib/quotationMakerLayout";
+import {
+  applyClientToLayoutBlocks,
+  buildLayoutFromTemplate,
+  buildPreparedForContext,
+  mergeTemplateSettingsIntoLayout,
+  type PreparedForContext,
+} from "@/lib/quotationPreparedFor";
 
 type MakerItem = {
   id: string;
@@ -167,6 +174,7 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
   );
   const [freeImages, setFreeImages] = useState<FreeImageBlock[]>([]);
   const skipTemplateLayout = useRef(false);
+  const preparedContextRef = useRef<PreparedForContext>({});
   const [items, setItems] = useState<MakerItem[]>([]);
   const [savingVersion, setSavingVersion] = useState(false);
   const [search, setSearch] = useState("");
@@ -197,9 +205,16 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         quotationSettingsApi.getBundle().catch(() => null),
       ]);
       const mapped = mapQuotation(raw as Record<string, unknown>) as Quotation;
-      const savedLayout = parseMakerLayout(
-        (raw as { makerLayout?: unknown }).makerLayout
-      );
+      const rawRecord = raw as Record<string, unknown>;
+      const preparedContext = buildPreparedForContext(rawRecord, {
+        clientName: mapped.clientName,
+        projectTitle: mapped.title,
+        phone: mapped.phone,
+        reference: mapped.id.slice(0, 8),
+      });
+      preparedContextRef.current = preparedContext;
+
+      const savedLayout = parseMakerLayout(rawRecord.makerLayout);
       setQuotation(mapped);
       setTitle(mapped.title || "Untitled Quotation");
 
@@ -229,34 +244,76 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
           : [],
       });
 
-      if (savedLayout) {
-        setLayoutBlocks(savedLayout.blocks!);
-        setFreeImages(savedLayout.freeImages ?? []);
-        if (savedLayout.settings) {
-          setSettings(savedLayout.settings);
+      const applyClient = (blocks: FlowBlock[]) =>
+        applyClientToLayoutBlocks(blocks, preparedContext);
+
+      const activeTemplateId =
+        savedLayout?.templateId || (defaultTpl ? String(defaultTpl.id) : "");
+
+      let resolvedBlocks: FlowBlock[] = [];
+      if (activeTemplateId) {
+        try {
+          const tpl = await quotationSettingsApi.getTemplate(activeTemplateId);
+          const templateBlocks = Array.isArray(tpl.layout)
+            ? (tpl.layout as FlowBlock[])
+            : [];
+
+          if (savedLayout?.blocks?.length && templateBlocks.length) {
+            resolvedBlocks = mergeTemplateSettingsIntoLayout(
+              savedLayout.blocks,
+              templateBlocks,
+              preparedContext
+            );
+          } else if (templateBlocks.length) {
+            resolvedBlocks = buildLayoutFromTemplate(
+              templateBlocks,
+              preparedContext
+            );
+          } else if (savedLayout?.blocks?.length) {
+            resolvedBlocks = applyClient(savedLayout.blocks);
+          } else {
+            resolvedBlocks = applyClient(
+              createDefaultLayout({
+                clientName: preparedContext.clientName,
+                projectTitle: preparedContext.projectTitle,
+                phone: preparedContext.phone,
+                reference: preparedContext.reference,
+              })
+            );
+          }
+        } catch {
+          resolvedBlocks = savedLayout?.blocks?.length
+            ? applyClient(savedLayout.blocks)
+            : applyClient(
+                createDefaultLayout({
+                  clientName: preparedContext.clientName,
+                  projectTitle: preparedContext.projectTitle,
+                  phone: preparedContext.phone,
+                  reference: preparedContext.reference,
+                })
+              );
         }
-        if (savedLayout.templateId) {
-          skipTemplateLayout.current = true;
-          setTemplateId(savedLayout.templateId);
-        } else if (defaultTpl) {
-          setTemplateId(String(defaultTpl.id));
-        }
+      } else if (savedLayout?.blocks?.length) {
+        resolvedBlocks = applyClient(savedLayout.blocks);
       } else {
-        setLayoutBlocks(
+        resolvedBlocks = applyClient(
           createDefaultLayout({
-            clientName: mapped.clientName,
-            projectTitle: mapped.title,
-            phone: mapped.phone,
-            reference:
-              typeof (raw as { notes?: string }).notes === "string"
-                ? String((raw as { notes?: string }).notes)
-                    .replace(/^Ref:\s*/i, "")
-                    .trim() || mapped.id.slice(0, 8)
-                : mapped.id.slice(0, 8),
+            clientName: preparedContext.clientName,
+            projectTitle: preparedContext.projectTitle,
+            phone: preparedContext.phone,
+            reference: preparedContext.reference,
           })
         );
-        setFreeImages([]);
-        if (defaultTpl) setTemplateId(String(defaultTpl.id));
+      }
+
+      setLayoutBlocks(resolvedBlocks);
+      setFreeImages(savedLayout?.freeImages ?? []);
+      if (savedLayout?.settings) {
+        setSettings(savedLayout.settings);
+      }
+      if (activeTemplateId) {
+        skipTemplateLayout.current = true;
+        setTemplateId(activeTemplateId);
       }
 
       const apiItems = Array.isArray((raw as { items?: unknown[] }).items)
@@ -305,7 +362,12 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         const tpl = await quotationSettingsApi.getTemplate(templateId);
         if (cancelled) return;
         if (Array.isArray(tpl.layout) && tpl.layout.length) {
-          setLayoutBlocks(tpl.layout as FlowBlock[]);
+          setLayoutBlocks(
+            buildLayoutFromTemplate(
+              tpl.layout as FlowBlock[],
+              preparedContextRef.current
+            )
+          );
           setFreeImages([]);
         }
       } catch {
@@ -489,7 +551,10 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
   const addSection = (
     kind: Parameters<typeof createFlowBlock>[0]
   ) => {
-    setLayoutBlocks((prev) => [...prev, createFlowBlock(kind)]);
+    setLayoutBlocks((prev) => [
+      ...prev,
+      createFlowBlock(kind, preparedContextRef.current),
+    ]);
     setFabOpen(false);
     setView("preview");
     flash("Section added — select it to move or edit");

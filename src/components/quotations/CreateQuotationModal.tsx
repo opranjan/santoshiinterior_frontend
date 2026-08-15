@@ -4,8 +4,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ApiError } from "@/lib/api";
 import { tokenStorage } from "@/lib/auth";
-import { leadsApi, projectsApi, quotationsApi } from "@/services/crmApi";
+import { leadsApi, projectsApi, quotationSettingsApi, quotationsApi } from "@/services/crmApi";
+import type { FlowBlock } from "@/components/quotations/MakerLayoutCanvas";
 import { getDefaultQuotationName } from "@/lib/leadProjectLabel";
+import { createDefaultLayout } from "@/components/quotations/MakerLayoutCanvas";
+import { defaultMakerSettings } from "@/components/quotations/MakerSettingsModal";
+import { buildMakerLayoutPayload } from "@/lib/quotationMakerLayout";
+import { buildLayoutFromTemplate } from "@/lib/quotationPreparedFor";
 
 type SourceKind = "projects" | "leads";
 type QuotationType = "Regular" | "Modular";
@@ -86,7 +91,11 @@ export default function CreateQuotationModal({
 
     if (leadContext) {
       setName(
-        getDefaultQuotationName(leadContext.leadId, leadContext.projectName)
+        getDefaultQuotationName(
+          leadContext.leadId,
+          leadContext.projectName,
+          leadContext.clientName
+        )
       );
       setSource("leads");
       setSourceId(leadContext.leadId);
@@ -185,6 +194,43 @@ export default function CreateQuotationModal({
     try {
       setSubmitting(true);
       setError("");
+      const refNo = reference.trim();
+      const preparedContext = {
+        clientName: selected.clientName,
+        projectTitle:
+          source === "leads"
+            ? leadContext?.projectName ||
+              getDefaultQuotationName(
+                selected.id,
+                leadContext?.projectName,
+                selected.clientName
+              )
+            : selected.label,
+        phone: selected.phone || undefined,
+        reference: refNo,
+      };
+
+      let initialBlocks = createDefaultLayout(preparedContext);
+      let templateId = "";
+
+      try {
+        const bundle = await quotationSettingsApi.getBundle();
+        const defaultTpl =
+          bundle.templates?.find((t) => t.isDefault) || bundle.templates?.[0];
+        if (defaultTpl?.id) {
+          const tpl = await quotationSettingsApi.getTemplate(defaultTpl.id);
+          if (Array.isArray(tpl.layout) && tpl.layout.length) {
+            initialBlocks = buildLayoutFromTemplate(
+              tpl.layout as FlowBlock[],
+              preparedContext
+            );
+            templateId = defaultTpl.id;
+          }
+        }
+      } catch {
+        /* fall back to default layout */
+      }
+
       const body: Record<string, unknown> = {
         title: name.trim(),
         sourceType: source === "leads" ? "LEAD" : "CLIENT",
@@ -199,8 +245,14 @@ export default function CreateQuotationModal({
         amount: 0,
         status: "DRAFT",
         version: 1,
-        notes: `Ref: ${reference}${type === "Modular" ? " | Modular" : ""}`,
+        notes: `Ref: ${refNo}${type === "Modular" ? " | Modular" : ""}`,
         createdById: user?.id || null,
+        makerLayout: buildMakerLayoutPayload({
+          templateId,
+          blocks: initialBlocks,
+          freeImages: [],
+          settings: defaultMakerSettings,
+        }),
       };
       const created = await quotationsApi.create(body);
       const id =
