@@ -110,6 +110,8 @@ export type LeadMessageDto = {
   body?: string | null;
   templateName?: string | null;
   mediaUrl?: string | null;
+  mediaType?: "image" | "document" | "video" | "audio" | null;
+  mediaFilename?: string | null;
   externalId?: string | null;
   status: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
   sentBy?: { id: string; name: string } | null;
@@ -179,8 +181,35 @@ export const leadsApi = {
     ),
   listMessages: (id: string) =>
     api.get<LeadMessageDto[]>(`/leads/${id}/messages`),
-  sendMessage: (id: string, body: { body?: string; templateName?: string; bodyValues?: string[] }) =>
-    api.post<LeadMessageDto>(`/leads/${id}/messages`, body),
+  sendMessage: async (
+    id: string,
+    payload: { body?: string; templateName?: string; bodyValues?: string[]; file?: File }
+  ) => {
+    if (payload.file) {
+      const { tokenStorage } = await import("@/lib/auth");
+      const base = (
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+      ).replace(/\/$/, "");
+      const token = tokenStorage.getAccessToken();
+      const form = new FormData();
+      if (payload.body?.trim()) form.append("body", payload.body.trim());
+      form.append("file", payload.file);
+      const res = await fetch(`${base}/leads/${id}/messages`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+      if (!res.ok) {
+        throw new Error(
+          json?.error?.message || json?.message || "Failed to send attachment"
+        );
+      }
+      return json.data as LeadMessageDto;
+    }
+    return api.post<LeadMessageDto>(`/leads/${id}/messages`, payload);
+  },
 };
 
 export type WhatsAppStatusDto = {
