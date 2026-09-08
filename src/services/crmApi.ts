@@ -183,6 +183,39 @@ export const leadsApi = {
     api.post<LeadMessageDto>(`/leads/${id}/messages`, body),
 };
 
+export type WhatsAppStatusDto = {
+  provider: string;
+  environment: string;
+  configured: boolean;
+  webhookReady: boolean;
+  appSecretSet: boolean;
+  phoneNumberId: string | null;
+  businessAccountId: string | null;
+  apiVersion: string;
+  defaultTemplate: string | null;
+  defaultLanguage: string;
+  templateCheck: {
+    ok: boolean;
+    reason?: string;
+    approvedTemplates?: string[];
+  };
+  approvedTemplates: Array<{ name: string; language: string }>;
+  webhookPath: string;
+  recommendedWebhookUrl?: string | null;
+  publicApiUrlConfigured?: boolean;
+  inboundMessageCount?: number;
+  webhookActivity?: {
+    lastReceivedAt: string | null;
+    lastProcessed: number;
+    totalReceived: number;
+    lastError: string | null;
+  };
+};
+
+export const messagingApi = {
+  getStatus: () => api.get<WhatsAppStatusDto>("/webhooks/status"),
+};
+
 export type CustomerDto = {
   id: string;
   name: string;
