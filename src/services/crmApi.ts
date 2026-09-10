@@ -107,9 +107,14 @@ export type WhatsAppInboxItemDto = {
   clientName: string;
   phone: string;
   status: string;
+  projectId?: string | null;
   projectName?: string | null;
+  projectStatus?: string | null;
   assigneeName?: string | null;
   updatedAt: string;
+  viewMode?: "project" | "lead";
+  displayTitle?: string;
+  displaySubtitle?: string;
   lastMessage?: {
     body?: string | null;
     preview?: string;
@@ -202,6 +207,9 @@ export const leadsApi = {
     api.get<LeadMessageDto[]>(`/leads/${id}/messages`),
   getMessagingInbox: (query?: {
     search?: string;
+    viewMode?: "project" | "lead";
+    leadStatus?: string;
+    projectStatus?: string;
     status?: string;
     projectId?: string;
     leadId?: string;
