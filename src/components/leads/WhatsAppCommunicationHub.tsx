@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import {
   leadsApi,
   type LeadMessageDto,
@@ -131,32 +130,30 @@ export default function WhatsAppCommunicationHub({
   onRefresh,
   fullHeight = false,
 }: HubProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const leadFromUrl = searchParams.get("lead");
-
-  const activeLeadId = selectedLeadIdProp || leadFromUrl || null;
-
   const [inbox, setInbox] = useState<WhatsAppInboxItemDto[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("project");
+  const [viewMode, setViewMode] = useState<ViewMode>("lead");
   const [stageFilter, setStageFilter] = useState("");
+  const [activeLeadId, setActiveLeadId] = useState<string | null>(
+    selectedLeadIdProp || selectedLeadProp?.id || null
+  );
 
   const [loadedLead, setLoadedLead] = useState<SelectedLead | null>(selectedLeadProp || null);
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessagesProp);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const loadInbox = useCallback(async () => {
+  const loadInbox = useCallback(async (silent = false) => {
     try {
-      setLoadingInbox(true);
+      if (!silent) setLoadingInbox(true);
       setInboxError(null);
       const rows = await leadsApi.getMessagingInbox({
         search: debouncedSearch || undefined,
@@ -175,58 +172,94 @@ export default function WhatsAppCommunicationHub({
   }, [debouncedSearch, viewMode, stageFilter]);
 
   useEffect(() => {
-    void loadInbox();
+    void loadInbox(false);
   }, [loadInbox]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      void loadInbox();
-    }, 5000);
+      void loadInbox(true);
+    }, 8000);
     return () => clearInterval(timer);
   }, [loadInbox]);
+
+  useEffect(() => {
+    if (selectedLeadIdProp || selectedLeadProp) return;
+    if (typeof window === "undefined") return;
+    const lead = new URLSearchParams(window.location.search).get("lead");
+    if (lead) setActiveLeadId(lead);
+  }, [selectedLeadIdProp, selectedLeadProp]);
+
+  useEffect(() => {
+    if (selectedLeadIdProp) setActiveLeadId(selectedLeadIdProp);
+  }, [selectedLeadIdProp]);
 
   useEffect(() => {
     if (selectedLeadProp) {
       setLoadedLead(selectedLeadProp);
       setMessages(initialMessagesProp);
+      setChatError(null);
       return;
     }
 
     if (!activeLeadId) {
       setLoadedLead(null);
       setMessages([]);
+      setChatError(null);
       return;
     }
 
+    let cancelled = false;
     (async () => {
       setLoadingChat(true);
+      setChatError(null);
       try {
-        const ws = await leadsApi.getWorkspace(activeLeadId);
-        const lead = ws.lead;
-        setLoadedLead({
-          id: lead.id,
-          clientName: lead.clientName,
-          phone: lead.phone,
-          assignedToId: lead.assignedToId,
-          salesOwnerId: lead.salesOwnerId,
-          projectName: lead.project?.name || lead.projectName,
-          status: lead.status,
-        });
-        setMessages(ws.messages || []);
-      } catch {
-        setLoadedLead(null);
-        setMessages([]);
+        const list = await leadsApi.listMessages(activeLeadId);
+        if (cancelled) return;
+        setMessages(list || []);
+      } catch (err) {
+        if (cancelled) return;
+        setChatError(err instanceof Error ? err.message : "Failed to open conversation");
       } finally {
-        setLoadingChat(false);
+        if (!cancelled) setLoadingChat(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeLeadId, selectedLeadProp, initialMessagesProp]);
 
-  const openLead = (id: string) => {
-    router.push(`/communication/whatsapp?lead=${id}`);
+  useEffect(() => {
+    if (!activeLeadId || loadedLead?.id === activeLeadId) return;
+    const item = inbox.find((row) => row.id === activeLeadId);
+    if (!item) return;
+    setLoadedLead({
+      id: item.id,
+      clientName: item.clientName,
+      phone: item.phone,
+      projectName: item.projectName,
+      status: item.status,
+    });
+  }, [inbox, activeLeadId, loadedLead?.id]);
+
+  const openLead = (item: WhatsAppInboxItemDto) => {
+    setActiveLeadId(item.id);
+    setChatError(null);
+    setLoadedLead({
+      id: item.id,
+      clientName: item.clientName,
+      phone: item.phone,
+      projectName: item.projectName,
+      status: item.status,
+    });
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("lead", item.id);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
   };
 
-  const showChat = Boolean(loadedLead?.phone?.trim());
+  const showChat = Boolean(loadedLead?.id && loadedLead.phone?.trim());
 
   const heightClass = fullHeight
     ? "h-[min(calc(100vh-140px),820px)]"
@@ -239,7 +272,7 @@ export default function WhatsAppCommunicationHub({
 
   return (
     <div
-      className={`flex ${heightClass} overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]`}
+      className={`relative z-0 flex ${heightClass} overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]`}
     >
       <aside className="flex w-full max-w-[360px] shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]">
         <div className="border-b border-gray-100 px-4 py-4 dark:border-gray-800">
@@ -346,7 +379,7 @@ export default function WhatsAppCommunicationHub({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => openLead(item.id)}
+                  onClick={() => openLead(item)}
                   className={`flex w-full items-start gap-3 border-b border-gray-50 px-4 py-3.5 text-left transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.03] ${
                     active ? "bg-[#fce7ec] hover:bg-[#fce7ec] dark:bg-[#E85D75]/10" : ""
                   }`}
@@ -383,11 +416,17 @@ export default function WhatsAppCommunicationHub({
       </aside>
 
       <div className="min-w-0 flex-1 bg-[#f0f2f5] dark:bg-[#0b141a]">
-        {loadingChat ? (
+        {loadingChat && !loadedLead ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-400">
             Loading conversation…
           </div>
         ) : showChat && loadedLead ? (
+          <div className="flex h-full min-h-0 flex-col">
+            {chatError ? (
+              <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+                {chatError}
+              </p>
+            ) : null}
           <LeadCommunicationPanel
             embedded
             leadId={loadedLead.id}
@@ -397,15 +436,16 @@ export default function WhatsAppCommunicationHub({
             salesOwnerId={loadedLead.salesOwnerId}
             initialMessages={messages}
             onRefresh={() => {
-              void loadInbox();
+              void loadInbox(true);
               onRefresh?.();
               if (!selectedLeadProp && activeLeadId) {
-                void leadsApi.getWorkspace(activeLeadId).then((ws) => {
-                  setMessages(ws.messages || []);
+                void leadsApi.listMessages(activeLeadId).then((list) => {
+                  setMessages(list || []);
                 });
               }
             }}
           />
+          </div>
         ) : (
           <EmptyChatState />
         )}
