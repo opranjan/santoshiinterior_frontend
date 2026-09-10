@@ -102,6 +102,25 @@ export type LeadQuotationSummaryBucket = {
   amount: number;
 };
 
+export type WhatsAppInboxItemDto = {
+  id: string;
+  clientName: string;
+  phone: string;
+  status: string;
+  projectName?: string | null;
+  assigneeName?: string | null;
+  updatedAt: string;
+  lastMessage?: {
+    body?: string | null;
+    preview?: string;
+    mediaType?: string | null;
+    direction?: string;
+    createdAt?: string;
+  } | null;
+  unreadCount: number;
+  hasConversation: boolean;
+};
+
 export type LeadMessageDto = {
   id: string;
   leadId: string;
@@ -181,6 +200,11 @@ export const leadsApi = {
     ),
   listMessages: (id: string) =>
     api.get<LeadMessageDto[]>(`/leads/${id}/messages`),
+  getMessagingInbox: (query?: {
+    search?: string;
+    status?: string;
+    hasProject?: string;
+  }) => api.get<WhatsAppInboxItemDto[]>("/leads/messaging/inbox", query),
   sendMessage: async (
     id: string,
     payload: { body?: string; templateName?: string; bodyValues?: string[]; file?: File }

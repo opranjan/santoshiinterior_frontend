@@ -24,7 +24,7 @@ import {
 } from "@/lib/leadModules";
 import LeadExplorerModal from "./LeadExplorerModal";
 import LeadQuotationsPanel from "./LeadQuotationsPanel";
-import LeadCommunicationPanel from "./LeadCommunicationPanel";
+import WhatsAppCommunicationHub from "./WhatsAppCommunicationHub";
 import ConvertLeadToProjectModal from "./ConvertLeadToProjectModal";
 
 function PlaceholderPanel({ title }: { title: string }) {
@@ -446,15 +446,22 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
         ) : null}
 
         {activeModule === "communication" && lead ? (
-          <LeadCommunicationPanel
-            leadId={leadId}
-            clientName={lead.clientName}
-            phone={lead.phone}
-            assignedToId={lead.assignedToId}
-            salesOwnerId={lead.salesOwnerId}
-            initialMessages={data?.messages || []}
-            onRefresh={() => void load()}
-          />
+          <div className="-mx-4 -mb-4 sm:-mx-5 sm:-mb-5">
+            <WhatsAppCommunicationHub
+              selectedLeadId={leadId}
+              selectedLead={{
+                id: leadId,
+                clientName: lead.clientName,
+                phone: lead.phone,
+                assignedToId: lead.assignedToId,
+                salesOwnerId: lead.salesOwnerId,
+                projectName: lead.project?.name || lead.projectName,
+                status: lead.status,
+              }}
+              initialMessages={data?.messages || []}
+              onRefresh={() => void load()}
+            />
+          </div>
         ) : null}
 
         {activeModule === "quotations" && data && lead ? (

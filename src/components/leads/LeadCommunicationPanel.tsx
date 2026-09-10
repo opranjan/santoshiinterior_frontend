@@ -19,6 +19,7 @@ type Props = {
   salesOwnerId?: string | null;
   initialMessages?: LeadMessageDto[];
   onRefresh?: () => void;
+  embedded?: boolean;
 };
 
 type MessageGroup = {
@@ -395,6 +396,7 @@ export default function LeadCommunicationPanel({
   salesOwnerId,
   initialMessages = [],
   onRefresh,
+  embedded = false,
 }: Props) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessages);
@@ -536,7 +538,13 @@ export default function LeadCommunicationPanel({
     (waStatus.inboundMessageCount ?? 0) === 0;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-lg shadow-gray-200/50 dark:border-gray-800 dark:bg-[#111b21] dark:shadow-none">
+    <div
+      className={
+        embedded
+          ? "flex h-full flex-col overflow-hidden bg-white dark:bg-[#111b21]"
+          : "overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-lg shadow-gray-200/50 dark:border-gray-800 dark:bg-[#111b21] dark:shadow-none"
+      }
+    >
       {/* Header */}
       <div className="relative bg-gradient-to-r from-[#075e54] via-[#128c7e] to-[#075e54] px-4 py-3 text-white">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
@@ -589,7 +597,9 @@ export default function LeadCommunicationPanel({
 
       {/* Chat area */}
       <div
-        className="relative flex h-[min(58vh,520px)] flex-col overflow-hidden"
+        className={`relative flex flex-col overflow-hidden ${
+          embedded ? "h-full min-h-0 flex-1" : "h-[min(58vh,520px)]"
+        }`}
         style={{
           backgroundColor: "#e5ddd5",
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4bc' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
