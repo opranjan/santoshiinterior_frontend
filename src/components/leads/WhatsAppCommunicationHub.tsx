@@ -1,10 +1,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { leadsApi, type LeadMessageDto, type WhatsAppInboxItemDto } from "@/services/crmApi";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  leadsApi,
+  projectsApi,
+  type LeadMessageDto,
+  type WhatsAppInboxItemDto,
+} from "@/services/crmApi";
 import { enumToLabel } from "@/lib/mappers";
-import { leadModuleHref } from "@/lib/leadModules";
 import LeadCommunicationPanel from "./LeadCommunicationPanel";
 
 type SelectedLead = {
@@ -17,11 +21,13 @@ type SelectedLead = {
   status?: string;
 };
 
-type Props = {
-  selectedLeadId: string;
-  selectedLead: SelectedLead;
+type HubProps = {
+  /** When set, used instead of URL ?lead= param (e.g. embedded in lead workspace). */
+  selectedLeadId?: string;
+  selectedLead?: SelectedLead;
   initialMessages?: LeadMessageDto[];
   onRefresh?: () => void;
+  fullHeight?: boolean;
 };
 
 const AVATAR_COLORS = [
@@ -35,7 +41,6 @@ const AVATAR_COLORS = [
 ];
 
 const LEAD_STATUSES = [
-  "",
   "NEW",
   "CONTACTED",
   "SITE_VISIT",
@@ -102,24 +107,51 @@ function EmptyChatState() {
         Chat with your leads on WhatsApp
       </h3>
       <p className="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
-        Select a conversation from the list to view messages, send replies, and share images or documents.
+        Click on a chat from the list to start communication. Filter by project, lead, or stage.
       </p>
     </div>
   );
 }
 
 export default function WhatsAppCommunicationHub({
-  selectedLeadId,
-  selectedLead,
-  initialMessages = [],
+  selectedLeadId: selectedLeadIdProp,
+  selectedLead: selectedLeadProp,
+  initialMessages: initialMessagesProp = [],
   onRefresh,
-}: Props) {
+  fullHeight = false,
+}: HubProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const leadFromUrl = searchParams.get("lead");
+
+  const activeLeadId = selectedLeadIdProp || leadFromUrl || null;
+
   const [inbox, setInbox] = useState<WhatsAppInboxItemDto[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
+  const [leadFilter, setLeadFilter] = useState("");
+  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
+
+  const [loadedLead, setLoadedLead] = useState<SelectedLead | null>(selectedLeadProp || null);
+  const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessagesProp);
+  const [loadingChat, setLoadingChat] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await projectsApi.list({ limit: 200 });
+        const items = (res.items || []).map((p) => ({
+          id: String(p.id),
+          name: String(p.name || "Project"),
+        }));
+        setProjects(items);
+      } catch {
+        setProjects([]);
+      }
+    })();
+  }, []);
 
   const loadInbox = useCallback(async () => {
     try {
@@ -127,7 +159,8 @@ export default function WhatsAppCommunicationHub({
       const rows = await leadsApi.getMessagingInbox({
         search: search.trim() || undefined,
         status: statusFilter || undefined,
-        hasProject: projectFilter || undefined,
+        projectId: projectFilter || undefined,
+        leadId: leadFilter || undefined,
       });
       setInbox(rows);
     } catch {
@@ -135,7 +168,7 @@ export default function WhatsAppCommunicationHub({
     } finally {
       setLoadingInbox(false);
     }
-  }, [search, statusFilter, projectFilter]);
+  }, [search, statusFilter, projectFilter, leadFilter]);
 
   useEffect(() => {
     void loadInbox();
@@ -148,47 +181,73 @@ export default function WhatsAppCommunicationHub({
     return () => clearInterval(timer);
   }, [loadInbox]);
 
-  const sortedInbox = useMemo(() => {
-    const map = new Map(inbox.map((row) => [row.id, row]));
-    if (!map.has(selectedLeadId)) {
-      map.set(selectedLeadId, {
-        id: selectedLeadId,
-        clientName: selectedLead.clientName,
-        phone: selectedLead.phone,
-        status: selectedLead.status || "NEW",
-        projectName: selectedLead.projectName,
-        assigneeName: null,
-        updatedAt: new Date().toISOString(),
-        lastMessage: initialMessages.length
-          ? {
-              preview:
-                initialMessages[initialMessages.length - 1]?.body ||
-                "WhatsApp conversation",
-              direction: initialMessages[initialMessages.length - 1]?.direction || "OUTBOUND",
-              createdAt: initialMessages[initialMessages.length - 1]?.createdAt,
-            }
-          : null,
-        unreadCount: 0,
-        hasConversation: initialMessages.length > 0,
-      });
+  useEffect(() => {
+    if (selectedLeadProp) {
+      setLoadedLead(selectedLeadProp);
+      setMessages(initialMessagesProp);
+      return;
     }
-    return [...map.values()].sort((a, b) => {
-      const ta = new Date(a.lastMessage?.createdAt || a.updatedAt).getTime();
-      const tb = new Date(b.lastMessage?.createdAt || b.updatedAt).getTime();
-      return tb - ta;
-    });
-  }, [inbox, selectedLeadId, selectedLead, initialMessages]);
+
+    if (!activeLeadId) {
+      setLoadedLead(null);
+      setMessages([]);
+      return;
+    }
+
+    (async () => {
+      setLoadingChat(true);
+      try {
+        const ws = await leadsApi.getWorkspace(activeLeadId);
+        const lead = ws.lead;
+        setLoadedLead({
+          id: lead.id,
+          clientName: lead.clientName,
+          phone: lead.phone,
+          assignedToId: lead.assignedToId,
+          salesOwnerId: lead.salesOwnerId,
+          projectName: lead.project?.name || lead.projectName,
+          status: lead.status,
+        });
+        setMessages(ws.messages || []);
+      } catch {
+        setLoadedLead(null);
+        setMessages([]);
+      } finally {
+        setLoadingChat(false);
+      }
+    })();
+  }, [activeLeadId, selectedLeadProp, initialMessagesProp]);
+
+  const leadOptions = useMemo(
+    () =>
+      inbox.map((item) => ({
+        id: item.id,
+        label: item.projectName
+          ? `${item.clientName} · ${item.projectName}`
+          : item.clientName,
+      })),
+    [inbox]
+  );
 
   const openLead = (id: string) => {
-    router.push(leadModuleHref(id, "communication"));
+    if (selectedLeadIdProp) {
+      router.push(`/communication/whatsapp?lead=${id}`);
+      return;
+    }
+    router.push(`/communication/whatsapp?lead=${id}`);
   };
 
-  const showChat = Boolean(selectedLead.phone?.trim());
+  const showChat = Boolean(loadedLead?.phone?.trim());
+
+  const heightClass = fullHeight
+    ? "h-[min(calc(100vh-140px),820px)]"
+    : "h-[min(calc(100vh-220px),760px)]";
 
   return (
-    <div className="flex h-[min(calc(100vh-220px),760px)] overflow-hidden rounded-b-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]">
-      {/* Inbox sidebar — Dzylo-style */}
-      <aside className="flex w-full max-w-[340px] shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]">
+    <div
+      className={`flex ${heightClass} overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]`}
+    >
+      <aside className="flex w-full max-w-[360px] shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]">
         <div className="border-b border-gray-100 px-4 py-4 dark:border-gray-800">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c7e]">
@@ -201,50 +260,90 @@ export default function WhatsAppCommunicationHub({
           </div>
 
           <div className="mt-4">
+            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              Search leads
+            </label>
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
+              placeholder="Name, phone, project…"
               className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-[#128c7e] focus:outline-none focus:ring-2 focus:ring-[#128c7e]/20 dark:border-gray-700 dark:bg-[#202c33] dark:text-white/90"
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
-            >
-              <option value="">All projects</option>
-              <option value="yes">With project</option>
-              <option value="no">No project</option>
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
-            >
-              <option value="">All stages</option>
-              {LEAD_STATUSES.filter(Boolean).map((s) => (
-                <option key={s} value={s}>
-                  {enumToLabel(s)}
-                </option>
-              ))}
-            </select>
+          <div className="mt-3 space-y-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                Project
+              </label>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
+              >
+                <option value="">All projects</option>
+                <option value="none">No project assigned</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                Lead
+              </label>
+              <select
+                value={leadFilter}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setLeadFilter(id);
+                  if (id) openLead(id);
+                }}
+                className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
+              >
+                <option value="">All leads</option>
+                {leadOptions.map((lead) => (
+                  <option key={lead.id} value={lead.id}>
+                    {lead.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                Select stage
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
+              >
+                <option value="">All stages</option>
+                {LEAD_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {enumToLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {loadingInbox && inbox.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-gray-400">Loading chats…</p>
-          ) : sortedInbox.length === 0 ? (
+          ) : inbox.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-gray-400">
-              No leads with phone numbers found.
+              No leads match your filters.
             </p>
           ) : (
-            sortedInbox.map((item) => {
-              const active = item.id === selectedLeadId;
+            inbox.map((item) => {
+              const active = item.id === activeLeadId;
               const title = item.projectName || item.clientName;
               const subtitle = item.projectName
                 ? item.clientName
@@ -292,20 +391,28 @@ export default function WhatsAppCommunicationHub({
         </div>
       </aside>
 
-      {/* Chat pane */}
       <div className="min-w-0 flex-1 bg-[#f0f2f5] dark:bg-[#0b141a]">
-        {showChat ? (
+        {loadingChat ? (
+          <div className="flex h-full items-center justify-center text-sm text-gray-400">
+            Loading conversation…
+          </div>
+        ) : showChat && loadedLead ? (
           <LeadCommunicationPanel
             embedded
-            leadId={selectedLeadId}
-            clientName={selectedLead.clientName}
-            phone={selectedLead.phone}
-            assignedToId={selectedLead.assignedToId}
-            salesOwnerId={selectedLead.salesOwnerId}
-            initialMessages={initialMessages}
+            leadId={loadedLead.id}
+            clientName={loadedLead.clientName}
+            phone={loadedLead.phone}
+            assignedToId={loadedLead.assignedToId}
+            salesOwnerId={loadedLead.salesOwnerId}
+            initialMessages={messages}
             onRefresh={() => {
               void loadInbox();
               onRefresh?.();
+              if (!selectedLeadProp && activeLeadId) {
+                void leadsApi.getWorkspace(activeLeadId).then((ws) => {
+                  setMessages(ws.messages || []);
+                });
+              }
             }}
           />
         ) : (

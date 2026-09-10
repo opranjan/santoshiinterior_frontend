@@ -203,7 +203,8 @@ export const leadsApi = {
   getMessagingInbox: (query?: {
     search?: string;
     status?: string;
-    hasProject?: string;
+    projectId?: string;
+    leadId?: string;
   }) => api.get<WhatsAppInboxItemDto[]>("/leads/messaging/inbox", query),
   sendMessage: async (
     id: string,

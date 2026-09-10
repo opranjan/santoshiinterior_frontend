@@ -14,6 +14,7 @@ import {
   BoxCubeIcon,
   BoxIconLine,
   CalenderIcon,
+  ChatIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   DocsIcon,
@@ -49,6 +50,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Calendar: <CalenderIcon />,
   Admin: <UserCircleIcon />,
   Integrations: <PlugInIcon />,
+  Communication: <ChatIcon />,
 };
 
 const withIcons = (items: NavPermissionGroup[]): NavItem[] =>

@@ -103,6 +103,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/stores", permissions: ["stores.manage", "sales.full", "reports.full", "reports.store", "users.manage"] },
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
+  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all"] },
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/design", permissions: ["design.manage", "projects.view", "documents.manage"] },
@@ -174,6 +175,17 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       { name: "Add Lead", path: "/sales/leads/new", permissions: ["sales.full", "sales.manage", "leads.manage"] },
       { name: "Deals", path: "/sales/deals", permissions: ["sales.full", "sales.manage", "sales.view"] },
       { name: "Create Quotation", path: "/quotations?create=1", permissions: ["quotations.create", "quotations.manage", "sales.full", "sales.manage"] },
+    ],
+  },
+  {
+    name: "Communication",
+    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all"],
+    subItems: [
+      {
+        name: "WhatsApp",
+        path: "/communication/whatsapp",
+        permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all"],
+      },
     ],
   },
   {
