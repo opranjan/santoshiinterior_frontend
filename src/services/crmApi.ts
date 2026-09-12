@@ -124,6 +124,7 @@ export type WhatsAppInboxItemDto = {
   } | null;
   unreadCount: number;
   hasConversation: boolean;
+  hasLead?: boolean;
 };
 
 export type LeadMessageDto = {

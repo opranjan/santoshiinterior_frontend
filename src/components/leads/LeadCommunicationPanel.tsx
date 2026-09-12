@@ -153,7 +153,7 @@ function MessageStatus({ status }: { status: string }) {
   const isRead = status === "READ";
   const isDelivered = status === "DELIVERED" || isRead;
   const isFailed = status === "FAILED";
-  const color = isRead ? "text-sky-400" : isFailed ? "text-red-400" : "text-white/70";
+  const color = isRead ? "text-sky-500" : isFailed ? "text-red-400" : "text-[#8696a0]";
 
   if (isFailed) {
     return (
@@ -233,7 +233,7 @@ function MediaAttachment({
         <img
           src={href}
           alt={msg.body || "Shared image"}
-          className="max-h-64 w-full object-cover transition hover:opacity-95"
+          className="max-h-56 w-auto max-w-full object-contain transition hover:opacity-95"
         />
       </a>
     );
@@ -335,29 +335,19 @@ function ChatBubble({
     !(hasMedia && msg.mediaType === "document" && body === msg.mediaFilename);
 
   return (
-    <div className={`flex ${outbound ? "justify-end" : "justify-start"} px-1`}>
-      <div className={`flex max-w-[min(85%,420px)] gap-2 ${outbound ? "flex-row-reverse" : "flex-row"}`}>
+    <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`relative max-w-[min(78%,560px)] rounded-lg px-3 py-1.5 shadow-sm ${
+          outbound
+            ? "rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-white"
+            : "rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]"
+        }`}
+      >
         {!outbound ? (
-          <div
-            className="mt-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dfe5e7] text-xs font-semibold text-[#54656f] ring-2 ring-white dark:bg-gray-700 dark:text-gray-200 dark:ring-[#0b141a]"
-            aria-hidden
-          >
-            {initials(clientName)}
-          </div>
+          <p className="mb-0.5 text-[11px] font-semibold text-[#25d366]">
+            {clientName}
+          </p>
         ) : null}
-
-        <div
-          className={`relative rounded-xl px-3 py-2 shadow-sm ${
-            outbound
-              ? "rounded-tr-sm bg-[#005c4b] text-white dark:bg-[#005c4b]"
-              : "rounded-tl-sm border border-white/60 bg-white text-[#111b21] dark:border-gray-700 dark:bg-[#202c33] dark:text-[#e9edef]"
-          }`}
-        >
-          {!outbound ? (
-            <p className="mb-0.5 text-[11px] font-semibold text-[#25d366]">
-              {clientName}
-            </p>
-          ) : null}
 
           {hasMedia ? <MediaAttachment msg={msg} outbound={outbound} /> : null}
 
@@ -372,8 +362,8 @@ function ChatBubble({
           ) : null}
 
           <div
-            className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-              outbound ? "text-white/75" : "text-[#667781] dark:text-gray-400"
+            className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
+              outbound ? "text-[#667781] dark:text-white/70" : "text-[#667781] dark:text-gray-400"
             }`}
           >
             {outbound && msg.sentBy?.name ? (
@@ -382,7 +372,6 @@ function ChatBubble({
             <span>{formatBubbleTime(msg.createdAt)}</span>
             {outbound ? <MessageStatus status={msg.status} /> : null}
           </div>
-        </div>
       </div>
     </div>
   );
@@ -406,7 +395,9 @@ export default function LeadCommunicationPanel({
   const [error, setError] = useState("");
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const [waStatus, setWaStatus] = useState<WhatsAppStatusDto | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const lastCountRef = useRef(initialMessages.length);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -435,7 +426,16 @@ export default function LeadCommunicationPanel({
     if (showSpinner) setFetching(true);
     try {
       const rows = await leadsApi.listMessages(leadId);
-      setMessages(rows);
+      setMessages((prev) => {
+        if (
+          prev.length === rows.length &&
+          prev[prev.length - 1]?.id === rows[rows.length - 1]?.id &&
+          prev[0]?.id === rows[0]?.id
+        ) {
+          return prev;
+        }
+        return rows;
+      });
       setLastFetchedAt(new Date());
     } catch {
       // keep existing
@@ -448,7 +448,9 @@ export default function LeadCommunicationPanel({
 
   useEffect(() => {
     setMessages(initialMessages);
-  }, [initialMessages]);
+    stickToBottomRef.current = true;
+    lastCountRef.current = initialMessages.length;
+  }, [leadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void loadMessages();
@@ -465,9 +467,30 @@ export default function LeadCommunicationPanel({
     })();
   }, []);
 
+  const scrollToBottom = useCallback((smooth = false) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  }, []);
+
+  const onChatScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 80;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const added = messages.length > lastCountRef.current;
+    lastCountRef.current = messages.length;
+    if (!stickToBottomRef.current && !added) return;
+    if (stickToBottomRef.current || added) {
+      requestAnimationFrame(() => scrollToBottom(added && messages.length > 1));
+    }
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     if (!leadId) return;
@@ -541,83 +564,70 @@ export default function LeadCommunicationPanel({
     <div
       className={
         embedded
-          ? "flex h-full flex-col overflow-hidden bg-white dark:bg-[#111b21]"
-          : "overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-lg shadow-gray-200/50 dark:border-gray-800 dark:bg-[#111b21] dark:shadow-none"
+          ? "flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-[#111b21]"
+          : "flex max-h-[min(80vh,720px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-lg shadow-gray-200/50 dark:border-gray-800 dark:bg-[#111b21] dark:shadow-none"
       }
     >
       {/* Header */}
-      <div className="relative bg-gradient-to-r from-[#075e54] via-[#128c7e] to-[#075e54] px-4 py-3 text-white">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
+      <div className="relative shrink-0 bg-[#075e54] px-4 py-2.5 text-white">
         <div className="relative flex items-center gap-3">
           <div className="relative">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-sm font-bold ring-2 ring-white/20 backdrop-blur-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-sm font-bold">
               {initials(clientName)}
             </div>
-            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#075e54] bg-[#25d366]" />
+            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#075e54] bg-[#25d366]" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-base font-semibold">{clientName}</h3>
-            <p className="flex items-center gap-1.5 truncate text-xs text-white/80">
-              <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
+            <h3 className="truncate text-[15px] font-semibold leading-tight">{clientName}</h3>
+            <p className="truncate text-[12px] text-white/75">
               {phone ? `+91 ${phone.replace(/\D/g, "").slice(-10)}` : "No phone number"}
             </p>
           </div>
 
-          <div className="flex items-center gap-1">
-            {canViewAll ? (
-              <span className="mr-1 hidden rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium sm:inline">
-                Manager
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => void loadMessages(true)}
-              disabled={fetching}
-              title="Refresh messages"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 disabled:opacity-50"
-            >
-              <RefreshIcon spinning={fetching} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void loadMessages(true)}
+            disabled={fetching}
+            title={lastFetchedAt ? `Refresh · ${lastFetchedAt.toLocaleTimeString()}` : "Refresh messages"}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 disabled:opacity-50"
+          >
+            <RefreshIcon spinning={fetching} />
+          </button>
         </div>
-
-        {lastFetchedAt ? (
-          <p className="relative mt-1.5 text-[10px] text-white/60">
-            Live sync · updated {lastFetchedAt.toLocaleTimeString()}
-          </p>
-        ) : null}
       </div>
 
       {webhookMissing ? (
-        <div className="border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-[11px] text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-          Webhook not detected yet — customer replies appear after Meta webhook is configured.
+        <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+          Replies appear after the WhatsApp webhook is connected.
         </div>
       ) : null}
 
       {/* Chat area */}
       <div
-        className={`relative flex flex-col overflow-hidden ${
-          embedded ? "h-full min-h-0 flex-1" : "h-[min(58vh,520px)]"
-        }`}
+        className="relative min-h-0 flex-1 overflow-hidden"
         style={{
           backgroundColor: "#e5ddd5",
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c8c4bc' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }}
       >
-        <div className="absolute inset-0 bg-[#e5ddd5]/90 dark:bg-[#0b141a]/95 dark:opacity-100" />
+        <div className="pointer-events-none absolute inset-0 bg-[#e5ddd5]/90 dark:bg-[#0b141a]/95 dark:opacity-100" />
 
-        <div className="relative flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+        <div
+          ref={scrollRef}
+          onScroll={onChatScroll}
+          className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain no-scrollbar px-4 py-5 sm:px-8 lg:px-12"
+        >
           {messages.length === 0 ? (
-            <div className="flex h-full min-h-[280px] flex-col items-center justify-center px-6 text-center">
-              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[#25d366]/15 text-[#25d366]">
-                <WhatsAppIcon className="h-10 w-10" />
+            <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
+              <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[#25d366]/15 text-[#25d366]">
+                <WhatsAppIcon className="h-8 w-8" />
               </div>
-              <p className="text-base font-semibold text-[#111b21] dark:text-white/90">
+              <p className="text-[15px] font-semibold text-[#111b21] dark:text-white/90">
                 Start the conversation
               </p>
-              <p className="mt-2 max-w-xs text-sm leading-relaxed text-[#667781] dark:text-gray-400">
-                Send a WhatsApp message to {clientName}. Replies appear here automatically once the webhook is active.
+              <p className="mt-1.5 max-w-xs text-[13px] leading-relaxed text-[#667781] dark:text-gray-400">
+                Send a WhatsApp message to {clientName}. Their replies will show up here.
               </p>
             </div>
           ) : (
@@ -642,12 +652,11 @@ export default function LeadCommunicationPanel({
               ) : null}
             </div>
           )}
-          <div ref={bottomRef} />
         </div>
       </div>
 
       {/* Composer */}
-      <div className="border-t border-gray-100 bg-[#f0f2f5] px-3 py-3 dark:border-gray-800 dark:bg-[#202c33] sm:px-4">
+      <div className="shrink-0 bg-[#f0f2f5] px-3 py-2.5 dark:bg-[#202c33] sm:px-4">
         {error ? (
           <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             {error}
@@ -684,11 +693,11 @@ export default function LeadCommunicationPanel({
               onChange={(e) => pickAttachment(e.target.files?.[0] || null)}
             />
 
-            <div className="flex items-end gap-2">
-              <div className="flex shrink-0 items-center gap-1 pb-1">
+            <div className="flex items-end gap-1.5">
+              <div className="flex shrink-0 items-center pb-0.5">
                 <button
                   type="button"
-                  title="Send image"
+                  title="Send image (customer must reply first, max 16 MB)"
                   onClick={() => imageInputRef.current?.click()}
                   className="flex h-10 w-10 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942]"
                 >
@@ -696,7 +705,7 @@ export default function LeadCommunicationPanel({
                 </button>
                 <button
                   type="button"
-                  title="Send document"
+                  title="Send document (customer must reply first, max 16 MB)"
                   onClick={() => docInputRef.current?.click()}
                   className="flex h-10 w-10 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942]"
                 >
@@ -704,7 +713,7 @@ export default function LeadCommunicationPanel({
                 </button>
               </div>
 
-              <div className="min-w-0 flex-1 rounded-3xl border border-gray-200 bg-white px-4 py-2 shadow-sm focus-within:border-[#25d366]/50 focus-within:ring-2 focus-within:ring-[#25d366]/20 dark:border-gray-700 dark:bg-[#2a3942]">
+              <div className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-2 dark:bg-[#2a3942]">
                 <textarea
                   ref={inputRef}
                   rows={1}
@@ -712,7 +721,7 @@ export default function LeadCommunicationPanel({
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={onKeyDown}
                   placeholder={attachment ? "Add a caption (optional)" : "Type a message"}
-                  className="max-h-32 min-h-[24px] w-full resize-none bg-transparent text-sm text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
+                  className="max-h-32 min-h-[22px] w-full resize-none bg-transparent text-[15px] leading-snug text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
                   style={{ height: "auto" }}
                   onInput={(e) => {
                     const t = e.currentTarget;
@@ -727,7 +736,7 @@ export default function LeadCommunicationPanel({
                 disabled={sending || (!text.trim() && !attachment)}
                 onClick={() => void send()}
                 title="Send message"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white shadow-md transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none dark:disabled:bg-gray-600"
+                className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
               >
                 {sending ? (
                   <RefreshIcon className="h-5 w-5" spinning />
@@ -738,12 +747,6 @@ export default function LeadCommunicationPanel({
             </div>
           </>
         )}
-
-        {canSend ? (
-          <p className="mt-2 text-center text-[10px] text-[#8696a0] dark:text-gray-500">
-            Images &amp; documents require customer reply first (24h window) · Max 16 MB
-          </p>
-        ) : null}
       </div>
     </div>
   );

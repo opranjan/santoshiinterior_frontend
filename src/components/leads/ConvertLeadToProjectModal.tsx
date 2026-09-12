@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
@@ -64,7 +64,8 @@ export default function ConvertLeadToProjectModal({
           leadId: row.leadId ? String(row.leadId) : null,
         }));
         setProjects(items);
-        const firstAvailable = items.find((p) => !p.leadId);
+        const firstAvailable =
+          items.find((p) => !p.leadId) || items[0];
         if (firstAvailable) setSelectedProjectId(firstAvailable.id);
       } catch {
         if (!cancelled) setProjects([]);
@@ -77,11 +78,6 @@ export default function ConvertLeadToProjectModal({
       cancelled = true;
     };
   }, [lead]);
-
-  const availableProjects = useMemo(
-    () => projects.filter((p) => !p.leadId),
-    [projects]
-  );
 
   const assignExisting = async () => {
     if (!lead || busy || !selectedProjectId) return;
@@ -152,9 +148,9 @@ export default function ConvertLeadToProjectModal({
             <Label htmlFor="existingProject">Select project</Label>
             {loadingProjects ? (
               <p className="mt-2 text-sm text-gray-500">Loading projects…</p>
-            ) : availableProjects.length === 0 ? (
+            ) : projects.length === 0 ? (
               <p className="mt-2 rounded-lg border border-dashed border-gray-200 px-3 py-4 text-sm text-gray-500 dark:border-gray-700">
-                No unassigned projects available. Use{" "}
+                No projects found. Use{" "}
                 <strong>Create new</strong> to open the Projects form.
               </p>
             ) : (
@@ -165,17 +161,32 @@ export default function ConvertLeadToProjectModal({
                 className="mt-1.5 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90"
               >
                 <option value="">Select a project…</option>
-                {availableProjects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                    {project.clientName ? ` · ${project.clientName}` : ""}
-                  </option>
-                ))}
+                {projects.map((project) => {
+                  const linkedToOther =
+                    Boolean(project.leadId) && project.leadId !== lead.id;
+                  return (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                      {project.clientName ? ` · ${project.clientName}` : ""}
+                      {linkedToOther ? " · already linked" : ""}
+                    </option>
+                  );
+                })}
               </select>
             )}
-            <p className="mt-1.5 text-xs text-gray-400">
-              Only projects not linked to another lead are shown.
-            </p>
+            {projects.find((p) => p.id === selectedProjectId)?.leadId &&
+            projects.find((p) => p.id === selectedProjectId)?.leadId !==
+              lead.id ? (
+              <p className="mt-1.5 text-xs text-amber-600">
+                This project is already linked to another lead. Assigning will
+                move it to {lead.clientName}.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-gray-400">
+                All projects are listed. Already-linked projects can be moved to
+                this lead.
+              </p>
+            )}
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-brand-100 bg-brand-50/50 p-4 dark:border-brand-500/20 dark:bg-brand-500/5">

@@ -1,5 +1,9 @@
 import type { FlowBlock } from "@/components/quotations/MakerLayoutCanvas";
 import { defaultPreparedHtml } from "@/components/quotations/MakerRichTextEditor";
+import {
+  isPersistedImageUrl,
+  resolveQuotationImageUrl,
+} from "@/lib/quotationMakerLayout";
 
 export type PreparedForContext = {
   clientName?: string;
@@ -144,7 +148,35 @@ export function mergeTemplateSettingsIntoLayout(
     return block;
   });
 
-  return applyClientToLayoutBlocks(merged, ctx);
+  return applyClientToLayoutBlocks(fillMissingImagesFromTemplate(merged, templateBlocks), ctx);
+}
+
+function fillMissingImagesFromTemplate(
+  blocks: FlowBlock[],
+  templateBlocks: FlowBlock[]
+): FlowBlock[] {
+  const extras = templateBlocks.filter(
+    (block) =>
+      (block.type === "banner" || block.type === "image") &&
+      "imageUrl" in block &&
+      isPersistedImageUrl(block.imageUrl)
+  );
+  let extraIndex = 0;
+
+  return blocks.map((block) => {
+    if (block.type !== "banner" && block.type !== "image") return block;
+    if (isPersistedImageUrl(block.imageUrl)) {
+      return { ...block, imageUrl: resolveQuotationImageUrl(block.imageUrl) };
+    }
+    const fromTemplate = extras[extraIndex++];
+    if (fromTemplate && "imageUrl" in fromTemplate) {
+      return {
+        ...block,
+        imageUrl: resolveQuotationImageUrl(fromTemplate.imageUrl),
+      };
+    }
+    return { ...block, imageUrl: "" };
+  });
 }
 
 export function buildLayoutFromTemplate(
@@ -153,7 +185,15 @@ export function buildLayoutFromTemplate(
 ): FlowBlock[] {
   if (!templateBlocks.length) return [];
   return applyClientToLayoutBlocks(
-    templateBlocks.map((block) => ({ ...block })),
+    templateBlocks.map((block) => {
+      if (block.type === "banner" || block.type === "image") {
+        return {
+          ...block,
+          imageUrl: resolveQuotationImageUrl(block.imageUrl),
+        };
+      }
+      return { ...block };
+    }),
     ctx
   );
 }

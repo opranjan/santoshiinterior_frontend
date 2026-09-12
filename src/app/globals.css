@@ -804,6 +804,16 @@ span.flatpickr-weekday,
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
+  }
+
+  .quotation-print-sheet .maker-banner-slot {
+    background: #000 !important;
+  }
+
+  .quotation-print-sheet .maker-banner-slot img {
+    object-fit: contain !important;
+    object-position: center;
   }
 
   html.quotation-printing,

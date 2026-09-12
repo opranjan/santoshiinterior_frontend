@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import { designAssetUrl } from "@/lib/designAssets";
 import MakerRichTextEditor, {
   DEFAULT_BANK_HTML,
   DEFAULT_COMPANY_HTML,
@@ -344,6 +345,7 @@ function UploadBox({
   className = "",
   label = "Upload Image",
   toolbar,
+  fit = "cover",
 }: {
   imageUrl: string;
   onPick: (file: File) => void;
@@ -352,6 +354,7 @@ function UploadBox({
   className?: string;
   label?: string;
   toolbar?: React.ReactNode;
+  fit?: "cover" | "contain";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -366,6 +369,8 @@ function UploadBox({
         type="button"
         onClick={() => inputRef.current?.click()}
         className={`maker-upload-slot flex h-full w-full items-center justify-center overflow-hidden border border-dashed text-sm print:overflow-hidden print:border-0 print:shadow-none ${
+          fit === "contain" ? "maker-banner-slot bg-black" : ""
+        } ${
           selected
             ? "border-[#E85D75] bg-[#E85D75]/[0.04]"
             : "border-[#E85D75]/70 bg-[#E85D75]/[0.03]"
@@ -373,7 +378,15 @@ function UploadBox({
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+          <img
+            src={designAssetUrl(imageUrl)}
+            alt=""
+            className={
+              fit === "contain"
+                ? "h-full w-full object-contain object-center"
+                : "h-full w-full object-cover"
+            }
+          />
         ) : (
           <span className="flex flex-col items-center gap-1 text-[#E85D75]">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -627,7 +640,7 @@ function FreeImage({
       {block.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={block.imageUrl}
+          src={designAssetUrl(block.imageUrl)}
           alt=""
           className="pointer-events-none h-full w-full object-cover"
           draggable={false}
@@ -855,6 +868,7 @@ export default function MakerLayoutCanvas({
           <UploadBox
             imageUrl={block.imageUrl}
             selected={selected}
+            fit={block.type === "banner" ? "contain" : "cover"}
             onSelect={() => setSelectedId(block.id)}
             onPick={(f) => {
               if (block.imageUrl.startsWith("blob:")) {
@@ -869,7 +883,7 @@ export default function MakerLayoutCanvas({
             className={`w-full rounded-md ${
               block.type === "image"
                 ? IMAGE_HEIGHT[block.heightLevel]
-                : IMAGE_HEIGHT[2]
+                : "h-48 sm:h-56 md:h-64"
             }`}
             toolbar={
               <ImageToolbar
@@ -1032,7 +1046,7 @@ export default function MakerLayoutCanvas({
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={item.imageUrl}
+                        src={designAssetUrl(item.imageUrl)}
                         alt=""
                         className="h-10 w-10 rounded object-cover"
                       />

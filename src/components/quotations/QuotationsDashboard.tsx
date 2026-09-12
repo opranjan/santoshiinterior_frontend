@@ -9,7 +9,7 @@ import { quotationsApi } from "@/services/crmApi";
 import { mapQuotation } from "@/lib/crmMappers";
 
 type TabId = "summary" | "mine" | "all";
-type RangeId = "month" | "3m" | "6m";
+type RangeId = "all" | "month" | "3m" | "6m";
 
 const inr = (n: number) =>
   `₹ ${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -24,12 +24,15 @@ function daysBetween(from: string, to = new Date()) {
 }
 
 function withinRange(createdAt: string, range: RangeId) {
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) return true;
+  if (range === "all") return true;
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return true;
   const now = new Date();
-  const days =
-    range === "month" ? 31 : range === "3m" ? 92 : 183;
-  return daysBetween(createdAt, now) <= days;
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (range === "3m") start.setMonth(start.getMonth() - 2);
+  if (range === "6m") start.setMonth(start.getMonth() - 5);
+  start.setHours(0, 0, 0, 0);
+  return created.getTime() >= start.getTime();
 }
 
 function MetricCard({
@@ -121,7 +124,7 @@ export default function QuotationsDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<TabId>("summary");
-  const [range, setRange] = useState<RangeId>("month");
+  const [range, setRange] = useState<RangeId>("all");
   const [author, setAuthor] = useState("all");
   const [rows, setRows] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -408,6 +411,7 @@ export default function QuotationsDashboard() {
             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
               {(
                 [
+                  { id: "all", label: "All" },
                   { id: "month", label: "This Month" },
                   { id: "3m", label: "3 Months" },
                   { id: "6m", label: "6 Months" },

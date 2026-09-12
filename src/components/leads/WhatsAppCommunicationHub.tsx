@@ -101,23 +101,15 @@ function WhatsAppIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 function EmptyChatState() {
   return (
-    <div className="flex h-full min-h-[480px] flex-col items-center justify-center bg-[#f8f9fb] px-8 text-center dark:bg-[#111b21]">
-      <div className="relative mb-8">
-        <div className="flex h-36 w-52 items-center justify-center rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-[#202c33]">
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25d366]/15 text-[#25d366]">
-              <WhatsAppIcon className="h-8 w-8" />
-            </div>
-            <div className="h-2 w-24 rounded bg-gray-100 dark:bg-gray-700" />
-            <div className="h-2 w-16 rounded bg-gray-100 dark:bg-gray-700" />
-          </div>
-        </div>
+    <div className="flex h-full min-h-0 flex-col items-center justify-center bg-[#efeae2] px-8 text-center dark:bg-[#0b141a]">
+      <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm dark:bg-[#202c33]">
+        <WhatsAppIcon className="h-10 w-10 text-[#25d366]" />
       </div>
-      <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-        Chat with your leads on WhatsApp
+      <h3 className="text-xl font-semibold text-[#111b21] dark:text-white/90">
+        Chat with your team and clients
       </h3>
-      <p className="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
-        Click on a chat from the list to start communication. Filter by project, lead, or stage.
+      <p className="mt-2 max-w-sm text-sm text-[#667781] dark:text-gray-400">
+        Pick a conversation on the left to start messaging on WhatsApp.
       </p>
     </div>
   );
@@ -243,6 +235,12 @@ export default function WhatsAppCommunicationHub({
   }, [inbox, activeLeadId, loadedLead?.id]);
 
   const openLead = (item: WhatsAppInboxItemDto) => {
+    if (viewMode === "project" && item.hasLead === false) {
+      setChatError("This project is not linked to a lead, so WhatsApp chat is not available.");
+      setActiveLeadId(null);
+      setLoadedLead(null);
+      return;
+    }
     setActiveLeadId(item.id);
     setChatError(null);
     setLoadedLead({
@@ -261,9 +259,7 @@ export default function WhatsAppCommunicationHub({
 
   const showChat = Boolean(loadedLead?.id && loadedLead.phone?.trim());
 
-  const heightClass = fullHeight
-    ? "h-[min(calc(100vh-140px),820px)]"
-    : "h-[min(calc(100vh-220px),760px)]";
+  const heightClass = fullHeight ? "h-full" : "h-[min(70vh,640px)]";
 
   const stageOptions =
     viewMode === "project"
@@ -272,25 +268,25 @@ export default function WhatsAppCommunicationHub({
 
   return (
     <div
-      className={`relative z-0 flex ${heightClass} overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]`}
+      className={`relative z-0 flex min-h-0 ${heightClass} overflow-hidden bg-white dark:bg-[#111b21] ${
+        fullHeight ? "" : "rounded-2xl border border-gray-200 dark:border-gray-800"
+      }`}
     >
-      <aside className="flex w-full max-w-[360px] shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111b21]">
-        <div className="border-b border-gray-100 px-4 py-4 dark:border-gray-800">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c7e]">
-              <WhatsAppIcon className="h-5 w-5" />
+      <aside className="flex w-[min(100%,300px)] shrink-0 flex-col overflow-hidden border-r border-[#e9edef] bg-white dark:border-gray-800 dark:bg-[#111b21]">
+        <div className="shrink-0 space-y-2.5 border-b border-[#e9edef] px-3 py-3 dark:border-gray-800">
+          <div className="flex items-center gap-2 px-0.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c7e]">
+              <WhatsAppIcon className="h-4 w-4" />
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">WhatsApp</h2>
-              <p className="text-[11px] text-gray-500">
-                {viewMode === "project" ? "Project conversations" : "Lead conversations"}
-              </p>
-            </div>
+            <h2 className="text-[15px] font-semibold text-[#111b21] dark:text-white/90">Chats</h2>
+            <span className="ml-auto text-[11px] text-[#667781]">
+              {inbox.length || ""}
+            </span>
           </div>
 
-          <div className="relative mt-4">
+          <div className="relative">
             <svg
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8696a0]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -307,30 +303,37 @@ export default function WhatsAppCommunicationHub({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
-              className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-[#128c7e] focus:outline-none focus:ring-2 focus:ring-[#128c7e]/20 dark:border-gray-700 dark:bg-[#202c33] dark:text-white/90"
+              placeholder="Search name or project"
+              className="h-9 w-full rounded-lg border-0 bg-[#f0f2f5] pl-9 pr-3 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#25d366]/30 dark:bg-[#202c33] dark:text-white/90"
             />
           </div>
 
-          <div className="mt-3 flex gap-2">
-            <select
-              value={viewMode}
-              onChange={(e) => {
-                setViewMode(e.target.value as ViewMode);
-                setStageFilter("");
-              }}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
-            >
-              <option value="project">Project</option>
-              <option value="lead">Lead</option>
-            </select>
-
+          <div className="flex gap-1.5">
+            <div className="flex h-8 rounded-lg bg-[#f0f2f5] p-0.5 dark:bg-[#202c33]">
+              {(["lead", "project"] as ViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setViewMode(mode);
+                    setStageFilter("");
+                  }}
+                  className={`rounded-md px-2.5 text-xs font-medium capitalize transition ${
+                    viewMode === mode
+                      ? "bg-white text-[#111b21] shadow-sm dark:bg-[#2a3942] dark:text-white"
+                      : "text-[#667781]"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-[#128c7e] focus:outline-none dark:border-gray-700 dark:bg-[#202c33] dark:text-gray-200"
+              className="h-8 min-w-0 flex-1 rounded-lg border-0 bg-[#f0f2f5] px-2 text-xs text-[#111b21] focus:outline-none focus:ring-2 focus:ring-[#25d366]/30 dark:bg-[#202c33] dark:text-gray-200"
             >
-              <option value="">Select Stage</option>
+              <option value="">All stages</option>
               {stageOptions.map((stage) => (
                 <option key={stage.value} value={stage.value}>
                   {stage.label}
@@ -340,7 +343,7 @@ export default function WhatsAppCommunicationHub({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar">
           {loadingInbox && inbox.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-gray-400">Loading chats…</p>
           ) : inboxError ? (
@@ -377,7 +380,7 @@ export default function WhatsAppCommunicationHub({
 
               return (
                 <button
-                  key={item.id}
+                  key={item.projectId || item.id}
                   type="button"
                   onClick={() => openLead(item)}
                   className={`flex w-full items-start gap-3 border-b border-gray-50 px-4 py-3.5 text-left transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.03] ${
@@ -385,22 +388,22 @@ export default function WhatsAppCommunicationHub({
                   }`}
                 >
                   <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${avatarColor(item.id)}`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${avatarColor(item.id)}`}
                   >
                     {initials(title)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-white/90">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-[13.5px] font-semibold text-[#111b21] dark:text-white/90">
                         {title}
                       </p>
                       {time ? (
-                        <span className="shrink-0 text-[10px] text-gray-400">{time}</span>
+                        <span className="shrink-0 text-[11px] text-[#667781]">{time}</span>
                       ) : null}
                     </div>
-                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <p className="truncate text-xs text-gray-400 dark:text-gray-500">{preview}</p>
+                    <p className="truncate text-[12px] text-[#667781]">{subtitle}</p>
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      <p className="truncate text-[12px] text-[#8696a0]">{preview}</p>
                       {item.unreadCount > 0 ? (
                         <span className="flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-[#0096fb] px-1.5 text-[10px] font-semibold text-white">
                           {item.unreadCount > 9 ? "9+" : item.unreadCount}
@@ -415,13 +418,13 @@ export default function WhatsAppCommunicationHub({
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1 bg-[#f0f2f5] dark:bg-[#0b141a]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f0f2f5] dark:bg-[#0b141a]">
         {loadingChat && !loadedLead ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-400">
             Loading conversation…
           </div>
         ) : showChat && loadedLead ? (
-          <div className="flex h-full min-h-0 flex-col">
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             {chatError ? (
               <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
                 {chatError}

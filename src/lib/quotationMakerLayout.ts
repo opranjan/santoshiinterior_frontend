@@ -3,6 +3,7 @@ import type {
   FlowBlock,
   FreeImageBlock,
 } from "@/components/quotations/MakerLayoutCanvas";
+import { designAssetUrl } from "@/lib/designAssets";
 
 export type QuotationMakerLayoutSnapshot = {
   templateId?: string;
@@ -10,6 +11,45 @@ export type QuotationMakerLayoutSnapshot = {
   freeImages?: FreeImageBlock[];
   settings?: MakerSettings;
 };
+
+export function isPersistedImageUrl(url?: string | null): boolean {
+  const value = String(url || "").trim();
+  if (!value) return false;
+  if (value.startsWith("blob:")) return false;
+  return true;
+}
+
+export function resolveQuotationImageUrl(url?: string | null): string {
+  if (!isPersistedImageUrl(url)) return "";
+  return designAssetUrl(url);
+}
+
+function withResolvedImageUrl<T extends { imageUrl?: string }>(block: T): T {
+  if (!("imageUrl" in block)) return block;
+  return {
+    ...block,
+    imageUrl: resolveQuotationImageUrl(block.imageUrl),
+  };
+}
+
+export function resolveLayoutMedia(blocks: FlowBlock[]): FlowBlock[] {
+  return blocks.map((block) => {
+    const next = withResolvedImageUrl(block as FlowBlock & { imageUrl?: string });
+    if (next.type === "items") return next;
+    return next;
+  });
+}
+
+export function resolveFreeImages(images: FreeImageBlock[]): FreeImageBlock[] {
+  return images.map((img) => ({
+    ...img,
+    imageUrl: resolveQuotationImageUrl(img.imageUrl),
+  }));
+}
+
+function stripBlobUrl(url?: string): string {
+  return isPersistedImageUrl(url) ? String(url) : "";
+}
 
 export function parseMakerLayout(
   value: unknown
@@ -21,9 +61,9 @@ export function parseMakerLayout(
   return {
     templateId:
       typeof raw.templateId === "string" ? raw.templateId : undefined,
-    blocks,
+    blocks: resolveLayoutMedia(blocks),
     freeImages: Array.isArray(raw.freeImages)
-      ? (raw.freeImages as FreeImageBlock[])
+      ? resolveFreeImages(raw.freeImages as FreeImageBlock[])
       : [],
     settings:
       raw.settings && typeof raw.settings === "object" && !Array.isArray(raw.settings)
@@ -40,10 +80,16 @@ export function buildMakerLayoutPayload(input: {
 }): QuotationMakerLayoutSnapshot {
   return {
     templateId: input.templateId || undefined,
-    blocks: input.blocks,
+    blocks: input.blocks.map((block) => {
+      if (!("imageUrl" in block)) return block;
+      return {
+        ...block,
+        imageUrl: stripBlobUrl((block as { imageUrl?: string }).imageUrl),
+      } as FlowBlock;
+    }),
     freeImages: input.freeImages.map((img) => ({
       ...img,
-      imageUrl: img.imageUrl.startsWith("blob:") ? "" : img.imageUrl,
+      imageUrl: stripBlobUrl(img.imageUrl),
     })),
     settings: input.settings,
   };

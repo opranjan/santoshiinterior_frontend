@@ -158,7 +158,7 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [title, setTitle] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
-  const [view, setView] = useState<"items" | "preview">("items");
+  const [view, setView] = useState<"items" | "preview">("preview");
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [settings, setSettings] = useState<MakerSettings>(defaultMakerSettings);
@@ -173,7 +173,7 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
     createDefaultLayout()
   );
   const [freeImages, setFreeImages] = useState<FreeImageBlock[]>([]);
-  const skipTemplateLayout = useRef(false);
+  const applyTemplateOnChange = useRef(false);
   const preparedContextRef = useRef<PreparedForContext>({});
   const [items, setItems] = useState<MakerItem[]>([]);
   const [savingVersion, setSavingVersion] = useState(false);
@@ -312,7 +312,6 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         setSettings(savedLayout.settings);
       }
       if (activeTemplateId) {
-        skipTemplateLayout.current = true;
         setTemplateId(activeTemplateId);
       }
 
@@ -351,11 +350,8 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
   }, [load]);
 
   useEffect(() => {
-    if (!templateId) return;
-    if (skipTemplateLayout.current) {
-      skipTemplateLayout.current = false;
-      return;
-    }
+    if (!templateId || !applyTemplateOnChange.current) return;
+    applyTemplateOnChange.current = false;
     let cancelled = false;
     (async () => {
       try {
@@ -1115,7 +1111,10 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
                 </span>
                 <select
                   value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value)}
+                  onChange={(e) => {
+                    applyTemplateOnChange.current = true;
+                    setTemplateId(e.target.value);
+                  }}
                   className="h-11 w-full appearance-none rounded-lg border border-[#E85D75]/40 bg-white py-2 pl-10 pr-8 text-sm text-gray-700 focus:border-[#E85D75] focus:outline-hidden"
                 >
                   <option value="">Select a template</option>
