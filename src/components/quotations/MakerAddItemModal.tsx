@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Label from "@/components/form/Label";
 import { quotationCatalogsApi } from "@/services/crmApi";
 import {
@@ -238,6 +238,135 @@ function QuickAddDialog({
   );
 }
 
+function itemsForCatalog(catalogs: CatalogRecord[], catalogId: string): CatalogItem[] {
+  const cat = catalogs.find((c) => c.id === catalogId);
+  if (!cat) return [];
+  if (Array.isArray(cat.catalogItems) && cat.catalogItems.length) {
+    return cat.catalogItems;
+  }
+  return [];
+}
+
+function CatalogItemNameField({
+  draft,
+  items,
+  catalogName,
+  missing,
+  selectedIds,
+  onChangeName,
+  onToggle,
+}: {
+  draft: Draft;
+  items: CatalogItem[];
+  catalogName: string;
+  missing: boolean;
+  selectedIds: string[];
+  onChangeName: (name: string) => void;
+  onToggle: (item: CatalogItem) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const query = draft.name.trim().toLowerCase();
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filtered = useMemo(() => {
+    if (!query) return items;
+    return items.filter(
+      (it) =>
+        it.name.toLowerCase().includes(query) ||
+        (it.code || "").toLowerCase().includes(query) ||
+        (it.category || "").toLowerCase().includes(query)
+    );
+  }, [items, query]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        value={draft.name}
+        onChange={(e) => {
+          onChangeName(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => {
+          if (items.length) setOpen(true);
+        }}
+        className={missing ? requiredEmptyClass : fieldClass}
+        placeholder={
+          items.length
+            ? `Search & tick items in ${catalogName || "catalog"}`
+            : "Item Name"
+        }
+        autoComplete="off"
+      />
+      {open && items.length > 0 ? (
+        <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          <p className="px-3 py-1.5 text-[11px] text-gray-500">
+            Tick multiple items, then click Add.
+          </p>
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-500">
+              No matching catalog item. Keep typing to add a custom name.
+            </p>
+          ) : (
+            filtered.map((it) => {
+              const checked = selectedSet.has(it.id);
+              return (
+                <button
+                  key={it.id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onToggle(it)}
+                  className={`flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-[#E85D75]/8 ${
+                    checked ? "bg-[#E85D75]/10" : ""
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                      checked
+                        ? "border-[#E85D75] bg-[#E85D75] text-white"
+                        : "border-gray-300 bg-white"
+                    }`}
+                  >
+                    {checked ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M5 12.5l5 5 9-11"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : null}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-gray-800">
+                      {it.name}
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      {[it.code, it.category, it.uom, it.price ? `₹ ${it.price}` : ""]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CatalogItemPicker({
   items,
   onClose,
@@ -398,6 +527,10 @@ type FormProps = {
   onQuickAddSubCategory: () => void;
   onQuickAddUom: () => void;
   onPickCatalogItem: () => void;
+  onCatalogChange?: (catalogId: string) => void;
+  pickedIds: string[];
+  onTogglePicked: (item: CatalogItem) => void;
+  onRemovePicked: (id: string) => void;
 };
 
 function ItemFormBody({
@@ -424,18 +557,45 @@ function ItemFormBody({
   onQuickAddSubCategory,
   onQuickAddUom,
   onPickCatalogItem,
+  onCatalogChange,
+  pickedIds,
+  onTogglePicked,
+  onRemovePicked,
 }: FormProps) {
+  const catalogItems = itemsForCatalog(catalogs, draft.catalogId);
+  const selectedCatalog = catalogs.find((c) => c.id === draft.catalogId);
+  const categoryOptions = useMemo(() => {
+    const catalogCategories = Array.from(
+      new Set(catalogItems.map((it) => it.category).filter(Boolean))
+    );
+    if (!catalogCategories.length) return categories;
+    const extra = catalogCategories
+      .filter((name) => !categories.some((c) => c.name === name))
+      .map((name) => ({
+        id: `from-item-${name}`,
+        name,
+        subCategories: [] as string[],
+      }));
+    const fromCatalog = categories.filter((c) =>
+      catalogCategories.includes(c.name)
+    );
+    const rest = categories.filter((c) => !catalogCategories.includes(c.name));
+    return [...fromCatalog, ...extra, ...rest];
+  }, [categories, catalogItems]);
+
   const missingName = !draft.name.trim();
   const missingCategory = !draft.category.trim();
   const missingUom = !draft.uom.trim();
   const missingPrice = draft.price === "" || Number.isNaN(Number(draft.price));
   const missingQty = draft.qty === "" || Number(draft.qty) <= 0;
+  const hasPicks = pickedIds.length > 0;
   const canSubmit =
-    !missingName &&
-    !missingCategory &&
-    !missingUom &&
-    !missingPrice &&
-    !missingQty;
+    hasPicks ||
+    (!missingName &&
+      !missingCategory &&
+      !missingUom &&
+      !missingPrice &&
+      !missingQty);
 
   const subTotal = (subItems || []).reduce((s, it) => s + lineAmount(it), 0);
   const total = lineAmount(draft) + subTotal;
@@ -601,9 +761,11 @@ function ItemFormBody({
                   <Label>Catalog</Label>
                   <select
                     value={draft.catalogId}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, catalogId: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      const catalogId = e.target.value;
+                      setDraft((d) => ({ ...d, catalogId, name: "", price: "", uom: "", category: "", subCategory: "", code: "", description: "", specification: "" }));
+                      onCatalogChange?.(catalogId);
+                    }}
                     className={fieldClass}
                   >
                     <option value="">Select catalog</option>
@@ -637,13 +799,13 @@ function ItemFormBody({
                   className={req(missingCategory)}
                 >
                   <option value="">Select category</option>
-                  {categories.map((c) => (
+                  {categoryOptions.map((c) => (
                     <option key={c.id} value={c.name}>
                       {c.name}
                     </option>
                   ))}
                   {draft.category &&
-                  !categories.some((c) => c.name === draft.category) ? (
+                  !categoryOptions.some((c) => c.name === draft.category) ? (
                     <option value={draft.category}>{draft.category}</option>
                   ) : null}
                 </select>
@@ -693,15 +855,46 @@ function ItemFormBody({
                   onClick={onPickCatalogItem}
                 />
               </div>
-              <input
-                type="text"
-                value={draft.name}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, name: e.target.value }))
-                }
-                className={req(missingName)}
-                placeholder="Item Name"
+              <CatalogItemNameField
+                draft={draft}
+                items={catalogItems}
+                catalogName={selectedCatalog?.name || ""}
+                missing={missingName && !hasPicks}
+                selectedIds={pickedIds}
+                onChangeName={(name) => setDraft((d) => ({ ...d, name }))}
+                onToggle={onTogglePicked}
               />
+              {pickedIds.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {pickedIds.map((id) => {
+                    const it = catalogItems.find((c) => c.id === id);
+                    if (!it) return null;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => onRemovePicked(id)}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#E85D75]/10 px-2.5 py-1 text-[11px] font-medium text-[#E85D75]"
+                      >
+                        {it.name}
+                        <span aria-hidden>×</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {draft.catalogId && catalogItems.length === 0 ? (
+                <p className="mt-1 text-[11px] text-amber-700">
+                  No items in this catalog yet. Add them in Settings → Quotation
+                  Catalogs, or type a custom item name.
+                </p>
+              ) : catalogItems.length > 0 ? (
+                <p className="mt-1 text-[11px] text-gray-500">
+                  {pickedIds.length
+                    ? `${pickedIds.length} selected — tick more from the list, then Add.`
+                    : `${catalogItems.length} items in ${selectedCatalog?.name}. Click Item Name and tick as many as you need.`}
+                </p>
+              ) : null}
             </div>
 
             <div>
@@ -1033,7 +1226,9 @@ function ItemFormBody({
               : "cursor-not-allowed bg-slate-400"
           }`}
         >
-          {submitLabel}
+          {hasPicks && pickedIds.length > 1
+            ? `Add ${pickedIds.length} items`
+            : submitLabel}
         </button>
       </div>
     </div>
@@ -1044,7 +1239,7 @@ type Props = {
   open: boolean;
   existingAreas?: string[];
   onClose: () => void;
-  onAdd: (item: MakerAddItemResult) => void;
+  onAdd: (item: MakerAddItemResult | MakerAddItemResult[]) => void;
 };
 
 export default function MakerAddItemModal({
@@ -1072,6 +1267,50 @@ export default function MakerAddItemModal({
     target: QuickAddTarget;
   } | null>(null);
   const [pickerTarget, setPickerTarget] = useState<QuickAddTarget | null>(null);
+  const [pickedIds, setPickedIds] = useState<string[]>([]);
+
+  const mergeCatalogRecord = useCallback((row: Record<string, unknown>) => {
+    const normalized = normalizeCatalogSettings(
+      { catalogs: [row], categories: [], uoms: [] },
+      { useDefaults: false }
+    ).catalogs[0];
+    if (!normalized) return;
+    setCatalogs((prev) =>
+      prev.some((c) => c.id === normalized.id)
+        ? prev.map((c) => (c.id === normalized.id ? { ...c, ...normalized } : c))
+        : [...prev, normalized]
+    );
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            catalogs: prev.catalogs.some((c) => c.id === normalized.id)
+              ? prev.catalogs.map((c) =>
+                  c.id === normalized.id ? { ...c, ...normalized } : c
+                )
+              : [...prev.catalogs, normalized],
+          }
+        : prev
+    );
+  }, []);
+
+  const loadCatalogItems = useCallback(
+    async (catalogId: string, known: CatalogRecord[] = []) => {
+      if (!catalogId) return;
+      const local = known.find((c) => c.id === catalogId);
+      if (local?.catalogItems?.length) {
+        mergeCatalogRecord(local as unknown as Record<string, unknown>);
+        return;
+      }
+      try {
+        const row = await quotationCatalogsApi.get(catalogId);
+        mergeCatalogRecord(row);
+      } catch {
+        // keep empty list; user can type a custom item
+      }
+    },
+    [mergeCatalogRecord]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -1094,6 +1333,9 @@ export default function MakerAddItemModal({
         setSubOpen(false);
         setQuickAdd(null);
         setPickerTarget(null);
+        setPickedIds([]);
+        const firstId = normalized.catalogs[0]?.id;
+        if (firstId) void loadCatalogItems(firstId, normalized.catalogs);
       } catch {
         if (!cancelled) {
           const normalized = normalizeCatalogSettings(null);
@@ -1108,7 +1350,7 @@ export default function MakerAddItemModal({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, loadCatalogItems]);
 
   const areas = useMemo(() => {
     const extra = existingAreas.filter(Boolean);
@@ -1122,12 +1364,24 @@ export default function MakerAddItemModal({
     quickAdd?.target === "sub" ? setSubNotice : setNotice;
 
   const persistSettings = async (next: QuotationCatalogSettings) => {
-    setSettings(next);
-    setCatalogs(next.catalogs);
-    setCategories(next.categories);
-    setUoms(next.uoms);
+    const catalogsWithItems = next.catalogs.map((c) => {
+      if (c.catalogItems?.length) return c;
+      const prev = catalogs.find((x) => x.id === c.id);
+      return prev?.catalogItems?.length
+        ? {
+            ...c,
+            catalogItems: prev.catalogItems,
+            items: prev.catalogItems.length,
+          }
+        : c;
+    });
+    const payload = { ...next, catalogs: catalogsWithItems };
+    setSettings(payload);
+    setCatalogs(payload.catalogs);
+    setCategories(payload.categories);
+    setUoms(payload.uoms);
     try {
-      await quotationCatalogsApi.saveBundle(next);
+      await quotationCatalogsApi.saveBundle(payload);
     } catch {
       // keep local options even if remote save fails
     }
@@ -1276,22 +1530,59 @@ export default function MakerAddItemModal({
           setSubItems((prev) => prev.filter((s) => s.id !== id))
         }
         onClose={onClose}
-        onSubmit={() => {
-          onAdd(
-            toResult(
-              draft,
-              catalogs,
-              subItems.map((s) => toResult(s, catalogs))
-            )
-          );
-          onClose();
-        }}
         notice={notice}
         setNotice={setNotice}
         onQuickAddCategory={() => openQuick("category", "main")}
         onQuickAddSubCategory={() => openQuick("subCategory", "main")}
         onQuickAddUom={() => openQuick("uom", "main")}
         onPickCatalogItem={() => setPickerTarget("main")}
+        onCatalogChange={(id) => {
+          setPickedIds([]);
+          void loadCatalogItems(id);
+        }}
+        pickedIds={pickedIds}
+        onTogglePicked={(item) => {
+          setPickedIds((prev) =>
+            prev.includes(item.id)
+              ? prev.filter((id) => id !== item.id)
+              : [...prev, item.id]
+          );
+          setDraft((d) => applyCatalogItem(item, d));
+        }}
+        onRemovePicked={(id) =>
+          setPickedIds((prev) => prev.filter((x) => x !== id))
+        }
+        onSubmit={() => {
+          const catalogItems = itemsForCatalog(catalogs, draft.catalogId);
+          const picked = pickedIds
+            .map((id) => catalogItems.find((it) => it.id === id))
+            .filter((it): it is CatalogItem => Boolean(it));
+          if (picked.length) {
+            onAdd(
+              picked.map((item) =>
+                toResult(
+                  applyCatalogItem(item, {
+                    ...blankDraft(draft.catalogId),
+                    area: draft.area,
+                    qty: "1",
+                  }),
+                  catalogs
+                )
+              )
+            );
+          } else {
+            onAdd(
+              toResult(
+                draft,
+                catalogs,
+                subItems.map((s) => toResult(s, catalogs))
+              )
+            );
+          }
+          setPickedIds([]);
+          setSubItems([]);
+          onClose();
+        }}
       />
 
       {subOpen ? (
@@ -1321,6 +1612,12 @@ export default function MakerAddItemModal({
             onQuickAddSubCategory={() => openQuick("subCategory", "sub")}
             onQuickAddUom={() => openQuick("uom", "sub")}
             onPickCatalogItem={() => setPickerTarget("sub")}
+            onCatalogChange={(id) => void loadCatalogItems(id)}
+            pickedIds={[]}
+            onTogglePicked={(item) =>
+              setSubDraft((d) => applyCatalogItem(item, d))
+            }
+            onRemovePicked={() => undefined}
           />
         </div>
       ) : null}
@@ -1343,9 +1640,13 @@ export default function MakerAddItemModal({
           onPick={(item) => {
             if (pickerTarget === "sub") {
               setSubDraft((d) => applyCatalogItem(item, d));
-            } else {
-              setDraft((d) => applyCatalogItem(item, d));
+              setPickerTarget(null);
+              return;
             }
+            setPickedIds((prev) =>
+              prev.includes(item.id) ? prev : [...prev, item.id]
+            );
+            setDraft((d) => applyCatalogItem(item, d));
             setPickerTarget(null);
           }}
         />

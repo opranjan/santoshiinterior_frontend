@@ -26,6 +26,7 @@ import {
   buildMakerLayoutPayload,
   parseMakerLayout,
 } from "@/lib/quotationMakerLayout";
+import { persistMakerMedia } from "@/lib/quotationMakerMedia";
 import {
   applyClientToLayoutBlocks,
   buildLayoutFromTemplate,
@@ -503,44 +504,52 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
     setAddItemOpen(true);
   };
 
-  const handleAddItem = (result: MakerAddItemResult) => {
+  const handleAddItem = (result: MakerAddItemResult | MakerAddItemResult[]) => {
+    const list = Array.isArray(result) ? result : [result];
     const stamp = Date.now();
-    const parentId = `local-${stamp}`;
-    const parent: MakerItem = {
-      id: parentId,
-      area: result.area,
-      category: result.category,
-      code: result.code,
-      name: result.name,
-      description: result.description || result.name,
-      specification: result.specification,
-      unitPrice: result.unitPrice,
-      uom: result.uom,
-      qty: result.qty,
-      imageUrl: result.imageUrl,
-    };
-    const kids: MakerItem[] = result.subItems.map((sub, i) => ({
-      id: `local-${stamp}-sub-${i}`,
-      area: sub.area || result.area,
-      category: sub.category || result.category,
-      code: sub.code,
-      name: sub.name,
-      description: sub.description || sub.name,
-      specification: sub.specification,
-      unitPrice: sub.unitPrice,
-      uom: sub.uom,
-      qty: sub.qty,
-      imageUrl: sub.imageUrl,
-      parentId,
-    }));
-    setItems((prev) => [...prev, parent, ...kids]);
+    const next: MakerItem[] = [];
+    list.forEach((row, idx) => {
+      const parentId = `local-${stamp}-${idx}`;
+      next.push({
+        id: parentId,
+        area: row.area,
+        category: row.category,
+        code: row.code,
+        name: row.name,
+        description: row.description || row.name,
+        specification: row.specification,
+        unitPrice: row.unitPrice,
+        uom: row.uom,
+        qty: row.qty,
+        imageUrl: row.imageUrl,
+      });
+      row.subItems.forEach((sub, i) => {
+        next.push({
+          id: `local-${stamp}-${idx}-sub-${i}`,
+          area: sub.area || row.area,
+          category: sub.category || row.category,
+          code: sub.code,
+          name: sub.name,
+          description: sub.description || sub.name,
+          specification: sub.specification,
+          unitPrice: sub.unitPrice,
+          uom: sub.uom,
+          qty: sub.qty,
+          imageUrl: sub.imageUrl,
+          parentId,
+        });
+      });
+    });
+    setItems((prev) => [...prev, ...next]);
     setSearch("");
     setAreaFilter("");
     setCategoryFilter("");
     flash(
-      kids.length
-        ? `Added item with ${kids.length} subitem${kids.length > 1 ? "s" : ""}`
-        : "Item added"
+      list.length > 1
+        ? `Added ${list.length} items`
+        : list[0]?.subItems.length
+          ? `Added item with ${list[0].subItems.length} subitem${list[0].subItems.length > 1 ? "s" : ""}`
+          : "Item added"
     );
   };
 
@@ -600,6 +609,13 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
     if (!quotation || saving) return;
     try {
       setSaving(true);
+      const media = await persistMakerMedia({
+        quotationId: quotation.id,
+        blocks: layoutBlocks,
+        freeImages,
+      });
+      setLayoutBlocks(media.blocks);
+      setFreeImages(media.freeImages);
       await quotationsApi.update(quotation.id, {
         items: items.map((i, index) => ({
           description: i.description || i.name || `Item ${index + 1}`,
@@ -612,15 +628,15 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         amount: analysis.finalPrice,
         makerLayout: buildMakerLayoutPayload({
           templateId,
-          blocks: layoutBlocks,
-          freeImages,
+          blocks: media.blocks,
+          freeImages: media.freeImages,
           settings,
         }),
       });
       flash("Quotation saved");
       await load();
     } catch (err) {
-      flash(err instanceof ApiError ? err.message : "Failed to save");
+      flash(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }

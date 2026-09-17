@@ -7,6 +7,7 @@ export type AuthUser = {
   name: string;
   email: string;
   phone?: string | null;
+  sipExtension?: string | null;
   role: string;
   roleLabel?: string | null;
   dateOfBirth?: string | null;

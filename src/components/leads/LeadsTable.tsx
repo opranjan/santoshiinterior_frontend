@@ -217,7 +217,6 @@ function isOverdue(dateStr: string) {
 }
 
 const columns = [
-  "ID",
   "Client Name",
   "Status",
   "Phone",
@@ -390,7 +389,6 @@ export default function LeadsTable() {
   const [otherFilter, setOtherFilter] = useState("none");
   const [sortBy, setSortBy] = useState("updated-desc");
   const [selected, setSelected] = useState<string[]>([]);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null);
   const [fuType, setFuType] = useState<FollowUpType>("Call");
@@ -477,16 +475,6 @@ export default function LeadsTable() {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-  };
-
-  const copyId = async (id: string) => {
-    try {
-      await navigator.clipboard.writeText(id);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1200);
-    } catch {
-      // ignore
-    }
   };
 
   const handleAssign = async (leadId: string, assigneeName: string) => {
@@ -956,22 +944,6 @@ export default function LeadsTable() {
                           className="h-4 w-4 rounded border-gray-300"
                           aria-label={`Select ${lead.id}`}
                         />
-                      </TableCell>
-
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <div className="group flex items-center gap-1.5">
-                          <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                            {lead.id}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyId(lead.id)}
-                            className="text-gray-300 opacity-0 transition group-hover:opacity-100 hover:text-brand-500"
-                            title="Copy ID"
-                          >
-                            {copiedId === lead.id ? "✓" : "⧉"}
-                          </button>
-                        </div>
                       </TableCell>
 
                       <TableCell className="px-3 py-3 text-start whitespace-nowrap">

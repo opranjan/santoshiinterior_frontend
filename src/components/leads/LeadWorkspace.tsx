@@ -457,6 +457,8 @@ export default function LeadWorkspace({ leadId }: { leadId: string }) {
                 salesOwnerId: lead.salesOwnerId,
                 projectName: lead.project?.name || lead.projectName,
                 status: lead.status,
+                leadOwnerName: lead.assignedTo?.name || null,
+                assigneeName: lead.assignedTo?.name || lead.salesOwner?.name || null,
               }}
               initialMessages={data?.messages || []}
               onRefresh={() => void load()}

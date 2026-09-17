@@ -11,6 +11,7 @@ export type UserFormState = {
   name: string;
   email: string;
   phone: string;
+  sipExtension: string;
   password: string;
   accessRoleId: string;
   dateOfBirth: string;
@@ -23,6 +24,7 @@ export function emptyUserForm(defaultRoleId = ""): UserFormState {
     name: "",
     email: "",
     phone: "",
+    sipExtension: "",
     password: "Welcome@123",
     accessRoleId: defaultRoleId,
     dateOfBirth: "",
@@ -126,6 +128,17 @@ export default function UserFormModal({
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 placeholder="+91 98765 43210"
               />
+            </div>
+            <div>
+              <Label>SIP / PBX extension</Label>
+              <Input
+                value={form.sipExtension}
+                onChange={(e) => setForm((f) => ({ ...f, sipExtension: e.target.value }))}
+                placeholder="101"
+              />
+              <p className="mt-1 text-[11px] text-gray-500">
+                Jio SIP click-to-call rings this extension first.
+              </p>
             </div>
             {!isEdit ? (
               <div className="sm:col-span-2">

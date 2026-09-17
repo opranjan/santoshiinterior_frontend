@@ -231,15 +231,34 @@ function normalizeUnit(unit: unknown): "%" | "INR" {
   return "%";
 }
 
+function extractCatalogItems(
+  c: Partial<CatalogRecord> & { items?: unknown }
+): CatalogItem[] {
+  if (Array.isArray(c.catalogItems) && c.catalogItems.length) {
+    return c.catalogItems;
+  }
+  if (
+    Array.isArray(c.items) &&
+    c.items.length > 0 &&
+    typeof c.items[0] === "object"
+  ) {
+    return c.items as CatalogItem[];
+  }
+  return Array.isArray(c.catalogItems) ? c.catalogItems : [];
+}
+
 function normalizeCatalogRecord(c: Partial<CatalogRecord> & { id?: string }): CatalogRecord {
-  const catalogItems = Array.isArray(c.catalogItems) ? c.catalogItems : [];
+  const catalogItems = extractCatalogItems(c);
   const name = String(c.name || "Untitled catalog");
+  const itemCount =
+    catalogItems.length ||
+    (typeof c.items === "number" ? c.items : Number(c.items) || 0);
 
   return {
     id: String(c.id || `cat-${Date.now()}`),
     name,
     description: String(c.description || ""),
-    items: catalogItems.length || Number(c.items) || 0,
+    items: itemCount,
     isDefault: Boolean(c.isDefault),
     margin: Number(c.margin) || 0,
     marginUnit: normalizeUnit(c.marginUnit),

@@ -111,6 +111,7 @@ export type WhatsAppInboxItemDto = {
   projectName?: string | null;
   projectStatus?: string | null;
   assigneeName?: string | null;
+  leadOwnerName?: string | null;
   updatedAt: string;
   viewMode?: "project" | "lead";
   displayTitle?: string;
@@ -277,6 +278,71 @@ export type WhatsAppStatusDto = {
 
 export const messagingApi = {
   getStatus: () => api.get<WhatsAppStatusDto>("/webhooks/status"),
+};
+
+export type TelephonyStatusDto = {
+  provider: string;
+  configured: boolean;
+  sipConfigured: boolean;
+  amiConfigured: boolean;
+  httpConfigured: boolean;
+  clickToCallReady: boolean;
+  webrtcReady: boolean;
+  sipHost: string | null;
+  sipPort: number;
+  sipDid: string | null;
+  sipTrunkName: string;
+  sipCodecs: string;
+  sipWssUrl: string | null;
+  sipUsername: string | null;
+  defaultExtension: string | null;
+  webhookPath: string;
+  recommendedWebhookUrl?: string | null;
+  publicApiUrlConfigured?: boolean;
+  webhookActivity?: {
+    lastReceivedAt: string | null;
+    lastProcessed: number;
+    totalReceived: number;
+    lastError: string | null;
+  };
+};
+
+export type CallLogDto = {
+  id: string;
+  leadId?: string | null;
+  userId?: string | null;
+  direction: string;
+  status: string;
+  fromNumber?: string | null;
+  toNumber: string;
+  agentExtension?: string | null;
+  didNumber?: string | null;
+  durationSec?: number | null;
+  recordingUrl?: string | null;
+  externalId?: string | null;
+  provider: string;
+  note?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  lead?: { id: string; clientName: string; phone: string } | null;
+  user?: { id: string; name: string; sipExtension?: string | null } | null;
+};
+
+export const telephonyApi = {
+  getStatus: () => api.get<TelephonyStatusDto>("/telephony/status"),
+  listCalls: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<CallLogDto>>("/telephony/calls", query),
+  clickToCall: (body: {
+    to?: string;
+    phone?: string;
+    leadId?: string;
+    extension?: string;
+    note?: string;
+  }) =>
+    api.post<{
+      call: CallLogDto;
+      originate: { mode: string; dialFallback?: string; message?: string };
+    }>("/telephony/calls", body),
 };
 
 export type CustomerDto = {
@@ -456,6 +522,28 @@ export const quotationsApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/quotations/${id}`, body),
   remove: (id: string) => api.delete(`/quotations/${id}`),
+  uploadAsset: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${base}/quotations/${id}/assets`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as { url: string };
+  },
 };
 
 export const paymentsApi = {

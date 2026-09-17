@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   leadsApi,
   messagingApi,
+  telephonyApi,
   type LeadMessageDto,
   type WhatsAppStatusDto,
 } from "@/services/crmApi";
@@ -17,6 +18,9 @@ type Props = {
   phone: string;
   assignedToId?: string | null;
   salesOwnerId?: string | null;
+  assigneeName?: string | null;
+  hideCustomerPhone?: boolean;
+  leadOwnerName?: string | null;
   initialMessages?: LeadMessageDto[];
   onRefresh?: () => void;
   embedded?: boolean;
@@ -116,6 +120,14 @@ function formatSendError(err: unknown) {
     return `${message} Regenerate the permanent token in Meta and update WHATSAPP_ACCESS_TOKEN.`;
   }
   return message;
+}
+
+function CallIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
+    </svg>
+  );
 }
 
 function WhatsAppIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -383,6 +395,9 @@ export default function LeadCommunicationPanel({
   phone,
   assignedToId,
   salesOwnerId,
+  assigneeName,
+  hideCustomerPhone = false,
+  leadOwnerName,
   initialMessages = [],
   onRefresh,
   embedded = false,
@@ -391,6 +406,7 @@ export default function LeadCommunicationPanel({
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessages);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [calling, setCalling] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState("");
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
@@ -421,6 +437,12 @@ export default function LeadCommunicationPanel({
       "sales.full",
     ]) &&
     (isAssignee || canViewAll);
+  const canCall = hasAnyPermission(user, [
+    "calls.make",
+    "sales.full",
+    "sales.manage",
+    "leads.manage",
+  ]);
 
   const loadMessages = useCallback(async (showSpinner = false) => {
     if (showSpinner) setFetching(true);
@@ -553,6 +575,30 @@ export default function LeadCommunicationPanel({
     }
   };
 
+  const startCall = async () => {
+    if (!phone || calling || !canCall) return;
+    setCalling(true);
+    setError("");
+    try {
+      const result = await telephonyApi.clickToCall({
+        to: phone,
+        leadId,
+        extension: user?.sipExtension || undefined,
+      });
+      if (result.originate.mode === "manual" && result.originate.dialFallback) {
+        window.location.href = result.originate.dialFallback;
+      }
+      onRefresh?.();
+    } catch (err) {
+      const digits = String(phone).replace(/\D/g, "");
+      const fallback = `tel:+${digits.length === 10 ? `91${digits}` : digits}`;
+      window.location.href = fallback;
+      setError(err instanceof Error ? err.message : "Cloud call failed; opened device dialer");
+    } finally {
+      setCalling(false);
+    }
+  };
+
   const hasInbound = messages.some((m) => m.direction === "INBOUND");
   const hasOutbound = messages.some((m) => m.direction === "OUTBOUND");
   const webhookMissing =
@@ -581,10 +627,27 @@ export default function LeadCommunicationPanel({
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-[15px] font-semibold leading-tight">{clientName}</h3>
             <p className="truncate text-[12px] text-white/75">
-              {phone ? `+91 ${phone.replace(/\D/g, "").slice(-10)}` : "No phone number"}
+              {hideCustomerPhone
+                ? assigneeName
+                  ? `Assigned to ${assigneeName}`
+                  : "Unassigned"
+                : [phone ? `+91 ${phone.replace(/\D/g, "").slice(-10)}` : "", leadOwnerName ? `Lead owner ${leadOwnerName}` : ""]
+                    .filter(Boolean)
+                    .join(" · ") || "No phone number"}
             </p>
           </div>
 
+          {canCall && phone && !hideCustomerPhone ? (
+            <button
+              type="button"
+              onClick={() => void startCall()}
+              disabled={calling}
+              title="Call via Jio SIP / cloud telephony"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 disabled:opacity-50"
+            >
+              <CallIcon className="h-[18px] w-[18px]" />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void loadMessages(true)}

@@ -157,7 +157,7 @@ const SECTIONS: SettingsSection[] = [
         label: "Integrations",
         href: "/settings/integrations",
         icon: <IconIntegrations />,
-        keywords: ["whatsapp", "email", "api"],
+        keywords: ["whatsapp", "email", "api", "jio", "sip", "telephony", "call"],
       },
     ],
   },

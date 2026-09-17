@@ -11,6 +11,10 @@ import MakerRichTextEditor, {
 
 const accent = "#E85D75";
 
+function uid(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export type PaymentRow = {
   id: string;
   milestone: string;
@@ -18,6 +22,16 @@ export type PaymentRow = {
   percent: string;
   amount: string;
 };
+
+function defaultPaymentRow(): PaymentRow {
+  return {
+    id: uid("pay"),
+    milestone: "Advance",
+    description: "On booking confirmation",
+    percent: "0",
+    amount: "0",
+  };
+}
 
 export type FreeImageBlock = {
   id: string;
@@ -40,6 +54,10 @@ export type FlowBlock =
       size: ImageSizeMode;
       heightLevel: 1 | 2 | 3;
       pageBreak: PageBreakMode;
+      fit?: "contain" | "cover";
+      /** 0 = left/top, 50 = centre, 100 = right/bottom */
+      posX?: number;
+      posY?: number;
     }
   | { id: string; type: "detailsRow"; companyHtml: string; preparedHtml: string }
   | { id: string; type: "company"; html: string }
@@ -48,7 +66,7 @@ export type FlowBlock =
   | { id: string; type: "items" }
   | { id: string; type: "summary" }
   | { id: string; type: "payment"; rows: PaymentRow[] }
-  | { id: string; type: "richtext"; title: string; html: string }
+  | { id: string; type: "richtext"; title: string; html: string; qrImageUrl?: string }
   | { id: string; type: "pageBreak"; mode: "break" };
 
 export function createDefaultLayout(opts?: {
@@ -66,6 +84,9 @@ export function createDefaultLayout(opts?: {
       size: "full",
       heightLevel: 2,
       pageBreak: "none",
+      fit: "contain",
+      posX: 50,
+      posY: 50,
     },
     {
       id: `blk-img-a-${t}`,
@@ -95,21 +116,14 @@ export function createDefaultLayout(opts?: {
     {
       id: `blk-pay-${t}`,
       type: "payment",
-      rows: [
-        {
-          id: "pay-1",
-          milestone: "Advance",
-          description: "On booking confirmation",
-          percent: "0",
-          amount: "0",
-        },
-      ],
+      rows: [defaultPaymentRow()],
     },
     {
       id: `blk-bank-${t}`,
       type: "richtext",
       title: "Bank Details",
       html: DEFAULT_BANK_HTML,
+      qrImageUrl: "",
     },
     {
       id: `blk-terms-${t}`,
@@ -130,8 +144,13 @@ export type MakerItemLite = {
   imageUrl?: string;
 };
 
-function uid(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+function moneyFromPercent(total: number, percent: number) {
+  return Math.round((Number(total) * (Number(percent) || 0)) / 100);
+}
+
+function percentFromMoney(total: number, amount: number) {
+  if (!total) return 0;
+  return Math.round(((Number(amount) || 0) / total) * 10000) / 100;
 }
 
 const IMAGE_HEIGHT: Record<1 | 2 | 3, string> = {
@@ -175,11 +194,16 @@ function decreaseImageSize<
 function ImageToolbar({
   size,
   pageBreak,
+  fit,
+  posX = 50,
   canIncrease,
   canDecrease,
   onIncrease,
   onDecrease,
   onPageBreak,
+  onFit,
+  onAlign,
+  onReplace,
   onDelete,
   onMoveUp,
   onMoveDown,
@@ -188,11 +212,16 @@ function ImageToolbar({
 }: {
   size: ImageSizeMode;
   pageBreak: PageBreakMode;
+  fit?: "contain" | "cover";
+  posX?: number;
   canIncrease: boolean;
   canDecrease: boolean;
   onIncrease: () => void;
   onDecrease: () => void;
   onPageBreak: (mode: PageBreakMode) => void;
+  onFit?: (fit: "contain" | "cover") => void;
+  onAlign?: (x: number, y: number) => void;
+  onReplace?: () => void;
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -258,6 +287,78 @@ function ImageToolbar({
           />
         </svg>
       </button>
+
+      {onAlign ? (
+        <span className="mx-0.5 flex items-center rounded-full border border-gray-100">
+          {(
+            [
+              { x: 0, label: "L", title: "Align left" },
+              { x: 50, label: "C", title: "Align centre" },
+              { x: 100, label: "R", title: "Align right" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.label}
+              type="button"
+              title={opt.title}
+              onClick={() => onAlign(opt.x, 50)}
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold hover:bg-gray-50 ${
+                Math.abs((posX ?? 50) - opt.x) < 1
+                  ? "bg-[#E85D75]/10 text-[#E85D75]"
+                  : "text-gray-600"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </span>
+      ) : null}
+
+      {onFit ? (
+        <button
+          type="button"
+          title={
+            fit === "cover"
+              ? "Cropped fill — click to fit the logo"
+              : "Logo fitted — click to fill/crop"
+          }
+          onClick={() => onFit(fit === "cover" ? "contain" : "cover")}
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-50 ${
+            fit === "contain" ? "text-[#E85D75]" : "text-gray-600"
+          }`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <rect
+              x="4"
+              y="6"
+              width="16"
+              height="12"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+            <circle cx="12" cy="12" r="2.2" fill="currentColor" />
+          </svg>
+        </button>
+      ) : null}
+
+      {onReplace ? (
+        <button
+          type="button"
+          title="Replace image"
+          onClick={onReplace}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-600 hover:bg-gray-50"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 16l4.5-4.5a2 2 0 012.8 0L16 16m-2-2l1.2-1.2a2 2 0 012.8 0L20 15M8 8h.01M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      ) : null}
 
       <div className="relative">
         <button
@@ -337,6 +438,10 @@ function ImageToolbar({
   );
 }
 
+function clampPct(n: number) {
+  return Math.max(0, Math.min(100, Math.round(n * 10) / 10));
+}
+
 function UploadBox({
   imageUrl,
   onPick,
@@ -346,6 +451,9 @@ function UploadBox({
   label = "Upload Image",
   toolbar,
   fit = "cover",
+  posX = 50,
+  posY = 50,
+  onPositionChange,
 }: {
   imageUrl: string;
   onPick: (file: File) => void;
@@ -353,10 +461,86 @@ function UploadBox({
   onSelect?: () => void;
   className?: string;
   label?: string;
-  toolbar?: React.ReactNode;
+  toolbar?: React.ReactNode | ((openPicker: () => void) => React.ReactNode);
   fit?: "cover" | "contain";
+  posX?: number;
+  posY?: number;
+  onPositionChange?: (x: number, y: number) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{
+    sx: number;
+    sy: number;
+    ox: number;
+    oy: number;
+    moved: boolean;
+  } | null>(null);
+
+  const onImgPointerDown = (e: React.PointerEvent<HTMLImageElement>) => {
+    if (!onPositionChange) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect?.();
+    drag.current = {
+      sx: e.clientX,
+      sy: e.clientY,
+      ox: posX,
+      oy: posY,
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onImgPointerMove = (e: React.PointerEvent<HTMLImageElement>) => {
+    const d = drag.current;
+    if (!d || !onPositionChange) return;
+    const box = slotRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true;
+    if (!d.moved) return;
+    onPositionChange(
+      clampPct(d.ox + (dx / box.width) * 100),
+      clampPct(d.oy + (dy / box.height) * 100)
+    );
+  };
+
+  const onImgPointerUp = (e: React.PointerEvent<HTMLImageElement>) => {
+    drag.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const containStyle: React.CSSProperties = {
+    position: "absolute",
+    left: `${posX}%`,
+    top: `${posY}%`,
+    transform: `translate(-${posX}%, -${posY}%)`,
+    maxWidth: "100%",
+    maxHeight: "100%",
+    width: "auto",
+    height: "auto",
+    objectFit: "contain",
+    borderRadius: 12,
+    cursor: onPositionChange ? "grab" : undefined,
+    touchAction: "none",
+  };
+
+  const coverStyle: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    objectPosition: `${posX}% ${posY}%`,
+    borderRadius: 12,
+    cursor: onPositionChange ? "grab" : undefined,
+    touchAction: "none",
+  };
+
   return (
     <div
       className={`maker-image-frame relative ${className}`}
@@ -365,30 +549,36 @@ function UploadBox({
         onSelect?.();
       }}
     >
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className={`maker-upload-slot flex h-full w-full items-center justify-center overflow-hidden border border-dashed text-sm print:overflow-hidden print:border-0 print:shadow-none ${
-          fit === "contain" ? "maker-banner-slot bg-black" : ""
+      <div
+        ref={slotRef}
+        className={`maker-upload-slot relative h-full w-full overflow-hidden border border-dashed text-sm print:overflow-hidden print:border-0 print:shadow-none ${
+          fit === "contain" ? "maker-banner-slot bg-white" : ""
         } ${
           selected
             ? "border-[#E85D75] bg-[#E85D75]/[0.04]"
             : "border-[#E85D75]/70 bg-[#E85D75]/[0.03]"
-        } text-gray-500 hover:bg-[#E85D75]/[0.06]`}
+        } text-gray-500`}
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={designAssetUrl(imageUrl)}
             alt=""
-            className={
-              fit === "contain"
-                ? "h-full w-full object-contain object-center"
-                : "h-full w-full object-cover"
-            }
+            draggable={false}
+            className="select-none rounded-xl"
+            style={fit === "contain" ? containStyle : coverStyle}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={onImgPointerDown}
+            onPointerMove={onImgPointerMove}
+            onPointerUp={onImgPointerUp}
+            onPointerCancel={onImgPointerUp}
           />
         ) : (
-          <span className="flex flex-col items-center gap-1 text-[#E85D75]">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="flex h-full w-full flex-col items-center justify-center gap-1 text-[#E85D75] hover:bg-[#E85D75]/[0.06]"
+          >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
               <path
                 d="M4 16l4.5-4.5a2 2 0 012.8 0L16 16m-2-2l1.2-1.2a2 2 0 012.8 0L20 15M8 8h.01M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
@@ -404,10 +594,14 @@ function UploadBox({
               />
             </svg>
             <span className="text-xs font-medium">{label}</span>
-          </span>
+          </button>
         )}
-      </button>
-      {selected ? toolbar : null}
+      </div>
+      {selected
+        ? typeof toolbar === "function"
+          ? toolbar(() => inputRef.current?.click())
+          : toolbar
+        : null}
       <input
         ref={inputRef}
         type="file"
@@ -728,7 +922,7 @@ type Props = {
   itemsTotal: number;
   blocks: FlowBlock[];
   freeImages: FreeImageBlock[];
-  onBlocksChange: (blocks: FlowBlock[]) => void;
+  onBlocksChange: React.Dispatch<React.SetStateAction<FlowBlock[]>>;
   onFreeImagesChange: (images: FreeImageBlock[]) => void;
 };
 
@@ -760,10 +954,23 @@ export default function MakerLayoutCanvas({
   };
 
   const updateBlock = (id: string, patch: Partial<FlowBlock> | FlowBlock) => {
-    onBlocksChange(
-      blocks.map((b) =>
-        b.id === id ? ({ ...b, ...patch } as FlowBlock) : b
-      )
+    onBlocksChange((prev) =>
+      prev.map((b) => (b.id === id ? ({ ...b, ...patch } as FlowBlock) : b))
+    );
+  };
+
+  const patchPaymentRows = (
+    blockId: string,
+    updater: (rows: PaymentRow[]) => PaymentRow[]
+  ) => {
+    onBlocksChange((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || b.type !== "payment") return b;
+        const current = Array.isArray(b.rows) && b.rows.length
+          ? b.rows
+          : [defaultPaymentRow()];
+        return { ...b, rows: updater(current) };
+      })
     );
   };
 
@@ -775,6 +982,12 @@ export default function MakerLayoutCanvas({
       target.imageUrl.startsWith("blob:")
     ) {
       URL.revokeObjectURL(target.imageUrl);
+    }
+    if (
+      target?.type === "richtext" &&
+      target.qrImageUrl?.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(target.qrImageUrl);
     }
     onBlocksChange(blocks.filter((b) => b.id !== id));
     setSelectedId((cur) => (cur === id ? null : cur));
@@ -845,6 +1058,10 @@ export default function MakerLayoutCanvas({
               heightLevel: 2 as const,
               pageBreak: "none" as PageBreakMode,
             };
+      const imgFit: "contain" | "cover" =
+        block.type === "banner"
+          ? "contain"
+          : block.fit || (block.size === "full" ? "contain" : "cover");
       const canIncrease =
         imgBlock.size === "half" || imgBlock.heightLevel < 3;
       const canDecrease =
@@ -868,38 +1085,106 @@ export default function MakerLayoutCanvas({
           <UploadBox
             imageUrl={block.imageUrl}
             selected={selected}
-            fit={block.type === "banner" ? "contain" : "cover"}
+            fit={imgFit}
+            posX={block.type === "image" ? block.posX ?? 50 : 50}
+            posY={block.type === "image" ? block.posY ?? 50 : 50}
+            onPositionChange={(x, y) => {
+              if (block.type === "image") {
+                updateBlock(block.id, { posX: x, posY: y });
+                return;
+              }
+              onBlocksChange((prev) =>
+                prev.map((b) =>
+                  b.id === block.id
+                    ? {
+                        id: b.id,
+                        type: "image" as const,
+                        imageUrl: block.imageUrl,
+                        size: "full" as const,
+                        heightLevel: 2 as const,
+                        pageBreak: "none" as const,
+                        fit: "contain" as const,
+                        posX: x,
+                        posY: y,
+                      }
+                    : b
+                )
+              );
+            }}
             onSelect={() => setSelectedId(block.id)}
             onPick={(f) => {
               if (block.imageUrl.startsWith("blob:")) {
                 URL.revokeObjectURL(block.imageUrl);
               }
-              if (block.type === "image") {
-                updateBlock(block.id, { imageUrl: pickFileUrl(f) });
-              } else {
-                updateBlock(block.id, { imageUrl: pickFileUrl(f) });
-              }
+              updateBlock(block.id, { imageUrl: pickFileUrl(f) });
             }}
             className={`w-full rounded-md ${
               block.type === "image"
                 ? IMAGE_HEIGHT[block.heightLevel]
-                : "h-48 sm:h-56 md:h-64"
+                : IMAGE_HEIGHT[2]
             }`}
-            toolbar={
+            toolbar={(openPicker) => (
               <ImageToolbar
                 size={block.type === "image" ? block.size : "full"}
                 pageBreak={block.type === "image" ? block.pageBreak : "none"}
+                fit={imgFit}
+                posX={block.type === "image" ? block.posX ?? 50 : 50}
                 canIncrease={canIncrease}
                 canDecrease={canDecrease}
                 canUp={index > 0}
                 canDown={index < blocks.length - 1}
                 onMoveUp={() => moveBlock(index, index - 1)}
                 onMoveDown={() => moveBlock(index, index + 1)}
+                onAlign={(x, y) => {
+                  if (block.type === "image") {
+                    updateBlock(block.id, { posX: x, posY: y });
+                    return;
+                  }
+                  onBlocksChange((prev) =>
+                    prev.map((b) =>
+                      b.id === block.id
+                        ? {
+                            id: b.id,
+                            type: "image" as const,
+                            imageUrl: block.imageUrl,
+                            size: "full" as const,
+                            heightLevel: 2 as const,
+                            pageBreak: "none" as const,
+                            fit: "contain" as const,
+                            posX: x,
+                            posY: y,
+                          }
+                        : b
+                    )
+                  );
+                }}
+                onFit={(nextFit) => {
+                  if (block.type === "image") {
+                    updateBlock(block.id, { fit: nextFit });
+                    return;
+                  }
+                  onBlocksChange((prev) =>
+                    prev.map((b) =>
+                      b.id === block.id
+                        ? {
+                            id: b.id,
+                            type: "image" as const,
+                            imageUrl: block.imageUrl,
+                            size: "full" as const,
+                            heightLevel: 2 as const,
+                            pageBreak: "none" as const,
+                            fit: nextFit,
+                            posX: 50,
+                            posY: 50,
+                          }
+                        : b
+                    )
+                  );
+                }}
                 onIncrease={() => {
                   if (block.type !== "image") {
-                    // promote banner to full image block semantics via size fields if we convert
-                    onBlocksChange(
-                      blocks.map((b) =>
+                    onBlocksChange((prev) =>
+                      prev.map((b) =>
                         b.id === block.id
                           ? {
                               id: b.id,
@@ -908,6 +1193,9 @@ export default function MakerLayoutCanvas({
                               size: "full" as const,
                               heightLevel: 3 as const,
                               pageBreak: "none" as const,
+                              fit: "contain" as const,
+                              posX: 50,
+                              posY: 50,
                             }
                           : b
                       )
@@ -922,8 +1210,8 @@ export default function MakerLayoutCanvas({
                 }}
                 onPageBreak={(mode) => {
                   if (block.type !== "image") {
-                    onBlocksChange(
-                      blocks.map((b) =>
+                    onBlocksChange((prev) =>
+                      prev.map((b) =>
                         b.id === block.id
                           ? {
                               id: b.id,
@@ -932,6 +1220,9 @@ export default function MakerLayoutCanvas({
                               size: "full" as const,
                               heightLevel: 2 as const,
                               pageBreak: mode,
+                              fit: "contain" as const,
+                              posX: 50,
+                              posY: 50,
                             }
                           : b
                       )
@@ -940,9 +1231,10 @@ export default function MakerLayoutCanvas({
                   }
                   updateBlock(block.id, { pageBreak: mode });
                 }}
+                onReplace={openPicker}
                 onDelete={() => removeBlock(block.id)}
               />
-            }
+            )}
           />
           {(block.type === "image" ? block.pageBreak : "none") === "after" ? (
             <p className="no-print mt-2 text-center text-[10px] font-medium uppercase tracking-wide text-[#E85D75]">
@@ -1137,9 +1429,30 @@ export default function MakerLayoutCanvas({
         </div>
       );
     } else if (block.type === "payment") {
-      const rows = block.rows;
-      const pct = rows.reduce((s, r) => s + (Number(r.percent) || 0), 0);
-      const amt = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const rows =
+        Array.isArray(block.rows) && block.rows.length
+          ? block.rows
+          : [defaultPaymentRow()];
+      const computedRows = rows.map((r) => {
+        const percent = Number(r.percent) || 0;
+        return {
+          ...r,
+          percent,
+          amountValue: moneyFromPercent(itemsTotal, percent),
+        };
+      });
+      const pct = computedRows.reduce((s, r) => s + r.percent, 0);
+      const amt = computedRows.reduce((s, r) => s + r.amountValue, 0);
+      const remainingPct = Math.max(0, Math.round((100 - pct) * 100) / 100);
+      const remainingAmt = Math.max(0, Math.round(itemsTotal) - amt);
+      const updatePaymentRow = (
+        rowId: string,
+        patch: Partial<PaymentRow>
+      ) => {
+        patchPaymentRows(block.id, (current) =>
+          current.map((r) => (r.id === rowId ? { ...r, ...patch } : r))
+        );
+      };
       body = (
         <div className="rounded-lg border border-gray-200">
           <h3
@@ -1148,6 +1461,10 @@ export default function MakerLayoutCanvas({
           >
             Payment Plan
           </h3>
+          <p className="px-3 text-[11px] text-gray-500">
+            Quotation total ₹ {Math.round(itemsTotal).toLocaleString("en-IN")} —
+            enter % to auto-fill payable amount.
+          </p>
           <div className="overflow-x-auto px-2 pb-3 pt-2">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead>
@@ -1156,33 +1473,67 @@ export default function MakerLayoutCanvas({
                   <th className="px-2 py-2">Milestone</th>
                   <th className="px-2 py-2">Description</th>
                   <th className="px-2 py-2">Percent</th>
-                  <th className="px-2 py-2">Amount</th>
+                  <th className="px-2 py-2">Payable</th>
                   <th className="no-print w-10 px-1 py-2" aria-label="Remove" />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, idx) => (
+                {computedRows.map((row, idx) => (
                   <tr key={row.id} className="border-b border-gray-100">
                     <td className="px-2 py-1.5 text-gray-500">{idx + 1}</td>
-                    {(
-                      ["milestone", "description", "percent", "amount"] as const
-                    ).map((key) => (
-                      <td key={key} className="px-1 py-1">
-                        <input
-                          value={row[key]}
-                          onChange={(e) =>
-                            updateBlock(block.id, {
-                              rows: rows.map((r) =>
-                                r.id === row.id
-                                  ? { ...r, [key]: e.target.value }
-                                  : r
-                              ),
-                            })
-                          }
-                          className="h-8 w-full rounded border border-transparent px-1.5 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden"
-                        />
-                      </td>
-                    ))}
+                    <td className="px-1 py-1">
+                      <input
+                        value={row.milestone}
+                        onChange={(e) =>
+                          updatePaymentRow(row.id, { milestone: e.target.value })
+                        }
+                        className="h-8 w-full rounded border border-transparent px-1.5 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden"
+                      />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input
+                        value={row.description}
+                        onChange={(e) =>
+                          updatePaymentRow(row.id, {
+                            description: e.target.value,
+                          })
+                        }
+                        className="h-8 w-full rounded border border-transparent px-1.5 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden"
+                      />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={row.percent || ""}
+                        onChange={(e) => {
+                          const percent = e.target.value;
+                          const amount = String(
+                            moneyFromPercent(itemsTotal, Number(percent) || 0)
+                          );
+                          updatePaymentRow(row.id, { percent, amount });
+                        }}
+                        className="h-8 w-full rounded border border-transparent px-1.5 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden"
+                      />
+                    </td>
+                    <td className="px-1 py-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={row.amountValue || ""}
+                        onChange={(e) => {
+                          const amount = e.target.value;
+                          const percent = String(
+                            percentFromMoney(itemsTotal, Number(amount) || 0)
+                          );
+                          updatePaymentRow(row.id, { percent, amount });
+                        }}
+                        className="h-8 w-full rounded border border-transparent px-1.5 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden"
+                      />
+                    </td>
                     <td className="no-print px-1 py-1 text-center">
                       <button
                         type="button"
@@ -1193,9 +1544,9 @@ export default function MakerLayoutCanvas({
                         }
                         disabled={rows.length <= 1}
                         onClick={() =>
-                          updateBlock(block.id, {
-                            rows: rows.filter((r) => r.id !== row.id),
-                          })
+                          patchPaymentRows(block.id, (current) =>
+                            current.filter((r) => r.id !== row.id)
+                          )
                         }
                         className="inline-flex h-8 w-8 items-center justify-center rounded text-[#E85D75] hover:bg-[#E85D75]/10 disabled:cursor-not-allowed disabled:opacity-30"
                         aria-label="Remove milestone"
@@ -1215,7 +1566,7 @@ export default function MakerLayoutCanvas({
                 ))}
                 <tr>
                   <td colSpan={3} className="px-2 py-2 text-right font-medium">
-                    Total
+                    Allocated
                   </td>
                   <td className="px-2 py-2 font-semibold" style={{ color: accent }}>
                     {pct}%
@@ -1225,40 +1576,94 @@ export default function MakerLayoutCanvas({
                   </td>
                   <td className="no-print" />
                 </tr>
+                <tr>
+                  <td colSpan={3} className="px-2 py-1.5 text-right text-gray-600">
+                    Remaining
+                  </td>
+                  <td className="px-2 py-1.5 text-gray-700">{remainingPct}%</td>
+                  <td className="px-2 py-1.5 text-gray-700">
+                    ₹ {remainingAmt.toLocaleString("en-IN")}
+                  </td>
+                  <td className="no-print" />
+                </tr>
+                <tr>
+                  <td colSpan={3} className="px-2 py-2 text-right font-medium">
+                    Quotation total
+                  </td>
+                  <td className="px-2 py-2 font-semibold">100%</td>
+                  <td className="px-2 py-2 font-semibold" style={{ color: accent }}>
+                    ₹ {Math.round(itemsTotal).toLocaleString("en-IN")}
+                  </td>
+                  <td className="no-print" />
+                </tr>
               </tbody>
             </table>
           </div>
-          {selected ? (
-            <div className="no-print flex justify-center gap-1 pb-3">
+          <div className="no-print flex justify-center gap-2 pb-3">
               <button
                 type="button"
                 className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow"
-                onClick={() =>
-                  updateBlock(block.id, {
-                    rows: [
-                      ...rows,
-                      {
-                        id: uid("pay"),
-                        milestone: "",
-                        description: "",
-                        percent: "0",
-                        amount: "0",
-                      },
-                    ],
-                  })
-                }
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedId(block.id);
+                  patchPaymentRows(block.id, (current) => [
+                    ...current,
+                    {
+                      id: uid("pay"),
+                      milestone: `Milestone ${current.length + 1}`,
+                      description: "",
+                      percent: "0",
+                      amount: "0",
+                    },
+                  ]);
+                }}
               >
                 + Milestone
               </button>
+              {remainingPct > 0 ? (
+                <button
+                  type="button"
+                  className="rounded-full border border-[#E85D75]/30 bg-[#E85D75]/5 px-3 py-1 text-xs text-[#E85D75] shadow"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedId(block.id);
+                    patchPaymentRows(block.id, (current) => [
+                      ...current,
+                      {
+                        id: uid("pay"),
+                        milestone: "Balance",
+                        description: "Remaining payable",
+                        percent: String(remainingPct),
+                        amount: String(remainingAmt),
+                      },
+                    ]);
+                  }}
+                >
+                  + Remaining {remainingPct}%
+                </button>
+              ) : null}
             </div>
-          ) : null}
         </div>
       );
     } else if (block.type === "richtext") {
+      const isBank = block.title.toLowerCase().includes("bank");
       body = (
         <MakerRichTextEditor
           title={block.title}
           value={block.html}
+          qrImageUrl={isBank ? block.qrImageUrl : undefined}
+          onQrChange={
+            isBank
+              ? (url) => {
+                  if (block.qrImageUrl?.startsWith("blob:") && block.qrImageUrl !== url) {
+                    URL.revokeObjectURL(block.qrImageUrl);
+                  }
+                  updateBlock(block.id, { qrImageUrl: url });
+                }
+              : undefined
+          }
           onChange={(html) => updateBlock(block.id, { html })}
           onRemove={() => removeBlock(block.id)}
           onFocusChange={(f) => {
@@ -1404,6 +1809,9 @@ export function createFlowBlock(
         size: "full",
         heightLevel: 2,
         pageBreak: "none",
+        fit: "contain",
+        posX: 50,
+        posY: 50,
       };
     case "image":
     case "imageHalf":
@@ -1423,6 +1831,9 @@ export function createFlowBlock(
         size: "full",
         heightLevel: 2,
         pageBreak: "none",
+        fit: "contain",
+        posX: 50,
+        posY: 50,
       };
     case "detailsRow":
       return {
@@ -1449,15 +1860,7 @@ export function createFlowBlock(
       return {
         id,
         type: "payment",
-        rows: [
-          {
-            id: uid("pay"),
-            milestone: "Advance",
-            description: "",
-            percent: "0",
-            amount: "0",
-          },
-        ],
+        rows: [defaultPaymentRow()],
       };
     case "bank":
       return {
@@ -1465,6 +1868,7 @@ export function createFlowBlock(
         type: "richtext",
         title: "Bank Details",
         html: DEFAULT_BANK_HTML,
+        qrImageUrl: "",
       };
     case "terms":
       return {

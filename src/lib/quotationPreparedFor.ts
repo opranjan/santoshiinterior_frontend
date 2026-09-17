@@ -155,27 +155,30 @@ function fillMissingImagesFromTemplate(
   blocks: FlowBlock[],
   templateBlocks: FlowBlock[]
 ): FlowBlock[] {
-  const extras = templateBlocks.filter(
-    (block) =>
-      (block.type === "banner" || block.type === "image") &&
-      "imageUrl" in block &&
-      isPersistedImageUrl(block.imageUrl)
-  );
-  let extraIndex = 0;
-
   return blocks.map((block) => {
     if (block.type !== "banner" && block.type !== "image") return block;
     if (isPersistedImageUrl(block.imageUrl)) {
       return { ...block, imageUrl: resolveQuotationImageUrl(block.imageUrl) };
     }
-    const fromTemplate = extras[extraIndex++];
-    if (fromTemplate && "imageUrl" in fromTemplate) {
-      return {
-        ...block,
-        imageUrl: resolveQuotationImageUrl(fromTemplate.imageUrl),
-      };
+    if (
+      !block.imageUrl &&
+      (block.type === "banner" || block.type === "image")
+    ) {
+      const match = templateBlocks.find(
+        (t) =>
+          t.id === block.id &&
+          (t.type === "banner" || t.type === "image") &&
+          "imageUrl" in t &&
+          isPersistedImageUrl(t.imageUrl)
+      );
+      if (match && "imageUrl" in match) {
+        return {
+          ...block,
+          imageUrl: resolveQuotationImageUrl(match.imageUrl),
+        };
+      }
     }
-    return { ...block, imageUrl: "" };
+    return block;
   });
 }
 

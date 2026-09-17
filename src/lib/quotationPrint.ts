@@ -29,6 +29,36 @@ const PRINT_STYLES = `
   }
   .flex { display: flex; }
   .flex-wrap { flex-wrap: wrap; }
+  .flex-1 { flex: 1 1 auto; }
+  .shrink-0 { flex-shrink: 0; }
+  .min-w-0 { min-width: 0; }
+  .hidden, .no-print, input[type="file"] { display: none !important; }
+  .bank-details-row {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 16px !important;
+    width: 100%;
+  }
+  .bank-details-copy {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .bank-qr-slot {
+    flex: 0 0 128px !important;
+    width: 128px !important;
+    max-width: 128px !important;
+    text-align: center;
+  }
+  .bank-qr-slot img {
+    width: 112px !important;
+    height: 112px !important;
+    object-fit: contain !important;
+    margin: 0 auto !important;
+    border-radius: 12px !important;
+  }
   .grid { display: grid; }
   .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
   .gap-3 { gap: 12px; }
@@ -78,6 +108,15 @@ const PRINT_STYLES = `
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 12px !important;
+  }
+  .maker-banner-slot img {
+    object-fit: contain !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 12px !important;
   }
   .quotation-print-sheet table {
     width: 100%;
@@ -94,9 +133,13 @@ const PRINT_STYLES = `
     border: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
-    width: 100%;
     font: inherit;
     color: inherit;
+  }
+  .quotation-print-sheet input[type="file"] {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
   .quotation-print-sheet [contenteditable="true"] {
     outline: none !important;
@@ -162,6 +205,7 @@ function isEmptyBreakOnly(el: Element): boolean {
 
 function stripEditorChrome(root: ParentNode) {
   root.querySelectorAll(".no-print").forEach((el) => el.remove());
+  root.querySelectorAll('input[type="file"]').forEach((el) => el.remove());
 
   root.querySelectorAll(".maker-upload-slot").forEach((slot) => {
     if (!slot.querySelector("img")) {

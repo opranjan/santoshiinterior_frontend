@@ -17,6 +17,8 @@ type SelectedLead = {
   salesOwnerId?: string | null;
   projectName?: string | null;
   status?: string;
+  assigneeName?: string | null;
+  leadOwnerName?: string | null;
 };
 
 type HubProps = {
@@ -231,6 +233,8 @@ export default function WhatsAppCommunicationHub({
       phone: item.phone,
       projectName: item.projectName,
       status: item.status,
+      assigneeName: item.assigneeName,
+      leadOwnerName: item.leadOwnerName || item.assigneeName,
     });
   }, [inbox, activeLeadId, loadedLead?.id]);
 
@@ -249,6 +253,8 @@ export default function WhatsAppCommunicationHub({
       phone: item.phone,
       projectName: item.projectName,
       status: item.status,
+      assigneeName: item.assigneeName,
+      leadOwnerName: item.leadOwnerName || item.assigneeName,
     });
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -373,8 +379,8 @@ export default function WhatsAppCommunicationHub({
               const subtitle =
                 item.displaySubtitle ||
                 (viewMode === "project"
-                  ? item.clientName
-                  : item.projectName || item.assigneeName || item.phone);
+                  ? item.assigneeName || "Unassigned"
+                  : item.leadOwnerName || item.assigneeName || item.projectName || item.phone);
               const preview = item.lastMessage?.preview || "Start WhatsApp conversation";
               const time = formatListTime(item.lastMessage?.createdAt || item.updatedAt);
 
@@ -433,10 +439,17 @@ export default function WhatsAppCommunicationHub({
           <LeadCommunicationPanel
             embedded
             leadId={loadedLead.id}
-            clientName={loadedLead.clientName}
+            clientName={
+              viewMode === "project"
+                ? loadedLead.projectName || loadedLead.clientName
+                : loadedLead.clientName
+            }
             phone={loadedLead.phone}
             assignedToId={loadedLead.assignedToId}
             salesOwnerId={loadedLead.salesOwnerId}
+            assigneeName={loadedLead.assigneeName}
+            leadOwnerName={loadedLead.leadOwnerName}
+            hideCustomerPhone={viewMode === "project"}
             initialMessages={messages}
             onRefresh={() => {
               void loadInbox(true);

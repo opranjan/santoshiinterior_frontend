@@ -35,7 +35,12 @@ function withResolvedImageUrl<T extends { imageUrl?: string }>(block: T): T {
 export function resolveLayoutMedia(blocks: FlowBlock[]): FlowBlock[] {
   return blocks.map((block) => {
     const next = withResolvedImageUrl(block as FlowBlock & { imageUrl?: string });
-    if (next.type === "items") return next;
+    if (next.type === "richtext") {
+      return {
+        ...next,
+        qrImageUrl: resolveQuotationImageUrl(next.qrImageUrl),
+      };
+    }
     return next;
   });
 }
@@ -48,7 +53,11 @@ export function resolveFreeImages(images: FreeImageBlock[]): FreeImageBlock[] {
 }
 
 function stripBlobUrl(url?: string): string {
-  return isPersistedImageUrl(url) ? String(url) : "";
+  const value = String(url || "").trim();
+  if (!value || value.startsWith("blob:") || value.startsWith("data:")) return "";
+  const uploadsAt = value.indexOf("/uploads/");
+  if (uploadsAt >= 0) return value.slice(uploadsAt);
+  return value;
 }
 
 export function parseMakerLayout(
@@ -81,11 +90,14 @@ export function buildMakerLayoutPayload(input: {
   return {
     templateId: input.templateId || undefined,
     blocks: input.blocks.map((block) => {
-      if (!("imageUrl" in block)) return block;
-      return {
-        ...block,
-        imageUrl: stripBlobUrl((block as { imageUrl?: string }).imageUrl),
-      } as FlowBlock;
+      const next = { ...block } as FlowBlock;
+      if ("imageUrl" in next) {
+        next.imageUrl = stripBlobUrl(next.imageUrl);
+      }
+      if (next.type === "richtext") {
+        next.qrImageUrl = stripBlobUrl(next.qrImageUrl);
+      }
+      return next;
     }),
     freeImages: input.freeImages.map((img) => ({
       ...img,

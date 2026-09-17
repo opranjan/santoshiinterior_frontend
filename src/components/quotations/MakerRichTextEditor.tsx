@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { designAssetUrl } from "@/lib/designAssets";
 
 const accent = "#E85D75";
 
@@ -14,6 +15,8 @@ type Props = {
   inline?: boolean;
   className?: string;
   onFocusChange?: (focused: boolean) => void;
+  qrImageUrl?: string;
+  onQrChange?: (url: string) => void;
 };
 
 function ToolBtn({
@@ -46,8 +49,11 @@ export default function MakerRichTextEditor({
   inline = false,
   className = "",
   onFocusChange,
+  qrImageUrl,
+  onQrChange,
 }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const qrInputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   const [fontSize, setFontSize] = useState("3");
   const [fontName, setFontName] = useState("Arial");
@@ -305,28 +311,114 @@ export default function MakerRichTextEditor({
 
       {focused ? toolbar : null}
 
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-label={title || "Editable text"}
-        className={`min-h-[100px] px-3 py-3 text-sm leading-relaxed text-gray-800 outline-none [&_a]:text-blue-600 [&_a]:underline [&_ol]:ml-5 [&_ol]:list-decimal [&_ul]:ml-5 [&_ul]:list-disc ${
-          inline ? "min-h-[120px]" : ""
-        }`}
-        onFocus={() => setFocus(true)}
-        onBlur={() => {
-          window.setTimeout(() => setFocus(false), 180);
-          if (editorRef.current) onChange(editorRef.current.innerHTML);
-        }}
-        onInput={() => {
-          syncing.current = true;
-          if (editorRef.current) onChange(editorRef.current.innerHTML);
-          window.setTimeout(() => {
-            syncing.current = false;
-          }, 0);
-        }}
-      />
+      {onQrChange ? (
+        <div className="bank-details-row flex gap-3 px-3 pb-3">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            aria-label={title || "Editable text"}
+            className="bank-details-copy min-h-[100px] min-w-0 flex-1 py-3 text-sm leading-relaxed text-gray-800 outline-none [&_a]:text-blue-600 [&_a]:underline [&_ol]:ml-5 [&_ol]:list-decimal [&_ul]:ml-5 [&_ul]:list-disc"
+            onFocus={() => setFocus(true)}
+            onBlur={() => {
+              window.setTimeout(() => setFocus(false), 180);
+              if (editorRef.current) onChange(editorRef.current.innerHTML);
+            }}
+            onInput={() => {
+              syncing.current = true;
+              if (editorRef.current) onChange(editorRef.current.innerHTML);
+              window.setTimeout(() => {
+                syncing.current = false;
+              }, 0);
+            }}
+          />
+          <div
+            className={`bank-qr-slot w-[132px] shrink-0 ${
+              qrImageUrl ? "" : "print:hidden"
+            }`}
+          >
+            <input
+              ref={qrInputRef}
+              type="file"
+              accept="image/*"
+              className="no-print hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onQrChange(URL.createObjectURL(file));
+                e.target.value = "";
+              }}
+            />
+            {qrImageUrl ? (
+              <div className="relative rounded-md border border-gray-200 bg-white p-2 text-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={designAssetUrl(qrImageUrl)}
+                  alt="Payment QR"
+                  className="mx-auto h-28 w-28 rounded-xl object-contain"
+                />
+                <p className="mt-1 text-[10px] font-medium text-gray-500">
+                  Scan to pay
+                </p>
+                <div className="no-print mt-1 flex justify-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => qrInputRef.current?.click()}
+                    className="rounded px-1.5 py-0.5 text-[10px] font-medium text-[#E85D75] hover:bg-[#E85D75]/10"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onQrChange("")}
+                    className="rounded px-1.5 py-0.5 text-[10px] text-gray-500 hover:bg-gray-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => qrInputRef.current?.click()}
+                className="no-print flex h-full min-h-[140px] w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-[#E85D75]/50 bg-[#E85D75]/[0.03] px-2 text-center text-[#E85D75] hover:bg-[#E85D75]/[0.06]"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 4h3v3h-3v-3zm4-4h3v3h-3v-3z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <span className="text-[11px] font-medium">Upload QR</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          role="textbox"
+          aria-label={title || "Editable text"}
+          className={`min-h-[100px] px-3 py-3 text-sm leading-relaxed text-gray-800 outline-none [&_a]:text-blue-600 [&_a]:underline [&_ol]:ml-5 [&_ol]:list-decimal [&_ul]:ml-5 [&_ul]:list-disc ${
+            inline ? "min-h-[120px]" : ""
+          }`}
+          onFocus={() => setFocus(true)}
+          onBlur={() => {
+            window.setTimeout(() => setFocus(false), 180);
+            if (editorRef.current) onChange(editorRef.current.innerHTML);
+          }}
+          onInput={() => {
+            syncing.current = true;
+            if (editorRef.current) onChange(editorRef.current.innerHTML);
+            window.setTimeout(() => {
+              syncing.current = false;
+            }, 0);
+          }}
+        />
+      )}
     </div>
   );
 }
