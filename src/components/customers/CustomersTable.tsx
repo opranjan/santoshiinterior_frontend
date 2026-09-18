@@ -17,8 +17,10 @@ import {
   customersApi,
   storesApi,
   type CustomerDto,
+  type CustomerMessageKind,
 } from "@/services/crmApi";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
+import CustomerSendModal from "@/components/customers/CustomerSendModal";
 
 type CustomerStatus = "Active" | "Lead" | "Inactive" | "VIP";
 type CustomerType = "Individual" | "Family" | "Company";
@@ -271,6 +273,8 @@ export default function CustomersTable() {
   const [typeFilter, setTypeFilter] = useState<"All" | CustomerType>("All");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sendKind, setSendKind] = useState<CustomerMessageKind | null>(null);
 
   const emptyForm = {
     name: "",
@@ -519,6 +523,38 @@ export default function CustomersTable() {
     );
   };
 
+  const selectedCustomers = useMemo(
+    () => customers.filter((c) => selectedIds.includes(c.id)),
+    [customers, selectedIds]
+  );
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllFiltered = () => {
+    const ids = filtered.map((c) => c.id);
+    const allOn = ids.length > 0 && ids.every((id) => selectedIds.includes(id));
+    setSelectedIds(allOn ? selectedIds.filter((id) => !ids.includes(id)) : ids);
+  };
+
+  const openSend = (kind: CustomerMessageKind, ids?: string[]) => {
+    const next = ids || selectedIds;
+    if (!next.length) {
+      setError("Select at least one customer to send a message.");
+      return;
+    }
+    if (kind === "whatsapp" && next.length > 1) {
+      setError("Pick one customer for WhatsApp, or use Broadcast for many.");
+      return;
+    }
+    setError("");
+    setSelectedIds(next);
+    setSendKind(kind);
+  };
+
   return (
     <div className="space-y-6">
       {error && (
@@ -549,6 +585,30 @@ export default function CustomersTable() {
               Projects
             </Button>
           </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openSend("whatsapp")}
+            disabled={selectedIds.length !== 1}
+          >
+            WhatsApp
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openSend("broadcast")}
+            disabled={selectedIds.length === 0}
+          >
+            Broadcast
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openSend("marketing")}
+            disabled={selectedIds.length === 0}
+          >
+            Marketing
+          </Button>
           <Button size="sm" onClick={openAdd}>
             + Add Customer
           </Button>
@@ -647,6 +707,21 @@ export default function CustomersTable() {
             <Table>
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
+                  <TableCell
+                    isHeader
+                    className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        filtered.length > 0 &&
+                        filtered.every((c) => selectedIds.includes(c.id))
+                      }
+                      onChange={toggleAllFiltered}
+                      aria-label="Select all customers"
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableCell>
                   {[
                     "Customer",
                     "Contact",
@@ -672,6 +747,15 @@ export default function CustomersTable() {
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {filtered.map((c) => (
                   <TableRow key={c.id}>
+                    <TableCell className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(c.id)}
+                        onChange={() => toggleSelected(c.id)}
+                        aria-label={`Select ${c.name}`}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell className="px-4 py-3 text-start">
                       <div className="flex items-center gap-3">
                         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white">
@@ -763,6 +847,20 @@ export default function CustomersTable() {
 
                     <TableCell className="px-4 py-3 whitespace-nowrap">
                       <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openSend("whatsapp", [c.id])}
+                          className="text-left text-sm font-medium text-[#128c7e] hover:underline"
+                        >
+                          WhatsApp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openSend("marketing", [c.id])}
+                          className="text-left text-sm font-medium text-brand-500 hover:text-brand-600"
+                        >
+                          Marketing
+                        </button>
                         <button
                           type="button"
                           onClick={() => openEdit(c)}
@@ -1037,6 +1135,25 @@ export default function CustomersTable() {
           </div>
         </div>
       )}
+
+      <CustomerSendModal
+        open={Boolean(sendKind)}
+        kind={sendKind || "whatsapp"}
+        customers={selectedCustomers.map((c) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+        }))}
+        onClose={() => setSendKind(null)}
+        onSent={(iso) => {
+          const stamp = formatDate(iso);
+          setCustomers((prev) =>
+            prev.map((c) =>
+              selectedIds.includes(c.id) ? { ...c, lastContact: stamp } : c
+            )
+          );
+        }}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { leadsApi, projectsApi, storesApi } from "@/services/crmApi";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
+import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
 
 type ProjectStatus =
   | "Kickoff"
@@ -26,6 +27,14 @@ type ProjectStatus =
   | "Handover"
   | "On Hold"
   | "Completed";
+
+type TimelineTask = {
+  id: string;
+  title: string;
+  startDate?: string | null;
+  dueDate?: string | null;
+  status: string;
+};
 
 type Project = {
   id: string;
@@ -43,10 +52,14 @@ type Project = {
   financialYear: string;
   startDate: string;
   endDate: string;
+  startIso: string;
+  endIso: string;
   address: string;
   description: string;
   latestRemark: string;
   updatedAt: string;
+  taskCount: number;
+  timelineTasks: TimelineTask[];
 };
 
 const statuses: ProjectStatus[] = [
@@ -109,7 +122,7 @@ const statusColor: Record<
   Completed: "success",
 };
 
-const initialProjects: Project[] = [
+const initialProjects = [
   {
     id: "PRJ-101",
     name: "Desai 3BHK Interiors",
@@ -129,6 +142,7 @@ const initialProjects: Project[] = [
     address: "Scheme 54, Indore",
     description: "Full home interiors with modular kitchen and false ceiling",
     latestRemark: "Carpentry 80% done · painting starts next week",
+    taskCount: 0,
     updatedAt: "2026-07-28T15:20:00",
   },
   {
@@ -150,6 +164,7 @@ const initialProjects: Project[] = [
     address: "Vijay Nagar, Indore",
     description: "50-seater office with cabin partition + reception",
     latestRemark: "Layout approved · material list in progress",
+    taskCount: 0,
     updatedAt: "2026-07-29T11:00:00",
   },
   {
@@ -171,6 +186,7 @@ const initialProjects: Project[] = [
     address: "Bhopal",
     description: "4BHK villa modular kitchen priority",
     latestRemark: "Site measurement completed",
+    taskCount: 0,
     updatedAt: "2026-07-28T15:30:00",
   },
   {
@@ -192,6 +208,7 @@ const initialProjects: Project[] = [
     address: "Ujjain",
     description: "Living room false ceiling + TV unit",
     latestRemark: "Laminate ordered · delivery in 5 days",
+    taskCount: 0,
     updatedAt: "2026-07-27T09:40:00",
   },
   {
@@ -213,6 +230,7 @@ const initialProjects: Project[] = [
     address: "AB Road, Indore",
     description: "Showroom interiors and display units",
     latestRemark: "On hold · waiting client advance",
+    taskCount: 0,
     updatedAt: "2026-07-20T16:00:00",
   },
   {
@@ -234,6 +252,7 @@ const initialProjects: Project[] = [
     address: "Palm Court, Indore",
     description: "Luxury penthouse interiors",
     latestRemark: "Handover done · warranty activated",
+    taskCount: 0,
     updatedAt: "2026-05-02T12:00:00",
   },
 ];
@@ -280,6 +299,7 @@ export default function ProjectsTable() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [sourceLeadId, setSourceLeadId] = useState<string | null>(null);
   const [sourceLeadClientName, setSourceLeadClientName] = useState("");
+  const [tasksProject, setTasksProject] = useState<Project | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -322,10 +342,18 @@ export default function ProjectsTable() {
       financialYear: String(dto.financialYear || ""),
       startDate: formatDate((dto.startDate as string | null) || ""),
       endDate: formatDate((dto.endDate as string | null) || ""),
+      startIso: toYmd((dto.startDate as string | null) || ""),
+      endIso: toYmd((dto.endDate as string | null) || ""),
       address: String(dto.address || ""),
       description: String(dto.description || ""),
       latestRemark: String(dto.latestRemark || ""),
       updatedAt: String(dto.updatedAt || ""),
+      taskCount: Number(
+        (dto._count as { tasks?: number } | undefined)?.tasks || 0
+      ),
+      timelineTasks: Array.isArray(dto.tasks)
+        ? (dto.tasks as TimelineTask[])
+        : [],
     };
   };
 
@@ -723,7 +751,6 @@ export default function ProjectsTable() {
                     "Status",
                     "Progress",
                     "Assigned To",
-                    "Budget",
                     "Timeline",
                     "Latest Remark",
                     "Actions",
@@ -837,17 +864,35 @@ export default function ProjectsTable() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                      {p.budget}
-                    </TableCell>
-
                     <TableCell className="px-4 py-3 text-start whitespace-nowrap">
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {formatDate(p.startDate)}
+                        {p.startDate}
                       </p>
                       <p className="text-xs text-gray-400">
-                        → {formatDate(p.endDate)}
+                        → {p.endDate}
                       </p>
+                      {p.timelineTasks.slice(0, 2).map((task) => (
+                        <p
+                          key={task.id}
+                          className="mt-1 max-w-[140px] truncate text-[11px] text-gray-500"
+                          title={task.title}
+                        >
+                          {task.title}
+                          <span className="block text-gray-400">
+                            {formatDate(task.startDate || "")}
+                            {task.dueDate
+                              ? ` → ${formatDate(task.dueDate)}`
+                              : ""}
+                          </span>
+                        </p>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setTasksProject(p)}
+                        className="mt-1.5 text-left text-xs font-medium text-brand-500 hover:text-brand-600"
+                      >
+                        + Add task
+                      </button>
                     </TableCell>
 
                     <TableCell className="px-4 py-3 max-w-[220px]">
@@ -877,6 +922,13 @@ export default function ProjectsTable() {
                         >
                           Quotation
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => setTasksProject(p)}
+                          className="text-left text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                        >
+                          Tasks{p.taskCount ? ` (${p.taskCount})` : ""}
+                        </button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1175,6 +1227,27 @@ export default function ProjectsTable() {
           </div>
         </div>
       )}
+
+      {tasksProject ? (
+        <ProjectTasksPanel
+          project={tasksProject}
+          onClose={() => setTasksProject(null)}
+          onCountChange={(count) =>
+            setProjects((current) =>
+              current.map((p) =>
+                p.id === tasksProject.id ? { ...p, taskCount: count } : p
+              )
+            )
+          }
+          onTasksChange={(timelineTasks) =>
+            setProjects((current) =>
+              current.map((p) =>
+                p.id === tasksProject.id ? { ...p, timelineTasks } : p
+              )
+            )
+          }
+        />
+      ) : null}
     </div>
   );
 }

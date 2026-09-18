@@ -145,6 +145,7 @@ export default function TeamSettings() {
       const [users, stores] = await Promise.all([
         usersApi.list({
           limit: 100,
+          isActive: "true",
           ...(storeFilterId ? { storeId: storeFilterId } : {}),
         }),
         storesApi.list({ limit: 100 }),

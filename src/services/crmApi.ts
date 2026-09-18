@@ -263,7 +263,11 @@ export type WhatsAppStatusDto = {
     reason?: string;
     approvedTemplates?: string[];
   };
-  approvedTemplates: Array<{ name: string; language: string }>;
+  approvedTemplates: Array<{
+    name: string;
+    language: string;
+    category?: string | null;
+  }>;
   webhookPath: string;
   recommendedWebhookUrl?: string | null;
   publicApiUrlConfigured?: boolean;
@@ -367,6 +371,22 @@ export type CustomerDto = {
   updatedAt: string;
 };
 
+export type CustomerMessageKind = "whatsapp" | "broadcast" | "marketing";
+
+export type CustomerMessageSendResult = {
+  kind: CustomerMessageKind;
+  sent: number;
+  failed: number;
+  results: Array<{
+    customerId: string;
+    name: string;
+    phone: string;
+    ok: boolean;
+    error?: string;
+    templateName?: string | null;
+  }>;
+};
+
 export const customersApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<CustomerDto>>("/customers", query),
@@ -375,6 +395,13 @@ export const customersApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put<CustomerDto>(`/customers/${id}`, body),
   remove: (id: string) => api.delete<{ id: string }>(`/customers/${id}`),
+  sendMessages: (body: {
+    customerIds: string[];
+    kind: CustomerMessageKind;
+    body?: string;
+    templateName?: string;
+    languageCode?: string;
+  }) => api.post<CustomerMessageSendResult>("/customers/messages", body),
 };
 
 export type DashboardDto = {
@@ -393,8 +420,9 @@ export type DashboardDto = {
     pendingPayments: number | string;
     pendingPaymentCount: number;
     warrantyOpen: number;
-    warrantyOverdue: number;
+    followUpsDueCount?: number;
   };
+  view?: "sales" | "operations";
   pipeline: Array<{ stage: string; count: number }>;
   storePerformance: Array<{
     id: string;
@@ -505,6 +533,22 @@ export const designApi = {
   },
 };
 
+export type ProjectTaskDto = {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  startDate?: string | null;
+  dueDate?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: { id: string; name: string } | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const projectsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/projects", query),
@@ -512,6 +556,17 @@ export const projectsApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/projects/${id}`, body),
   remove: (id: string) => api.delete(`/projects/${id}`),
+  listTasks: (id: string) =>
+    api.get<ProjectTaskDto[]>(`/projects/${id}/tasks`),
+  createTask: (id: string, body: Record<string, unknown>) =>
+    api.post<ProjectTaskDto>(`/projects/${id}/tasks`, body),
+  updateTask: (
+    id: string,
+    taskId: string,
+    body: Record<string, unknown>
+  ) => api.put<ProjectTaskDto>(`/projects/${id}/tasks/${taskId}`, body),
+  removeTask: (id: string, taskId: string) =>
+    api.delete(`/projects/${id}/tasks/${taskId}`),
 };
 
 export const quotationsApi = {
@@ -667,6 +722,115 @@ export type SettingDto = {
   updatedAt?: string;
 };
 
+export type WebsiteTestimonialDto = {
+  id: string;
+  review: string;
+  authorName: string;
+  authorRole: string;
+  authorImg?: string | null;
+  rating: number;
+  isPublished: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export const testimonialsApi = {
+  list: () => api.get<WebsiteTestimonialDto[]>("/website-testimonials"),
+  create: (body: Record<string, unknown>) =>
+    api.post<WebsiteTestimonialDto>("/website-testimonials", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<WebsiteTestimonialDto>(`/website-testimonials/${id}`, body),
+  remove: (id: string) =>
+    api.delete<{ id: string }>(`/website-testimonials/${id}`),
+  uploadImage: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("image", file);
+    const res = await fetch(`${base}/website-testimonials/${id}/image`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as WebsiteTestimonialDto;
+  },
+  deleteImage: (id: string) =>
+    api.delete<WebsiteTestimonialDto>(`/website-testimonials/${id}/image`),
+};
+
+export type WebsiteHeroBannerDto = {
+  id: string;
+  kind: "slide" | "side" | "promo-wide" | "promo-left" | "promo-right" | "deal" | "subscribe";
+  discountText: string;
+  highlightText: string;
+  title: string;
+  description: string;
+  tag: string;
+  price: number | null;
+  comparePrice: number | null;
+  ctaLabel: string;
+  ctaHref: string;
+  imageUrl?: string | null;
+  isPublished: boolean;
+  sortOrder: number;
+};
+
+export const heroBannersApi = {
+  list: () => api.get<WebsiteHeroBannerDto[]>("/website-hero"),
+  create: (body: Record<string, unknown>) =>
+    api.post<WebsiteHeroBannerDto>("/website-hero", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<WebsiteHeroBannerDto>(`/website-hero/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/website-hero/${id}`),
+  uploadImage: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("image", file);
+    const res = await fetch(`${base}/website-hero/${id}/image`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as WebsiteHeroBannerDto;
+  },
+  deleteImage: (id: string) =>
+    api.delete<WebsiteHeroBannerDto>(`/website-hero/${id}/image`),
+};
+
+export type WebsiteSubscriberDto = {
+  id: string;
+  email: string;
+  createdAt: string;
+};
+
+export const subscribersApi = {
+  list: () => api.get<WebsiteSubscriberDto[]>("/website-subscribers"),
+  remove: (id: string) =>
+    api.delete<{ id: string }>(`/website-subscribers/${id}`),
+};
+
 export const settingsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<SettingDto>>("/settings", query),
@@ -718,6 +882,42 @@ export const quotationCatalogsApi = {
     ),
   removeCategory: (id: string) =>
     api.delete<{ id: string }>(`/quotation-catalogs/categories/${id}`),
+  uploadCategoryImage: async (
+    categoryId: string,
+    file: File,
+    subCategory?: string
+  ) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("image", file);
+    if (subCategory) form.append("subCategory", subCategory);
+    const res = await fetch(
+      `${base}/quotation-catalogs/categories/${categoryId}/image`,
+      {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      }
+    );
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as Record<string, unknown>;
+  },
+  deleteCategoryImage: (categoryId: string, subCategory?: string) =>
+    api.delete<Record<string, unknown>>(
+      `/quotation-catalogs/categories/${categoryId}/image${
+        subCategory ? `?subCategory=${encodeURIComponent(subCategory)}` : ""
+      }`
+    ),
   createUom: (body: unknown) =>
     api.post<Record<string, unknown>>("/quotation-catalogs/uoms", body),
   updateUom: (id: string, body: unknown) =>
@@ -733,6 +933,28 @@ export const quotationCatalogsApi = {
     api.delete<{ id: string }>(
       `/quotation-catalogs/${catalogId}/items/${itemId}`
     ),
+  uploadItemImage: async (catalogId: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("image", file);
+    const res = await fetch(`${base}/quotation-catalogs/${catalogId}/image`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as { url: string };
+  },
 };
 
 export type QuotationTemplateDto = {
@@ -834,4 +1056,29 @@ export const quotationSettingsApi = {
     api.delete<QuotationTemplateDetailDto>(
       `/quotation-settings/templates/${id}/watermark`
     ),
+  uploadAsset: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(
+      `${base}/quotation-settings/templates/${id}/assets`,
+      {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      }
+    );
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as { url: string };
+  },
 };

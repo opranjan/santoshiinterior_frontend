@@ -39,6 +39,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Stores: <BoxCubeIcon />,
   Sales: <DollarLineIcon />,
   Quotations: <FileIcon />,
+  "Web & App": <GroupIcon />,
   Customer: <GroupIcon />,
   Design: <PencilIcon />,
   Projects: <TaskIcon />,

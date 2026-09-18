@@ -110,9 +110,9 @@ function EmptyChatState() {
       <h3 className="text-xl font-semibold text-[#111b21] dark:text-white/90">
         Chat with your team and clients
       </h3>
-      <p className="mt-2 max-w-sm text-sm text-[#667781] dark:text-gray-400">
-        Pick a conversation on the left to start messaging on WhatsApp.
-      </p>
+            <p className="mt-2 max-w-sm text-sm text-[#667781] dark:text-gray-400">
+              Pick a conversation to start messaging on WhatsApp.
+            </p>
     </div>
   );
 }
@@ -238,6 +238,18 @@ export default function WhatsAppCommunicationHub({
     });
   }, [inbox, activeLeadId, loadedLead?.id]);
 
+  const closeChat = () => {
+    if (selectedLeadProp) return;
+    setActiveLeadId(null);
+    setLoadedLead(null);
+    setChatError(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("lead");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
+  };
+
   const openLead = (item: WhatsAppInboxItemDto) => {
     if (viewMode === "project" && item.hasLead === false) {
       setChatError("This project is not linked to a lead, so WhatsApp chat is not available.");
@@ -264,8 +276,11 @@ export default function WhatsAppCommunicationHub({
   };
 
   const showChat = Boolean(loadedLead?.id && loadedLead.phone?.trim());
+  const mobileChatOpen = showChat && !selectedLeadProp;
 
-  const heightClass = fullHeight ? "h-full" : "h-[min(70vh,640px)]";
+  const heightClass = fullHeight
+    ? "h-full min-h-0"
+    : "h-[min(70vh,640px)] max-md:h-[min(78dvh,640px)]";
 
   const stageOptions =
     viewMode === "project"
@@ -278,7 +293,11 @@ export default function WhatsAppCommunicationHub({
         fullHeight ? "" : "rounded-2xl border border-gray-200 dark:border-gray-800"
       }`}
     >
-      <aside className="flex w-[min(100%,300px)] shrink-0 flex-col overflow-hidden border-r border-[#e9edef] bg-white dark:border-gray-800 dark:bg-[#111b21]">
+      <aside
+        className={`min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-[#e9edef] bg-white dark:border-gray-800 dark:bg-[#111b21] md:flex md:w-[min(100%,320px)] ${
+          mobileChatOpen ? "hidden" : "flex"
+        }`}
+      >
         <div className="shrink-0 space-y-2.5 border-b border-[#e9edef] px-3 py-3 dark:border-gray-800">
           <div className="flex items-center gap-2 px-0.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c7e]">
@@ -314,7 +333,7 @@ export default function WhatsAppCommunicationHub({
             />
           </div>
 
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             <div className="flex h-8 rounded-lg bg-[#f0f2f5] p-0.5 dark:bg-[#202c33]">
               {(["lead", "project"] as ViewMode[]).map((mode) => (
                 <button
@@ -350,6 +369,11 @@ export default function WhatsAppCommunicationHub({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar">
+          {chatError && !showChat ? (
+            <p className="mx-3 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-100">
+              {chatError}
+            </p>
+          ) : null}
           {loadingInbox && inbox.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-gray-400">Loading chats…</p>
           ) : inboxError ? (
@@ -424,7 +448,11 @@ export default function WhatsAppCommunicationHub({
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f0f2f5] dark:bg-[#0b141a]">
+      <div
+        className={`min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f0f2f5] dark:bg-[#0b141a] ${
+          showChat ? "flex" : "hidden md:flex"
+        }`}
+      >
         {loadingChat && !loadedLead ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-400">
             Loading conversation…
@@ -438,6 +466,7 @@ export default function WhatsAppCommunicationHub({
             ) : null}
           <LeadCommunicationPanel
             embedded
+            onBack={selectedLeadProp ? undefined : closeChat}
             leadId={loadedLead.id}
             clientName={
               viewMode === "project"

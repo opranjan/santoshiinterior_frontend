@@ -113,6 +113,32 @@ const IconTeam = () => (
   </svg>
 );
 
+const IconHero = () => (
+  <svg viewBox="0 0 64 64" className="h-14 w-14" fill="none">
+    <rect x="8" y="16" width="32" height="32" rx="6" fill="#93C5FD" />
+    <rect x="44" y="16" width="12" height="14" rx="3" fill="#60A5FA" />
+    <rect x="44" y="34" width="12" height="14" rx="3" fill="#3B82F6" />
+    <path d="M14 36l6-7 7 5 5-8 8 10H14z" fill="white" opacity="0.9" />
+  </svg>
+);
+
+const IconTestimonials = () => (
+  <svg viewBox="0 0 64 64" className="h-14 w-14" fill="none">
+    <rect x="10" y="14" width="44" height="36" rx="8" fill="#FDE68A" />
+    <path
+      d="M22 28c0-4 3-7 7-7s7 3 7 7c0 6-7 10-7 10s-7-4-7-10z"
+      fill="#F59E0B"
+    />
+    <circle cx="29" cy="27" r="3" fill="white" />
+    <path
+      d="M40 26h10M40 32h8M40 38h6"
+      stroke="#B45309"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 const IconIntegrations = () => (
   <svg viewBox="0 0 64 64" className="h-14 w-14" fill="none">
     <rect x="12" y="20" width="18" height="24" rx="5" fill="#FDBA74" />
@@ -158,6 +184,26 @@ const SECTIONS: SettingsSection[] = [
         href: "/settings/integrations",
         icon: <IconIntegrations />,
         keywords: ["whatsapp", "email", "api", "jio", "sip", "telephony", "call"],
+      },
+    ],
+  },
+  {
+    id: "website",
+    title: "Website",
+    cards: [
+      {
+        id: "hero",
+        label: "Home Banner",
+        href: "/settings/website/hero",
+        icon: <IconHero />,
+        keywords: ["hero", "banner", "slider", "homepage", "offers", "promo", "subscribe", "newsletter"],
+      },
+      {
+        id: "testimonials",
+        label: "Testimonials",
+        href: "/settings/website/testimonials",
+        icon: <IconTestimonials />,
+        keywords: ["reviews", "website", "home", "clients"],
       },
     ],
   },

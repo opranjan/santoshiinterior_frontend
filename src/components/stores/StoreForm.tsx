@@ -49,7 +49,7 @@ export default function StoreForm() {
   useEffect(() => {
     (async () => {
       try {
-        const users = await usersApi.list({ limit: 100 });
+        const users = await usersApi.list({ limit: 100, isActive: "true" });
         setManagers(
           users.items.map((u) => ({ id: u.id, name: u.name || u.email }))
         );

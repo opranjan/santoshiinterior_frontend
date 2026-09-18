@@ -21,6 +21,7 @@ import {
   type QuotationCatalogSettings,
 } from "@/lib/quotationCatalogDefaults";
 import BomModal from "@/components/settings/BomModal";
+import { designAssetUrl } from "@/lib/designAssets";
 
 const accent = {
   text: "text-[#E85D75]",
@@ -107,6 +108,7 @@ export default function CatalogDetail({ catalogId }: Props) {
   const [formPrice, setFormPrice] = useState("");
   const [formUom, setFormUom] = useState("");
   const [formImageUrl, setFormImageUrl] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
   const [formMargin, setFormMargin] = useState("0");
   const [formMarginUnit, setFormMarginUnit] = useState<"%" | "INR">("%");
   const [formDiscount, setFormDiscount] = useState("0");
@@ -365,17 +367,25 @@ export default function CatalogDetail({ catalogId }: Props) {
     window.setTimeout(() => setNotice(""), 1800);
   };
 
-  const onPickImage = (file: File | null) => {
-    if (!file) return;
+  const onPickImage = async (file: File | null) => {
+    if (!file || !catalog) return;
     if (!file.type.startsWith("image/")) {
       setError("Please choose an image file");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") setFormImageUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      setError("");
+      setImageUploading(true);
+      const saved = await quotationCatalogsApi.uploadItemImage(catalog.id, file);
+      if (!saved?.url) throw new Error("Image upload failed");
+      setFormImageUrl(saved.url);
+      setNotice("Image added");
+      window.setTimeout(() => setNotice(""), 1800);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   const reqClass = (missing: boolean) =>
@@ -805,6 +815,7 @@ export default function CatalogDetail({ catalogId }: Props) {
                     </TableCell>
                     {[
                       "S.No.",
+                      "Image",
                       "Name",
                       "Code",
                       "Category",
@@ -853,6 +864,23 @@ export default function CatalogDetail({ catalogId }: Props) {
                         </TableCell>
                         <TableCell className="px-3 py-3 text-sm text-gray-600">
                           {index + 1}
+                        </TableCell>
+                        <TableCell className="px-3 py-3">
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={designAssetUrl(item.imageUrl)}
+                              alt=""
+                              className="h-10 w-10 rounded-md object-cover border border-gray-200"
+                            />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src="/images/catalogue/placeholder.jpg"
+                              alt=""
+                              className="h-10 w-10 rounded-md object-cover border border-gray-200"
+                            />
+                          )}
                         </TableCell>
                         <TableCell className="px-3 py-3 text-sm font-medium text-gray-800 dark:text-white/90">
                           {item.name}
@@ -1032,63 +1060,45 @@ export default function CatalogDetail({ catalogId }: Props) {
             <div className="overflow-y-auto px-5 py-5">
               <div className="flex flex-col gap-5 lg:flex-row">
                 {/* Left: image + BOM */}
-                <div className="flex w-full shrink-0 flex-col gap-3 lg:w-[160px]">
-                  <label className="relative flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
+                <div className="flex w-full shrink-0 flex-col gap-3 lg:w-[180px]">
+                  <p className="text-sm font-medium text-gray-700 dark:text-white/80">
+                    Item image
+                  </p>
+                  <label className="relative flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
                     {formImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={formImageUrl}
+                        src={designAssetUrl(formImageUrl)}
                         alt="Item"
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <span className="text-gray-300">
-                        <svg
-                          width="48"
-                          height="48"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                        >
-                          <rect
-                            x="3"
-                            y="5"
-                            width="18"
-                            height="14"
-                            rx="2"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                          <circle
-                            cx="8.5"
-                            cy="10"
-                            r="1.5"
-                            fill="currentColor"
-                          />
-                          <path
-                            d="M21 16l-5-5-7 7"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M16 8h4M18 6v4"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      </span>
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src="/images/catalogue/placeholder.jpg"
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
                     )}
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={imageUploading}
                       className="absolute inset-0 cursor-pointer opacity-0"
                       onChange={(e) =>
-                        onPickImage(e.target.files?.[0] || null)
+                        void onPickImage(e.target.files?.[0] || null)
                       }
                     />
                   </label>
+                  {formImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setFormImageUrl("")}
+                      className="text-xs font-medium text-gray-500 hover:text-red-500"
+                    >
+                      Remove image
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={openBomFromForm}

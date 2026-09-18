@@ -54,6 +54,8 @@ export type CategoryRecord = {
   name: string;
   description?: string;
   subCategories: string[];
+  imageUrl?: string | null;
+  subCategoryImages?: Record<string, string>;
 };
 
 export type UomRecord = {
@@ -314,6 +316,11 @@ export function normalizeCatalogSettings(
           name: String(c.name || "Untitled"),
           description: c.description,
           subCategories: Array.isArray(c.subCategories) ? c.subCategories : [],
+          imageUrl: c.imageUrl || null,
+          subCategoryImages:
+            c.subCategoryImages && typeof c.subCategoryImages === "object"
+              ? (c.subCategoryImages as Record<string, string>)
+              : {},
         }))
       : useDefaults && !fromApi
         ? defaultQuotationCatalogSettings.categories

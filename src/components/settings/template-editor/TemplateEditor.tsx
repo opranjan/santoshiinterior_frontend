@@ -8,6 +8,7 @@ import TemplateElementSidebar from "./TemplateElementSidebar";
 import TemplateLayoutCanvas from "./TemplateLayoutCanvas";
 import { ApiError } from "@/lib/api";
 import type { TemplateDesign } from "@/lib/quotationTemplateEditor";
+import { persistTemplateLayout } from "@/lib/quotationMakerMedia";
 import { quotationSettingsApi } from "@/services/crmApi";
 
 const accent = "#E85D75";
@@ -71,11 +72,15 @@ export default function TemplateEditor({ templateId }: { templateId: string }) {
     try {
       setSaving(true);
       setError("");
+      const layout = await persistTemplateLayout({
+        templateId,
+        blocks: design.layout,
+      });
       const saved = await quotationSettingsApi.updateTemplateDesign(templateId, {
         name: design.name,
         font: design.font,
         colours: design.colours,
-        layout: design.layout,
+        layout,
         watermarkUrl: design.watermarkUrl,
       });
       setDesign(normalizeDesign(saved as Record<string, unknown>));

@@ -8,6 +8,7 @@ import MakerRichTextEditor, {
   DEFAULT_TERMS_HTML,
   defaultPreparedHtml,
 } from "@/components/quotations/MakerRichTextEditor";
+import { designAssetUrl } from "@/lib/designAssets";
 import { DRAG_MIME, elementToFlowBlock, type TemplateElementKind } from "@/lib/quotationTemplateEditor";
 
 const accent = "#E85D75";
@@ -52,6 +53,96 @@ type Props = {
   watermarkUrl: string | null;
   onLayoutChange: (next: FlowBlock[]) => void;
 };
+
+function TemplateImageSlot({
+  block,
+  onChange,
+}: {
+  block: Extract<FlowBlock, { type: "image" }>;
+  onChange: (patch: { imageUrl: string }) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const height =
+    block.heightLevel === 3
+      ? "h-56"
+      : block.heightLevel === 1
+        ? "h-28"
+        : "h-40";
+  const label = block.size === "full" ? "Upload logo" : "Upload image";
+
+  return (
+    <div className={`relative ${height} w-full overflow-hidden rounded-md`}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          if (block.imageUrl.startsWith("blob:")) {
+            URL.revokeObjectURL(block.imageUrl);
+          }
+          onChange({ imageUrl: URL.createObjectURL(file) });
+          e.target.value = "";
+        }}
+      />
+      {block.imageUrl ? (
+        <div className="maker-banner-slot relative h-full w-full bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={designAssetUrl(block.imageUrl)}
+            alt=""
+            className="mx-auto h-full max-h-full w-auto max-w-full rounded-xl object-contain"
+          />
+          <div className="absolute right-2 top-2 flex gap-1">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="rounded bg-white/95 px-2 py-1 text-[11px] font-medium text-[#E85D75] shadow"
+            >
+              Replace
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (block.imageUrl.startsWith("blob:")) {
+                  URL.revokeObjectURL(block.imageUrl);
+                }
+                onChange({ imageUrl: "" });
+              }}
+              className="rounded bg-white/95 px-2 py-1 text-[11px] text-gray-600 shadow"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-[#E85D75]/60 bg-[#E85D75]/[0.03] text-sm text-[#E85D75] hover:bg-[#E85D75]/[0.06]"
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 16l4.5-4.5a2 2 0 012.8 0L16 16m-2-2l1.2-1.2a2 2 0 012.8 0L20 15M8 8h.01M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            <path
+              d="M12 8v6M9 11h6"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="text-xs font-medium">{label}</span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function TemplateLayoutCanvas({
   layout,
@@ -100,11 +191,24 @@ export default function TemplateLayoutCanvas({
   };
 
   const renderBlock = (block: FlowBlock) => {
-    if (block.type === "image") {
+    if (block.type === "image" || block.type === "banner") {
+      const imageBlock =
+        block.type === "image"
+          ? block
+          : {
+              id: block.id,
+              type: "image" as const,
+              imageUrl: block.imageUrl,
+              size: "full" as const,
+              heightLevel: 2 as const,
+              pageBreak: "none" as const,
+              fit: "contain" as const,
+            };
       return (
-        <div className="flex h-28 w-full items-center justify-center rounded-md border border-dashed border-[#E85D75]/60 bg-[#E85D75]/[0.03] text-sm text-[#E85D75]">
-          Upload Image (configured per quotation)
-        </div>
+        <TemplateImageSlot
+          block={imageBlock}
+          onChange={(patch) => updateBlock(block.id, patch)}
+        />
       );
     }
 
@@ -175,6 +279,24 @@ export default function TemplateLayoutCanvas({
         <MakerRichTextEditor
           title={block.title}
           value={ensureHtml(block.html, fallback)}
+          qrImageUrl={
+            block.title.toLowerCase().includes("bank")
+              ? block.qrImageUrl || ""
+              : undefined
+          }
+          onQrChange={
+            block.title.toLowerCase().includes("bank")
+              ? (url) => {
+                  if (
+                    block.qrImageUrl?.startsWith("blob:") &&
+                    block.qrImageUrl !== url
+                  ) {
+                    URL.revokeObjectURL(block.qrImageUrl);
+                  }
+                  updateBlock(block.id, { qrImageUrl: url });
+                }
+              : undefined
+          }
           onChange={(html) => updateBlock(block.id, { html })}
         />
       );

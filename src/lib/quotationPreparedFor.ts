@@ -128,6 +128,18 @@ export function mergeTemplateSettingsIntoLayout(
   const companyHtml = extractTemplateCompanyHtml(templateBlocks);
   const bankHtml = extractRichtextHtml(templateBlocks, "bank");
   const termsHtml = extractRichtextHtml(templateBlocks, "terms");
+  const bankQr = (() => {
+    const block = templateBlocks.find(
+      (b) =>
+        b.type === "richtext" &&
+        b.title.toLowerCase().includes("bank") &&
+        Boolean(b.qrImageUrl)
+    );
+    if (block?.type === "richtext" && isPersistedImageUrl(block.qrImageUrl)) {
+      return resolveQuotationImageUrl(block.qrImageUrl);
+    }
+    return "";
+  })();
 
   const merged = blocks.map((block) => {
     if (block.type === "detailsRow" && companyHtml) {
@@ -138,8 +150,12 @@ export function mergeTemplateSettingsIntoLayout(
     }
     if (block.type === "richtext") {
       const title = block.title.toLowerCase();
-      if (title.includes("bank") && bankHtml) {
-        return { ...block, html: bankHtml };
+      if (title.includes("bank") && (bankHtml || bankQr)) {
+        return {
+          ...block,
+          ...(bankHtml ? { html: bankHtml } : {}),
+          ...(bankQr ? { qrImageUrl: bankQr } : {}),
+        };
       }
       if (title.includes("terms") && termsHtml) {
         return { ...block, html: termsHtml };
@@ -155,28 +171,41 @@ function fillMissingImagesFromTemplate(
   blocks: FlowBlock[],
   templateBlocks: FlowBlock[]
 ): FlowBlock[] {
+  const extras = templateBlocks.filter(
+    (block) =>
+      (block.type === "banner" || block.type === "image") &&
+      "imageUrl" in block &&
+      isPersistedImageUrl(block.imageUrl)
+  );
+  const used = new Set<string>();
+
+  const takeMatch = (block: FlowBlock) => {
+    const sameId = extras.find((t) => t.id === block.id && !used.has(t.id));
+    if (sameId) {
+      used.add(sameId.id);
+      return sameId;
+    }
+    const size = block.type === "image" ? block.size : "full";
+    const match = extras.find((t) => {
+      if (used.has(t.id)) return false;
+      const tSize = t.type === "image" ? t.size : "full";
+      return tSize === size;
+    });
+    if (match) used.add(match.id);
+    return match;
+  };
+
   return blocks.map((block) => {
     if (block.type !== "banner" && block.type !== "image") return block;
     if (isPersistedImageUrl(block.imageUrl)) {
       return { ...block, imageUrl: resolveQuotationImageUrl(block.imageUrl) };
     }
-    if (
-      !block.imageUrl &&
-      (block.type === "banner" || block.type === "image")
-    ) {
-      const match = templateBlocks.find(
-        (t) =>
-          t.id === block.id &&
-          (t.type === "banner" || t.type === "image") &&
-          "imageUrl" in t &&
-          isPersistedImageUrl(t.imageUrl)
-      );
-      if (match && "imageUrl" in match) {
-        return {
-          ...block,
-          imageUrl: resolveQuotationImageUrl(match.imageUrl),
-        };
-      }
+    const fromTemplate = takeMatch(block);
+    if (fromTemplate && "imageUrl" in fromTemplate) {
+      return {
+        ...block,
+        imageUrl: resolveQuotationImageUrl(fromTemplate.imageUrl),
+      };
     }
     return block;
   });

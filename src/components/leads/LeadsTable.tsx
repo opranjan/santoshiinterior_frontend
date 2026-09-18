@@ -25,6 +25,7 @@ import BulkLeadActionsModal, {
 import ConvertLeadToProjectModal from "@/components/leads/ConvertLeadToProjectModal";
 import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
+import DatePickerField from "@/components/form/DatePickerField";
 
 type LeadStatus =
   | "Created"
@@ -97,14 +98,7 @@ const salesTeam = [
   "Shivani Gupta",
 ];
 
-const followUpTypes: FollowUpType[] = [
-  "Call",
-  "WhatsApp",
-  "Email",
-  "Site Visit",
-  "Meeting",
-  "Other",
-];
+const followUpTypes: FollowUpType[] = ["Call", "WhatsApp", "Site Visit"];
 
 const avatarColors = [
   "bg-error-500 text-white",
@@ -343,9 +337,11 @@ export default function LeadsTable() {
     (async () => {
       try {
         setAssigneesLoading(true);
-        const data = await usersApi.list({ limit: 200 });
+        const data = await usersApi.list({ limit: 200, isActive: "true" });
         if (cancelled) return;
-        const users = (data.items || []).map((u) => ({
+        const users = (data.items || [])
+          .filter((u) => u.isActive !== false)
+          .map((u) => ({
           id: u.id,
           name: u.name,
           kind: "user" as const,
@@ -477,10 +473,11 @@ export default function LeadsTable() {
     );
   };
 
-  const handleAssign = async (leadId: string, assigneeName: string) => {
-    const option = assigneeOptions.find((o) => o.name === assigneeName);
-    const assignedToId =
-      assigneeName === "Unassigned" ? null : option?.id || null;
+  const handleAssign = async (leadId: string, assignedToId: string | null) => {
+    const option = assigneeOptions.find((o) => o.id === assignedToId);
+    const assigneeName = assignedToId
+      ? option?.name || "Unassigned"
+      : "Unassigned";
 
     setLeads((prev) =>
       prev.map((lead) =>
@@ -494,7 +491,7 @@ export default function LeadsTable() {
       )
     );
 
-    if (assigneeName !== "Unassigned" && !option?.id) return;
+    if (assignedToId && !option?.id) return;
 
     try {
       await leadsApi.update(leadId, { assignedToId });
@@ -1091,27 +1088,20 @@ export default function LeadsTable() {
                             {getInitials(lead.assignedTo)}
                           </span>
                           <select
-                            value={lead.assignedTo}
+                            value={lead.assignedToId || ""}
                             onChange={(e) =>
-                              void handleAssign(lead.id, e.target.value)
+                              void handleAssign(lead.id, e.target.value || null)
                             }
                             className="h-8 max-w-[120px] rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
                           >
-                            <option value="Unassigned">Unassigned</option>
+                            <option value="">Unassigned</option>
                             {assigneeOptions
                               .filter((o) => o.kind !== "team")
                               .map((member) => (
-                                <option key={member.id} value={member.name}>
+                                <option key={member.id} value={member.id}>
                                   {member.name}
                                 </option>
                               ))}
-                            {!assigneeOptions.some(
-                              (o) => o.name === lead.assignedTo
-                            ) && lead.assignedTo !== "Unassigned" ? (
-                              <option value={lead.assignedTo}>
-                                {lead.assignedTo}
-                              </option>
-                            ) : null}
                           </select>
                         </div>
                       </TableCell>
@@ -1304,11 +1294,11 @@ export default function LeadsTable() {
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                   Next Follow-up Date
                 </label>
-                <input
-                  type="date"
+                <DatePickerField
+                  id="lead-follow-up-next-date"
                   value={fuNextDate}
-                  onChange={(e) => setFuNextDate(e.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  onChange={setFuNextDate}
+                  placeholder="Select next follow-up date"
                 />
               </div>
             </div>

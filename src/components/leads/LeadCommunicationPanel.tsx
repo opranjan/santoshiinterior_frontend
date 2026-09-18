@@ -24,6 +24,7 @@ type Props = {
   initialMessages?: LeadMessageDto[];
   onRefresh?: () => void;
   embedded?: boolean;
+  onBack?: () => void;
 };
 
 type MessageGroup = {
@@ -349,7 +350,7 @@ function ChatBubble({
   return (
     <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
       <div
-        className={`relative max-w-[min(78%,560px)] rounded-lg px-3 py-1.5 shadow-sm ${
+        className={`relative max-w-[min(85%,560px)] rounded-lg px-3 py-1.5 shadow-sm ${
           outbound
             ? "rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-white"
             : "rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]"
@@ -401,6 +402,7 @@ export default function LeadCommunicationPanel({
   initialMessages = [],
   onRefresh,
   embedded = false,
+  onBack,
 }: Props) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessages);
@@ -615,9 +617,27 @@ export default function LeadCommunicationPanel({
       }
     >
       {/* Header */}
-      <div className="relative shrink-0 bg-[#075e54] px-4 py-2.5 text-white">
-        <div className="relative flex items-center gap-3">
-          <div className="relative">
+      <div className="relative shrink-0 bg-[#075e54] px-3 py-2.5 text-white sm:px-4">
+        <div className="relative flex items-center gap-2 sm:gap-3">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Back to chats"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 md:hidden"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M15 19l-7-7 7-7"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
+          <div className="relative shrink-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-sm font-bold">
               {initials(clientName)}
             </div>
@@ -679,7 +699,7 @@ export default function LeadCommunicationPanel({
         <div
           ref={scrollRef}
           onScroll={onChatScroll}
-          className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain no-scrollbar px-4 py-5 sm:px-8 lg:px-12"
+          className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain no-scrollbar px-3 py-4 sm:px-8 sm:py-5 lg:px-12"
         >
           {messages.length === 0 ? (
             <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
@@ -719,7 +739,7 @@ export default function LeadCommunicationPanel({
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 bg-[#f0f2f5] px-3 py-2.5 dark:bg-[#202c33] sm:px-4">
+      <div className="shrink-0 bg-[#f0f2f5] px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:bg-[#202c33] sm:px-4 sm:py-2.5">
         {error ? (
           <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             {error}
@@ -756,13 +776,13 @@ export default function LeadCommunicationPanel({
               onChange={(e) => pickAttachment(e.target.files?.[0] || null)}
             />
 
-            <div className="flex items-end gap-1.5">
+            <div className="flex items-end gap-1 sm:gap-1.5">
               <div className="flex shrink-0 items-center pb-0.5">
                 <button
                   type="button"
                   title="Send image (customer must reply first, max 16 MB)"
                   onClick={() => imageInputRef.current?.click()}
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942]"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
                   <ImageIcon />
                 </button>
@@ -770,7 +790,7 @@ export default function LeadCommunicationPanel({
                   type="button"
                   title="Send document (customer must reply first, max 16 MB)"
                   onClick={() => docInputRef.current?.click()}
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942]"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
                   <AttachIcon />
                 </button>
@@ -799,7 +819,7 @@ export default function LeadCommunicationPanel({
                 disabled={sending || (!text.trim() && !attachment)}
                 onClick={() => void send()}
                 title="Send message"
-                className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600 sm:h-10 sm:w-10"
               >
                 {sending ? (
                   <RefreshIcon className="h-5 w-5" spinning />

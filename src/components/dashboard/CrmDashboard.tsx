@@ -7,7 +7,7 @@ import Button from "@/components/ui/button/Button";
 import { dashboardApi, storesApi, type DashboardDto } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
 import { useAuth } from "@/context/AuthContext";
-import { hasAnyPermission } from "@/lib/permissions";
+import { hasAnyPermission, canAccessAllStores } from "@/lib/permissions";
 
 const formatINR = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -28,7 +28,7 @@ const PIPELINE_COLORS = [
 const quickActions = [
   { label: "Add Lead", href: "/sales/leads/new", permissions: ["sales.manage", "sales.full", "leads.manage"] },
   { label: "Create Quotation", href: "/quotations?create=1", permissions: ["quotations.create", "quotations.manage", "sales.full"] },
-  { label: "AI Designing", href: "/design/designing", permissions: ["design.manage"] },
+  { label: "AI Designing", href: "/design/designing", permissions: ["design.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
   { label: "Work Order", href: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage"] },
   { label: "Payments", href: "/payments", permissions: ["payments.manage", "finance.manage", "finance.full"] },
 ];
@@ -45,11 +45,20 @@ function quotationBadgeColor(status: string) {
 
 export default function CrmDashboard() {
   const { user } = useAuth();
-  const [storeFilterId, setStoreFilterId] = useState("");
+  const orgView = canAccessAllStores(user);
+  const [storeFilterId, setStoreFilterId] = useState(
+    orgView ? "" : user?.storeId || ""
+  );
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([]);
   const [stats, setStats] = useState<DashboardDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!orgView && user?.storeId) {
+      setStoreFilterId(user.storeId);
+    }
+  }, [orgView, user?.storeId]);
 
   useEffect(() => {
     (async () => {
@@ -84,10 +93,12 @@ export default function CrmDashboard() {
     };
   }, [storeFilterId]);
 
+  const isSalesView = stats?.view === "sales" || !orgView;
+
   const kpis = useMemo(() => {
     const s = stats?.summary;
     if (!s) return [];
-    return [
+    const salesKpis = [
       {
         label: "Open Leads",
         value: String(s.openLeads),
@@ -102,6 +113,24 @@ export default function CrmDashboard() {
         positive: true,
         href: "/quotations",
       },
+      {
+        label: "Follow-ups Due",
+        value: String(s.followUpsDueCount ?? stats?.followUpsDue?.length ?? 0),
+        change: "Next 7 days",
+        positive: true,
+        href: "/sales/leads",
+      },
+      {
+        label: "Won Leads",
+        value: String(s.wonLeads),
+        change: "Your converted leads",
+        positive: true,
+        href: "/sales/leads",
+      },
+    ];
+    if (isSalesView) return salesKpis;
+    return [
+      ...salesKpis.slice(0, 2),
       {
         label: "Active Projects",
         value: String(s.activeProjects),
@@ -131,7 +160,7 @@ export default function CrmDashboard() {
         href: "/warranty-desk",
       },
     ];
-  }, [stats]);
+  }, [stats, isSalesView]);
 
   const pipeline = stats?.pipeline ?? [];
   const pipelineTotal = pipeline.reduce((sum, p) => sum + p.count, 0) || 1;
@@ -160,14 +189,16 @@ export default function CrmDashboard() {
               Santoshi Interior CRM
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Operations Dashboard
+              {isSalesView ? "My Sales Dashboard" : "Operations Dashboard"}
             </h1>
             <p className="mt-2 max-w-xl text-sm text-white/70">
-              Live view of leads, quotations, projects, payments and store
-              performance from your database.
+              {isSalesView
+                ? "Your leads, follow-ups and quotations for the store assigned to you."
+                : "Live view of leads, quotations, projects, payments and store performance from your database."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {orgView ? (
             <select
               value={storeFilterId}
               onChange={(e) => setStoreFilterId(e.target.value)}
@@ -182,6 +213,11 @@ export default function CrmDashboard() {
                 </option>
               ))}
             </select>
+            ) : stores[0] ? (
+              <span className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white">
+                {stores[0].name}
+              </span>
+            ) : null}
             {hasAnyPermission(user, ["sales.manage", "sales.full", "leads.manage"]) ? (
               <Link href="/sales/leads/new">
                 <Button size="sm">+ Add Lead</Button>
@@ -309,6 +345,7 @@ export default function CrmDashboard() {
         </div>
       </div>
 
+      {!isSalesView ? (
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -360,6 +397,7 @@ export default function CrmDashboard() {
           )}
         </div>
       </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] xl:col-span-4">

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
 import { quotationCatalogsApi } from "@/services/crmApi";
+import { designAssetUrl } from "@/lib/designAssets";
 import {
   normalizeCatalogSettings,
   type QuotationCatalogSettings,
@@ -99,6 +100,56 @@ function ConfirmDialog({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ImageActions({
+  url,
+  busy,
+  onReplace,
+  onDelete,
+}: {
+  url?: string | null;
+  busy?: boolean;
+  onReplace: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={designAssetUrl(url)}
+          alt=""
+          className="h-10 w-10 rounded-md border border-gray-200 object-cover"
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/images/catalogue/placeholder.jpg"
+          alt=""
+          className="h-10 w-10 rounded-md border border-gray-200 object-cover"
+        />
+      )}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onReplace}
+        className="text-xs font-medium text-[#E85D75] hover:underline disabled:opacity-50"
+      >
+        {url ? "Replace" : "Add"}
+      </button>
+      {url ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onDelete}
+          className="text-xs font-medium text-error-500 hover:underline disabled:opacity-50"
+        >
+          Delete
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -207,6 +258,11 @@ export default function QuotationCatalogs() {
   const [formSubCategories, setFormSubCategories] = useState<string[]>([""]);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [subDrafts, setSubDrafts] = useState<Record<string, string>>({});
+  const [imageBusy, setImageBusy] = useState("");
+  const imageTarget = useRef<{ categoryId: string; subCategory?: string } | null>(
+    null
+  );
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
@@ -257,6 +313,75 @@ export default function QuotationCatalogs() {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const applyCategory = (updated: Category) => {
+    setData((prev) => ({
+      ...prev,
+      categories: prev.categories.map((row) =>
+        row.id === updated.id ? { ...row, ...updated } : row
+      ),
+    }));
+  };
+
+  const pickCategoryImage = (categoryId: string, subCategory?: string) => {
+    imageTarget.current = { categoryId, subCategory };
+    imageInputRef.current?.click();
+  };
+
+  const onCategoryImageFile = async (file: File | null) => {
+    const target = imageTarget.current;
+    imageTarget.current = null;
+    if (!file || !target) return;
+    const key = `${target.categoryId}:${target.subCategory || ""}`;
+    try {
+      setError("");
+      setImageBusy(key);
+      const updated = (await quotationCatalogsApi.uploadCategoryImage(
+        target.categoryId,
+        file,
+        target.subCategory
+      )) as Category;
+      applyCategory(updated);
+      setNotice("Image saved");
+      window.setTimeout(() => setNotice(""), 1800);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Image upload failed"
+      );
+    } finally {
+      setImageBusy("");
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
+  const deleteCategoryImage = async (categoryId: string, subCategory?: string) => {
+    const key = `${categoryId}:${subCategory || ""}`;
+    try {
+      setError("");
+      setImageBusy(key);
+      const updated = (await quotationCatalogsApi.deleteCategoryImage(
+        categoryId,
+        subCategory
+      )) as Category;
+      applyCategory(updated);
+      setNotice("Image removed");
+      window.setTimeout(() => setNotice(""), 1800);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to remove image"
+      );
+    } finally {
+      setImageBusy("");
     }
   };
 
@@ -367,6 +492,11 @@ export default function QuotationCatalogs() {
               ? {
                   ...c,
                   subCategories: (c.subCategories || []).filter((s) => s !== sub),
+                  subCategoryImages: Object.fromEntries(
+                    Object.entries(c.subCategoryImages || {}).filter(
+                      ([key]) => key !== sub
+                    )
+                  ),
                 }
               : c
           );
@@ -374,6 +504,11 @@ export default function QuotationCatalogs() {
             subCategories:
               nextCategories.find((c) => c.id === categoryId)?.subCategories ||
               [],
+            subCategoryImages: Object.fromEntries(
+              Object.entries(cat?.subCategoryImages || {}).filter(
+                ([key]) => key !== sub
+              )
+            ),
           });
           setData((prev) => ({ ...prev, categories: nextCategories }));
           setNotice("Sub category removed");
@@ -443,6 +578,13 @@ export default function QuotationCatalogs() {
                   ...c,
                   name: formName.trim(),
                   subCategories: subs,
+                  subCategoryImages: Object.fromEntries(
+                    Object.entries(c.subCategoryImages || {}).filter(([key]) =>
+                      subs.some(
+                        (s) => s.toLowerCase() === key.toLowerCase()
+                      )
+                    )
+                  ),
                 }
               : c
           )
@@ -615,6 +757,13 @@ export default function QuotationCatalogs() {
         onCancel={() => {
           if (!confirmBusy) setConfirm(null);
         }}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void onCategoryImageFile(e.target.files?.[0] || null)}
       />
       {error && (
         <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
@@ -936,7 +1085,14 @@ export default function QuotationCatalogs() {
                           </button>
                         </TableCell>
                         <TableCell className="px-3 py-3.5 text-start">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
+                            <ImageActions
+                              url={row.imageUrl}
+                              busy={imageBusy === `${row.id}:`}
+                              onReplace={() => pickCategoryImage(row.id)}
+                              onDelete={() => void deleteCategoryImage(row.id)}
+                            />
+                            <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                               {row.name}
                             </span>
@@ -967,6 +1123,7 @@ export default function QuotationCatalogs() {
                                 />
                               </svg>
                             </button>
+                          </div>
                           </div>
                         </TableCell>
                         <TableCell className="px-3 py-3.5 text-sm text-gray-600 dark:text-gray-400">
@@ -1010,25 +1167,47 @@ export default function QuotationCatalogs() {
                                   No sub categories yet.
                                 </p>
                               ) : (
-                                <div className="flex flex-wrap gap-2">
-                                  {subs.map((sub) => (
-                                    <span
-                                      key={sub}
-                                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"
-                                    >
-                                      {sub}
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          removeSubCategory(row.id, sub)
-                                        }
-                                        className="text-gray-400 hover:text-error-500"
-                                        aria-label={`Remove ${sub}`}
+                                <div className="space-y-2">
+                                  {subs.map((sub) => {
+                                    const subUrl =
+                                      Object.entries(
+                                        row.subCategoryImages || {}
+                                      ).find(
+                                        ([key]) =>
+                                          key.toLowerCase() === sub.toLowerCase()
+                                      )?.[1] || null;
+                                    return (
+                                      <div
+                                        key={sub}
+                                        className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700"
                                       >
-                                        Ã—
-                                      </button>
-                                    </span>
-                                  ))}
+                                        <div className="flex min-w-0 items-center gap-3">
+                                          <ImageActions
+                                            url={subUrl}
+                                            busy={imageBusy === `${row.id}:${sub}`}
+                                            onReplace={() =>
+                                              pickCategoryImage(row.id, sub)
+                                            }
+                                            onDelete={() =>
+                                              void deleteCategoryImage(row.id, sub)
+                                            }
+                                          />
+                                          <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {sub}
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeSubCategory(row.id, sub)
+                                          }
+                                          className="text-xs font-medium text-error-500 hover:underline"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
                               <div className="flex max-w-md gap-2">

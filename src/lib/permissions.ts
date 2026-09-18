@@ -100,6 +100,18 @@ export const hasAnyPermission = (
   return keys.some((key) => perms.has(key));
 };
 
+export const canAccessAllStores = (user: AuthUser | null | undefined): boolean => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return true;
+  if (user.accessRole?.isGlobal) return true;
+  return hasAnyPermission(user, [
+    "sales.full",
+    "stores.manage",
+    "users.manage",
+    "reports.full",
+  ]);
+};
+
 /** Route prefix → any one of these permissions grants access */
 export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
   { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full"] },
@@ -108,7 +120,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view"] },
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
-  { prefix: "/design", permissions: ["design.manage", "projects.view", "documents.manage"] },
+  { prefix: "/design", permissions: ["design.manage", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
   { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
   { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage"] },
@@ -201,16 +213,11 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"],
   },
   {
-    name: "Customer",
-    path: "/customers",
-    permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"],
-  },
-  {
     name: "Design",
-    permissions: ["design.manage", "projects.view", "documents.manage"],
+    permissions: ["design.manage", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"],
     subItems: [
-      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "documents.manage"] },
-      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "documents.manage"] },
+      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
+      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
     ],
   },
   {
@@ -254,6 +261,42 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     subItems: [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
+    ],
+  },
+  {
+    name: "Web & App",
+    permissions: [
+      "customers.manage",
+      "customers.view",
+      "sales.full",
+      "sales.manage",
+      "sales.view",
+      "quotations.manage",
+      "quotations.create",
+      "settings.manage",
+      "settings.view",
+    ],
+    subItems: [
+      {
+        name: "Customer",
+        path: "/customers",
+        permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"],
+      },
+      {
+        name: "Catalogue",
+        path: "/settings/quotations/catalogs",
+        permissions: ["quotations.manage", "quotations.create", "settings.manage", "settings.view"],
+      },
+      {
+        name: "Home Banner",
+        path: "/settings/website/hero",
+        permissions: ["settings.manage", "settings.view", "quotations.manage"],
+      },
+      {
+        name: "Testimonials",
+        path: "/settings/website/testimonials",
+        permissions: ["settings.manage", "settings.view", "quotations.manage"],
+      },
     ],
   },
 ];
