@@ -420,6 +420,7 @@ export type DashboardDto = {
     pendingPayments: number | string;
     pendingPaymentCount: number;
     warrantyOpen: number;
+    warrantyOverdue: number;
     followUpsDueCount?: number;
   };
   view?: "sales" | "operations";

@@ -155,8 +155,11 @@ export default function CrmDashboard() {
       {
         label: "Warranty Tickets",
         value: String(s.warrantyOpen),
-        change: s.warrantyOverdue > 0 ? `${s.warrantyOverdue} overdue` : "Open tickets",
-        positive: s.warrantyOverdue === 0,
+        change:
+          (s.warrantyOverdue ?? 0) > 0
+            ? `${s.warrantyOverdue} overdue`
+            : "Open tickets",
+        positive: (s.warrantyOverdue ?? 0) === 0,
         href: "/warranty-desk",
       },
     ];
