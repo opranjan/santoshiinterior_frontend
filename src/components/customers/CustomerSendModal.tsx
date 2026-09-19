@@ -41,20 +41,6 @@ const hints: Record<CustomerMessageKind, string> = {
 const OFFER_TEMPLATE = "interior_design_offer";
 const SERVICE_TEMPLATES = ["interior_design_services", "interior_design_service"];
 
-function withPreferredTemplates(
-  kind: CustomerMessageKind,
-  rows: Array<{ name: string; language: string; category?: string | null }>
-) {
-  const extra =
-    kind === "marketing"
-      ? [
-          { name: "interior_design_services", language: "en_US", category: "MARKETING" },
-          { name: "interior_design_service", language: "en_US", category: "MARKETING" },
-        ]
-      : [{ name: "interior_design_offer", language: "en", category: "MARKETING" }];
-  const have = new Set(rows.map((row) => row.name));
-  return [...extra.filter((row) => !have.has(row.name)), ...rows];
-}
 function pickTemplate(
   kind: CustomerMessageKind,
   rows: Array<{ name: string; language: string; category?: string | null }>
@@ -109,24 +95,18 @@ export default function CustomerSendModal({
     setError("");
     setNotice("");
     setSaving(false);
-    const seed = withPreferredTemplates(kind, []);
-    setTemplates(seed);
-    const seeded = pickTemplate(kind, seed);
-    if (seeded) setTemplateKey(`${seeded.name}::${seeded.language || ""}`);
+    setTemplates([]);
     messagingApi
       .getStatus()
       .then((status) => {
         setConfigured(Boolean(status.configured));
-        const rows = withPreferredTemplates(kind, status.approvedTemplates || []);
+        const rows = status.approvedTemplates || [];
         setTemplates(rows);
         const pick = pickTemplate(kind, rows);
         if (pick) setTemplateKey(`${pick.name}::${pick.language || ""}`);
       })
       .catch(() => {
-        const rows = withPreferredTemplates(kind, []);
-        setTemplates(rows);
-        const pick = pickTemplate(kind, rows);
-        if (pick) setTemplateKey(`${pick.name}::${pick.language || ""}`);
+        setTemplates([]);
       });
   }, [open, kind]);
 
@@ -237,6 +217,18 @@ export default function CustomerSendModal({
           <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
             WhatsApp Cloud API is not configured. You can still open a chat for
             one customer, or add credentials in Settings → Integrations.
+          </p>
+        ) : null}
+
+        {configured &&
+        templates.length > 0 &&
+        !(kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE]).some((name) =>
+          templates.some((row) => row.name === name)
+        ) ? (
+          <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
+            {kind === "marketing" ? "interior_design_services" : "interior_design_offer"} is
+            not on the connected Cloud API WhatsApp account. Create that template in Meta
+            for this same number, then it will appear here.
           </p>
         ) : null}
 
