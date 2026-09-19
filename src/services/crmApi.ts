@@ -267,6 +267,7 @@ export type WhatsAppStatusDto = {
     name: string;
     language: string;
     category?: string | null;
+    bodyParamCount?: number;
   }>;
   webhookPath: string;
   recommendedWebhookUrl?: string | null;
@@ -627,6 +628,154 @@ export const purchaseOrdersApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/purchase-orders/${id}`, body),
   remove: (id: string) => api.delete(`/purchase-orders/${id}`),
+};
+
+export type VendorAlternateContact = {
+  name: string;
+  phone: string;
+  email: string;
+};
+
+export type VendorDto = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  contactPerson?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  pincode?: string | null;
+  category?: string | null;
+  categories?: string[] | null;
+  workingModel?: string | null;
+  status: string;
+  gstin?: string | null;
+  aadhaar?: string | null;
+  pan?: string | null;
+  notes?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  alternateContacts?: VendorAlternateContact[] | null;
+  bankHolderName?: string | null;
+  bankAccountNumber?: string | null;
+  ifsc?: string | null;
+  accountType?: string | null;
+  branchAddress?: string | null;
+  tdsSlab?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VendorProjectTotals = {
+  estimatedExpenses: number;
+  totalPayables: number;
+  totalDisbursed: number;
+  payableDues: number;
+};
+
+export type VendorProjectAssignment = {
+  id: string;
+  assignedAt: string;
+  estimatedExpenses: number;
+  totalPayables: number;
+  totalDisbursed: number;
+  payableDues: number;
+  project: {
+    id: string;
+    name: string;
+    clientName?: string | null;
+    status: string;
+    store?: { id: string; name: string } | null;
+  };
+};
+
+export type VendorDocumentDto = {
+  id: string;
+  vendorId: string;
+  name: string;
+  fileName: string;
+  fileUrl: string;
+  mimeType?: string | null;
+  size: number;
+  createdAt: string;
+};
+
+export const vendorsApi = {
+  list: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<VendorDto>>("/vendors", query),
+  filters: () =>
+    api.get<{
+      category: string[];
+      workingModel: string[];
+      country: string[];
+      state: string[];
+      city: string[];
+      created: Array<{ value: string; label: string }>;
+    }>("/vendors/filters"),
+  get: (id: string) => api.get<VendorDto>(`/vendors/${id}`),
+  create: (body: Record<string, unknown>) => api.post<VendorDto>("/vendors", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<VendorDto>(`/vendors/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/vendors/${id}`),
+  categories: () =>
+    api.get<Array<{ id: string; name: string; sortOrder: number }>>("/vendors/categories"),
+  createCategory: (name: string) =>
+    api.post<{ id: string; name: string; sortOrder: number }>("/vendors/categories", { name }),
+  updateCategory: (id: string, name: string) =>
+    api.put<{ id: string; name: string; sortOrder: number }>(`/vendors/categories/${id}`, { name }),
+  reorderCategories: (ids: string[]) =>
+    api.put<Array<{ id: string; name: string; sortOrder: number }>>("/vendors/categories/reorder", {
+      ids,
+    }),
+  replaceCategory: (id: string, replaceWithId: string) =>
+    api.post<{ id: string; replacedWith: string }>(`/vendors/categories/${id}/replace`, {
+      replaceWithId,
+    }),
+  projects: (id: string) =>
+    api.get<{
+      vendor: VendorDto;
+      items: VendorProjectAssignment[];
+      totals: VendorProjectTotals;
+    }>(`/vendors/${id}/projects`),
+  assignProject: (id: string, projectId: string) =>
+    api.post<{
+      vendor: VendorDto;
+      items: VendorProjectAssignment[];
+      totals: VendorProjectTotals;
+    }>(`/vendors/${id}/projects`, { projectId }),
+  unassignProject: (id: string, projectId: string) =>
+    api.delete<{
+      vendor: VendorDto;
+      items: VendorProjectAssignment[];
+      totals: VendorProjectTotals;
+    }>(`/vendors/${id}/projects/${projectId}`),
+  documents: (id: string) =>
+    api.get<{ vendor: VendorDto; items: VendorDocumentDto[] }>(`/vendors/${id}/documents`),
+  removeDocument: (id: string, documentId: string) =>
+    api.delete<{ id: string }>(`/vendors/${id}/documents/${documentId}`),
+  uploadDocuments: async (id: string, files: File[], name?: string) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    files.forEach((file) => form.append("file", file));
+    if (name?.trim()) form.append("name", name.trim());
+    const res = await fetch(`${base}/vendors/${id}/documents`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Upload failed");
+    }
+    return json.data as { items: VendorDocumentDto[]; created: VendorDocumentDto[] };
+  },
 };
 
 export const warrantyApi = {

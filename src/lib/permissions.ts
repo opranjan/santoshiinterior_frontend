@@ -124,6 +124,17 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
   { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage"] },
+  {
+    prefix: "/operations",
+    permissions: [
+      "purchaseorders.manage",
+      "finance.full",
+      "finance.manage",
+      "projects.view",
+      "projects.manage",
+      "site.manage",
+    ],
+  },
   { prefix: "/payments", permissions: ["payments.manage", "finance.full", "finance.manage"] },
   { prefix: "/warranty-desk", permissions: ["projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/hr", permissions: ["hr.manage", "users.view", "users.manage"] },
@@ -156,8 +167,9 @@ export const canAccessRoute = (
 
 export type NavPermissionItem = {
   name: string;
-  path: string;
+  path?: string;
   permissions?: string[];
+  subItems?: NavPermissionItem[];
 };
 
 export type NavPermissionGroup = {
@@ -166,6 +178,15 @@ export type NavPermissionGroup = {
   permissions?: string[];
   subItems?: NavPermissionItem[];
 };
+
+const OPERATIONS_PERMISSIONS = [
+  "purchaseorders.manage",
+  "finance.full",
+  "finance.manage",
+  "projects.view",
+  "projects.manage",
+  "site.manage",
+];
 
 export const NAV_ITEMS: NavPermissionGroup[] = [
   {
@@ -301,6 +322,46 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
 ];
 
+export const OPERATIONS_NAV_ITEMS: NavPermissionGroup[] = [
+  {
+    name: "Procurement",
+    permissions: OPERATIONS_PERMISSIONS,
+    subItems: [
+      {
+        name: "Requests",
+        path: "/operations/procurement/requests",
+        permissions: OPERATIONS_PERMISSIONS,
+      },
+      {
+        name: "RFQ",
+        path: "/operations/procurement/rfq",
+        permissions: OPERATIONS_PERMISSIONS,
+      },
+      {
+        name: "Orders",
+        path: "/operations/procurement/orders",
+        permissions: OPERATIONS_PERMISSIONS,
+      },
+      {
+        name: "Acceptances",
+        path: "/operations/procurement/acceptances",
+        permissions: OPERATIONS_PERMISSIONS,
+      },
+    ],
+  },
+  {
+    name: "Vendors",
+    permissions: OPERATIONS_PERMISSIONS,
+    subItems: [
+      {
+        name: "My Vendors",
+        path: "/operations/vendors",
+        permissions: OPERATIONS_PERMISSIONS,
+      },
+    ],
+  },
+];
+
 export const OTHER_NAV_ITEMS: NavPermissionGroup[] = [
   {
     name: "Integrations",
@@ -309,23 +370,28 @@ export const OTHER_NAV_ITEMS: NavPermissionGroup[] = [
   },
 ];
 
+const filterNavNode = (
+  item: NavPermissionItem,
+  user: AuthUser | null | undefined
+): NavPermissionItem | null => {
+  if (item.subItems?.length) {
+    const subItems = item.subItems
+      .map((sub) => filterNavNode(sub, user))
+      .filter(Boolean) as NavPermissionItem[];
+    if (!subItems.length) return null;
+    return { ...item, subItems };
+  }
+  if (item.permissions?.length && !hasAnyPermission(user, item.permissions)) {
+    return null;
+  }
+  return item;
+};
+
 export const filterNavItems = (
   items: NavPermissionGroup[],
   user: AuthUser | null | undefined
 ): NavPermissionGroup[] => {
   return items
-    .map((item) => {
-      if (item.subItems) {
-        const subItems = item.subItems.filter((sub) =>
-          !sub.permissions?.length || hasAnyPermission(user, sub.permissions)
-        );
-        if (!subItems.length) return null;
-        return { ...item, subItems };
-      }
-      if (item.permissions?.length && !hasAnyPermission(user, item.permissions)) {
-        return null;
-      }
-      return item;
-    })
+    .map((item) => filterNavNode(item, user))
     .filter(Boolean) as NavPermissionGroup[];
 };

@@ -31,12 +31,48 @@ const titles: Record<CustomerMessageKind, string> = {
 
 const hints: Record<CustomerMessageKind, string> = {
   whatsapp:
-    "Sends a chat message to this customer. If the 24-hour window is closed, an approved template is used.",
+    "Uses the interior_design_offer WhatsApp template ({{1}} is the customer name).",
   broadcast:
-    "Sends the same WhatsApp template/message to every selected customer.",
+    "Sends the same WhatsApp template to every selected customer. Defaults to interior_design_offer.",
   marketing:
-    "Sends a marketing template (offers, collections, showroom updates). Meta requires an approved marketing template.",
+    "Uses the interior_design_services marketing template (offers and services). Meta requires an approved marketing template.",
 };
+
+const OFFER_TEMPLATE = "interior_design_offer";
+const SERVICE_TEMPLATES = ["interior_design_services", "interior_design_service"];
+
+function withPreferredTemplates(
+  kind: CustomerMessageKind,
+  rows: Array<{ name: string; language: string; category?: string | null }>
+) {
+  const extra =
+    kind === "marketing"
+      ? [
+          { name: "interior_design_services", language: "en_US", category: "MARKETING" },
+          { name: "interior_design_service", language: "en_US", category: "MARKETING" },
+        ]
+      : [{ name: "interior_design_offer", language: "en", category: "MARKETING" }];
+  const have = new Set(rows.map((row) => row.name));
+  return [...extra.filter((row) => !have.has(row.name)), ...rows];
+}
+function pickTemplate(
+  kind: CustomerMessageKind,
+  rows: Array<{ name: string; language: string; category?: string | null }>
+) {
+  const preferred =
+    kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE];
+  for (const name of preferred) {
+    const match = rows.find((row) => row.name === name);
+    if (match) return match;
+  }
+  if (kind === "marketing") {
+    const marketing = rows.find(
+      (row) => String(row.category || "").toUpperCase() === "MARKETING"
+    );
+    if (marketing) return marketing;
+  }
+  return rows[0];
+}
 
 const fieldClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
@@ -73,30 +109,45 @@ export default function CustomerSendModal({
     setError("");
     setNotice("");
     setSaving(false);
+    const seed = withPreferredTemplates(kind, []);
+    setTemplates(seed);
+    const seeded = pickTemplate(kind, seed);
+    if (seeded) setTemplateKey(`${seeded.name}::${seeded.language || ""}`);
     messagingApi
       .getStatus()
       .then((status) => {
         setConfigured(Boolean(status.configured));
-        const rows = status.approvedTemplates || [];
+        const rows = withPreferredTemplates(kind, status.approvedTemplates || []);
         setTemplates(rows);
-        const marketingFirst = rows.find(
-          (row) => String(row.category || "").toUpperCase() === "MARKETING"
-        );
-        const pick =
-          kind === "marketing"
-            ? marketingFirst || rows[0]
-            : rows[0];
+        const pick = pickTemplate(kind, rows);
         if (pick) setTemplateKey(`${pick.name}::${pick.language || ""}`);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        const rows = withPreferredTemplates(kind, []);
+        setTemplates(rows);
+        const pick = pickTemplate(kind, rows);
+        if (pick) setTemplateKey(`${pick.name}::${pick.language || ""}`);
+      });
   }, [open, kind]);
 
   const visibleTemplates = useMemo(() => {
-    if (kind !== "marketing") return templates;
-    const marketing = templates.filter(
-      (row) => String(row.category || "").toUpperCase() === "MARKETING"
+    const preferred =
+      kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE];
+    const ranked = [...templates].sort((a, b) => {
+      const ai = preferred.indexOf(a.name);
+      const bi = preferred.indexOf(b.name);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+    if (kind !== "marketing") return ranked;
+    const marketing = ranked.filter(
+      (row) =>
+        String(row.category || "").toUpperCase() === "MARKETING" ||
+        preferred.includes(row.name)
     );
-    return marketing.length ? marketing : templates;
+    return marketing.length ? marketing : ranked;
   }, [kind, templates]);
 
   if (!open) return null;
@@ -112,8 +163,8 @@ export default function CustomerSendModal({
       setError("Select at least one customer.");
       return;
     }
-    if (kind === "whatsapp" && !body.trim()) {
-      setError("Write a WhatsApp message.");
+    if (kind === "whatsapp" && !body.trim() && !templateName) {
+      setError("Choose a WhatsApp template or write a message.");
       return;
     }
     try {
@@ -189,7 +240,7 @@ export default function CustomerSendModal({
           </p>
         ) : null}
 
-        {kind !== "whatsapp" || visibleTemplates.length ? (
+        {visibleTemplates.length ? (
           <div className="mb-4">
             <Label>WhatsApp template</Label>
             <select
@@ -222,8 +273,8 @@ export default function CustomerSendModal({
             onChange={(e) => setBody(e.target.value)}
             placeholder={
               kind === "marketing"
-                ? "Offer copy. Use {{name}} or {{city}} to personalise."
-                : "Type the message. Use {{name}} or {{city}} to personalise."
+                ? "Optional note. {{1}} is the customer name on interior_design_services."
+                : "Optional. Leave blank to send the selected template ({{1}} = customer name)."
             }
             className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
           />
