@@ -564,8 +564,8 @@ export default function LeadCommunicationPanel({
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
         file: attachment || undefined,
-        templateName: !inSession && !attachment ? "start_chat" : undefined,
-        languageCode: !inSession && !attachment ? "en" : undefined,
+        templateName: !body && !attachment ? "start_chat" : undefined,
+        languageCode: !body && !attachment ? "en" : undefined,
       });
       setMessages((prev) => [...prev, created]);
       setText("");
@@ -721,7 +721,7 @@ export default function LeadCommunicationPanel({
                 Start the conversation
               </p>
               <p className="mt-1.5 max-w-xs text-[13px] leading-relaxed text-[#667781] dark:text-gray-400">
-                Send the start_chat template (Hi) to {clientName}. After they reply, you can send free text.
+                Send a WhatsApp message to {clientName}. If they have not replied yet, an empty send uses start_chat (Hi). After they reply, your typed messages go through.
               </p>
             </div>
           ) : (
@@ -819,7 +819,7 @@ export default function LeadCommunicationPanel({
                       ? "Add a caption (optional)"
                       : inSession
                         ? "Type a message"
-                        : "Tap send to start chat (Hi)"
+                        : "Type a message (or send empty for Hi)"
                   }
                   className="max-h-32 min-h-[22px] w-full resize-none bg-transparent text-[15px] leading-snug text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
                   style={{ height: "auto" }}
