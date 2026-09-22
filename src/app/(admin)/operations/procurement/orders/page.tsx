@@ -1,18 +1,16 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import PurchaseOrdersTable from "@/components/purchase-orders/PurchaseOrdersTable";
+import ProcurementOrders from "@/components/procurement/ProcurementOrders";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
-  title: "Procurement Orders",
-  description: "Manage purchase orders for materials and vendors",
+  title: "Orders",
+  description: "Purchase and work orders",
 };
 
 export default function ProcurementOrdersPage() {
   return (
-    <div>
-      <PageBreadcrumb pageTitle="Orders" />
-      <PurchaseOrdersTable />
-    </div>
+    <Suspense fallback={<p className="text-sm text-gray-500">Loading orders...</p>}>
+      <ProcurementOrders />
+    </Suspense>
   );
 }

@@ -1,17 +1,16 @@
-import PlaceholderPage from "@/components/common/PlaceholderPage";
+import ProcurementRfqs from "@/components/procurement/ProcurementRfqs";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
-  title: "RFQ",
-  description: "Request quotations from vendors",
+  title: "Request For Quotation",
+  description: "Send request-for-quotation to vendors",
 };
 
 export default function ProcurementRfqPage() {
   return (
-    <PlaceholderPage
-      title="RFQ"
-      description="Send request-for-quotation to vendors and compare their offers before placing an order."
-    />
+    <Suspense fallback={<p className="text-sm text-gray-500">Loading RFQs...</p>}>
+      <ProcurementRfqs />
+    </Suspense>
   );
 }

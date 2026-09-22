@@ -98,6 +98,13 @@ function groupMessagesByDate(messages: LeadMessageDto[]): MessageGroup[] {
   return groups;
 }
 
+function hasActiveWaSession(messages: LeadMessageDto[]) {
+  const lastIn = [...messages].reverse().find((m) => m.direction === "INBOUND");
+  if (!lastIn) return false;
+  const at = new Date(lastIn.createdAt).getTime();
+  return Number.isFinite(at) && Date.now() - at < 24 * 60 * 60 * 1000;
+}
+
 function formatSendError(err: unknown) {
   const message =
     err instanceof ApiError
@@ -109,10 +116,10 @@ function formatSendError(err: unknown) {
     return `${message} For development, add the number in Meta test recipients. In production, use a valid customer WhatsApp number.`;
   }
   if (message.includes("131058") || message.includes("Public Test Numbers")) {
-    return `${message} Use WHATSAPP_DEFAULT_TEMPLATE=3p_direct_integration_test_template or your own approved business template — not hello_world.`;
+    return `${message} Use the approved start_chat template on this WhatsApp account — not hello_world.`;
   }
   if (message.includes("132001") || message.includes("Template not found")) {
-    return `${message} Update WHATSAPP_DEFAULT_TEMPLATE in backend .env to an approved template on your production WhatsApp account (see Settings → Integrations).`;
+    return `${message} The start_chat template must exist on the connected Cloud API WhatsApp account (see Settings → Integrations).`;
   }
   if (message.includes("132000")) {
     return `${message} Set WHATSAPP_TEMPLATE_BODY_PARAM_COUNT in .env to match your template variables.`;
@@ -549,13 +556,16 @@ export default function LeadCommunicationPanel({
 
   const send = async () => {
     const body = text.trim();
-    if ((!body && !attachment) || sending || !canSend) return;
+    const inSession = hasActiveWaSession(messages);
+    if ((!body && !attachment && inSession) || sending || !canSend) return;
     setSending(true);
     setError("");
     try {
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
         file: attachment || undefined,
+        templateName: !inSession && !attachment ? "start_chat" : undefined,
+        languageCode: !inSession && !attachment ? "en" : undefined,
       });
       setMessages((prev) => [...prev, created]);
       setText("");
@@ -603,6 +613,7 @@ export default function LeadCommunicationPanel({
 
   const hasInbound = messages.some((m) => m.direction === "INBOUND");
   const hasOutbound = messages.some((m) => m.direction === "OUTBOUND");
+  const inSession = hasActiveWaSession(messages);
   const webhookMissing =
     waStatus &&
     !waStatus.webhookActivity?.lastReceivedAt &&
@@ -710,7 +721,7 @@ export default function LeadCommunicationPanel({
                 Start the conversation
               </p>
               <p className="mt-1.5 max-w-xs text-[13px] leading-relaxed text-[#667781] dark:text-gray-400">
-                Send a WhatsApp message to {clientName}. Their replies will show up here.
+                Send the start_chat template (Hi) to {clientName}. After they reply, you can send free text.
               </p>
             </div>
           ) : (
@@ -803,7 +814,13 @@ export default function LeadCommunicationPanel({
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={onKeyDown}
-                  placeholder={attachment ? "Add a caption (optional)" : "Type a message"}
+                  placeholder={
+                    attachment
+                      ? "Add a caption (optional)"
+                      : inSession
+                        ? "Type a message"
+                        : "Tap send to start chat (Hi)"
+                  }
                   className="max-h-32 min-h-[22px] w-full resize-none bg-transparent text-[15px] leading-snug text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
                   style={{ height: "auto" }}
                   onInput={(e) => {
@@ -816,9 +833,9 @@ export default function LeadCommunicationPanel({
 
               <button
                 type="button"
-                disabled={sending || (!text.trim() && !attachment)}
+                disabled={sending || (inSession && !text.trim() && !attachment)}
                 onClick={() => void send()}
-                title="Send message"
+                title={inSession ? "Send message" : "Send start_chat template"}
                 className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600 sm:h-10 sm:w-10"
               >
                 {sending ? (

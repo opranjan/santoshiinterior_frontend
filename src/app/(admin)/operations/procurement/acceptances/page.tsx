@@ -1,17 +1,16 @@
-import PlaceholderPage from "@/components/common/PlaceholderPage";
+import ProcurementAcceptances from "@/components/procurement/ProcurementAcceptances";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
-  title: "Acceptances",
-  description: "Confirm vendor order acceptances",
+  title: "Acceptance",
+  description: "Receive and accept purchase and work orders",
 };
 
 export default function ProcurementAcceptancesPage() {
   return (
-    <PlaceholderPage
-      title="Acceptances"
-      description="Record vendor acceptances, delivery confirmation, and order acknowledgements."
-    />
+    <Suspense fallback={<p className="text-sm text-gray-500">Loading acceptance...</p>}>
+      <ProcurementAcceptances />
+    </Suspense>
   );
 }

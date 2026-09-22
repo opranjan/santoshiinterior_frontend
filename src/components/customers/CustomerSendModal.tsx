@@ -7,7 +7,11 @@ import {
   customersApi,
   messagingApi,
   type CustomerMessageKind,
+  type WhatsAppStatusDto,
 } from "@/services/crmApi";
+import WhatsAppTemplatePreview, {
+  OFFER_SERVICES_LINE,
+} from "@/components/customers/WhatsAppTemplatePreview";
 
 export type SendTarget = {
   id: string;
@@ -31,7 +35,7 @@ const titles: Record<CustomerMessageKind, string> = {
 
 const hints: Record<CustomerMessageKind, string> = {
   whatsapp:
-    "Uses the interior_design_offer WhatsApp template ({{1}} is the customer name).",
+    "Uses the interior_design_offer template: image header, {{1}} first name, {{2}} services list.",
   broadcast:
     "Sends the same WhatsApp template to every selected customer. Defaults to interior_design_offer.",
   marketing:
@@ -41,10 +45,9 @@ const hints: Record<CustomerMessageKind, string> = {
 const OFFER_TEMPLATE = "interior_design_offer";
 const SERVICE_TEMPLATES = ["interior_design_services", "interior_design_service"];
 
-function pickTemplate(
-  kind: CustomerMessageKind,
-  rows: Array<{ name: string; language: string; category?: string | null }>
-) {
+type TemplateRow = WhatsAppStatusDto["approvedTemplates"][number];
+
+function pickTemplate(kind: CustomerMessageKind, rows: TemplateRow[]) {
   const preferred =
     kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE];
   for (const name of preferred) {
@@ -80,9 +83,9 @@ export default function CustomerSendModal({
 }: Props) {
   const [body, setBody] = useState("");
   const [templateKey, setTemplateKey] = useState("");
-  const [templates, setTemplates] = useState<
-    Array<{ name: string; language: string; category?: string | null }>
-  >([]);
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [headerImage, setHeaderImage] = useState<string | null>(null);
+  const [servicesLine, setServicesLine] = useState(OFFER_SERVICES_LINE);
   const [configured, setConfigured] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -102,6 +105,10 @@ export default function CustomerSendModal({
         setConfigured(Boolean(status.configured));
         const rows = status.approvedTemplates || [];
         setTemplates(rows);
+        setHeaderImage(status.templatePreviewDefaults?.headerImage || null);
+        setServicesLine(
+          status.templatePreviewDefaults?.servicesLine || OFFER_SERVICES_LINE
+        );
         const pick = pickTemplate(kind, rows);
         if (pick) setTemplateKey(`${pick.name}::${pick.language || ""}`);
       })
@@ -133,8 +140,15 @@ export default function CustomerSendModal({
   if (!open) return null;
 
   const [templateName, languageCode] = templateKey.split("::");
+  const selectedTemplate =
+    visibleTemplates.find(
+      (row) => `${row.name}::${row.language || ""}` === templateKey
+    ) ||
+    visibleTemplates.find((row) => row.name === templateName) ||
+    null;
   const preview = customers.slice(0, 8);
   const extra = Math.max(0, customers.length - preview.length);
+  const previewName = customers[0]?.name || "Customer";
 
   const submit = async () => {
     setError("");
@@ -186,7 +200,7 @@ export default function CustomerSendModal({
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -203,81 +217,96 @@ export default function CustomerSendModal({
           </button>
         </div>
 
-        <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-white/[0.03]">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-            Recipients ({customers.length})
-          </p>
-          <p className="mt-1 text-gray-700 dark:text-gray-300">
-            {preview.map((c) => c.name).join(", ")}
-            {extra ? ` +${extra} more` : ""}
-          </p>
-        </div>
+        <div className="grid items-start gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_280px]">
+          <div>
+            <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-white/[0.03]">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                Recipients ({customers.length})
+              </p>
+              <p className="mt-1 text-gray-700 dark:text-gray-300">
+                {preview.map((c) => c.name).join(", ")}
+                {extra ? ` +${extra} more` : ""}
+              </p>
+            </div>
 
-        {!configured ? (
-          <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
-            WhatsApp Cloud API is not configured. You can still open a chat for
-            one customer, or add credentials in Settings → Integrations.
-          </p>
-        ) : null}
+            {!configured ? (
+              <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
+                WhatsApp Cloud API is not configured. You can still open a chat
+                for one customer, or add credentials in Settings → Integrations.
+              </p>
+            ) : null}
 
-        {configured &&
-        templates.length > 0 &&
-        !(kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE]).some((name) =>
-          templates.some((row) => row.name === name)
-        ) ? (
-          <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
-            {kind === "marketing" ? "interior_design_services" : "interior_design_offer"} is
-            not on the connected Cloud API WhatsApp account. Create that template in Meta
-            for this same number, then it will appear here.
-          </p>
-        ) : null}
+            {configured &&
+            templates.length > 0 &&
+            !(kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE]).some(
+              (name) => templates.some((row) => row.name === name)
+            ) ? (
+              <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
+                {kind === "marketing"
+                  ? "interior_design_services"
+                  : "interior_design_offer"}{" "}
+                is not on the connected Cloud API WhatsApp account. Create that
+                template in Meta for this same number, then it will appear here.
+              </p>
+            ) : null}
 
-        {visibleTemplates.length ? (
-          <div className="mb-4">
-            <Label>WhatsApp template</Label>
-            <select
-              value={templateKey}
-              onChange={(e) => setTemplateKey(e.target.value)}
-              className={fieldClass}
-            >
-              <option value="">Default template</option>
-              {visibleTemplates.map((row) => (
-                <option
-                  key={`${row.name}-${row.language}`}
-                  value={`${row.name}::${row.language || ""}`}
+            {visibleTemplates.length ? (
+              <div className="mb-4">
+                <Label>WhatsApp template</Label>
+                <select
+                  value={templateKey}
+                  onChange={(e) => setTemplateKey(e.target.value)}
+                  className={fieldClass}
                 >
-                  {row.name}
-                  {row.category ? ` · ${row.category}` : ""}
-                  {row.language ? ` (${row.language})` : ""}
-                </option>
-              ))}
-            </select>
+                  <option value="">Default template</option>
+                  {visibleTemplates.map((row) => (
+                    <option
+                      key={`${row.name}-${row.language}`}
+                      value={`${row.name}::${row.language || ""}`}
+                    >
+                      {row.name}
+                      {row.category ? ` · ${row.category}` : ""}
+                      {row.language ? ` (${row.language})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
+            <div>
+              <Label>
+                {kind === "whatsapp" ? "Message" : "Message / template text"}
+              </Label>
+              <textarea
+                rows={4}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={
+                  kind === "marketing"
+                    ? "Optional note. {{1}} is the customer name on interior_design_services."
+                    : "Optional {{2}} services text. Leave blank to send the approved template ({{1}} = first name)."
+                }
+                className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              />
+            </div>
+
+            {error ? (
+              <p className="mt-3 text-sm text-error-500">{error}</p>
+            ) : null}
+            {notice ? (
+              <p className="mt-3 text-sm text-success-600">{notice}</p>
+            ) : null}
           </div>
-        ) : null}
 
-        <div>
-          <Label>
-            {kind === "whatsapp" ? "Message" : "Message / template text"}
-          </Label>
-          <textarea
-            rows={4}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={
-              kind === "marketing"
-                ? "Optional note. {{1}} is the customer name on interior_design_services."
-                : "Optional. Leave blank to send the selected template ({{1}} = customer name)."
-            }
-            className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-          />
+          <div className="min-[900px]:sticky min-[900px]:top-0 order-first min-[900px]:order-none">
+            <WhatsAppTemplatePreview
+              template={selectedTemplate}
+              customerName={previewName}
+              servicesText={body || servicesLine}
+              headerImage={headerImage}
+            />
+          </div>
         </div>
-
-        {error ? (
-          <p className="mt-3 text-sm text-error-500">{error}</p>
-        ) : null}
-        {notice ? (
-          <p className="mt-3 text-sm text-success-600">{notice}</p>
-        ) : null}
 
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           {chatUrl && kind === "whatsapp" ? (

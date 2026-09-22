@@ -218,7 +218,13 @@ export const leadsApi = {
   }) => api.get<WhatsAppInboxItemDto[]>("/leads/messaging/inbox", query),
   sendMessage: async (
     id: string,
-    payload: { body?: string; templateName?: string; bodyValues?: string[]; file?: File }
+    payload: {
+      body?: string;
+      templateName?: string;
+      languageCode?: string;
+      bodyValues?: string[];
+      file?: File;
+    }
   ) => {
     if (payload.file) {
       const { tokenStorage } = await import("@/lib/auth");
@@ -268,7 +274,15 @@ export type WhatsAppStatusDto = {
     language: string;
     category?: string | null;
     bodyParamCount?: number;
+    headerFormat?: string | null;
+    bodyText?: string | null;
+    footerText?: string | null;
+    buttons?: Array<{ type: string; text: string }>;
   }>;
+  templatePreviewDefaults?: {
+    headerImage?: string | null;
+    servicesLine?: string | null;
+  };
   webhookPath: string;
   recommendedWebhookUrl?: string | null;
   publicApiUrlConfigured?: boolean;
@@ -621,13 +635,273 @@ export const workOrdersApi = {
   remove: (id: string) => api.delete(`/work-orders/${id}`),
 };
 
+export type PurchaseOrderItemDto = {
+  id?: string;
+  sortOrder?: number;
+  name: string;
+  code?: string | null;
+  hsn?: string | null;
+  qty: number;
+  unit?: string | null;
+  rate: number;
+  discountPct?: number;
+  taxPct?: number;
+  imageUrl?: string | null;
+  receivedQty?: number;
+};
+
+export type PurchaseOrderCommentDto = {
+  id: string;
+  message: string;
+  createdAt: string;
+  user?: { id: string; name: string } | null;
+};
+
+export type PurchaseOrderDto = {
+  id: string;
+  seq: number;
+  code: string;
+  kind: "PO" | "WO";
+  title: string;
+  vendor: string;
+  vendorId?: string | null;
+  vendorRecord?: {
+    id: string;
+    name: string;
+    gstin?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pincode?: string | null;
+  } | null;
+  projectId?: string | null;
+  project?: { id: string; name: string; address?: string | null } | null;
+  orderState: string;
+  paymentState: string;
+  status: string;
+  amount: number;
+  paidAmount: number;
+  orderDate?: string | null;
+  expectedDate?: string | null;
+  shippingAddress?: string | null;
+  vendorBillingAddress?: string | null;
+  paymentTerms?: string | null;
+  termsAndConditions?: string | null;
+  remark?: string | null;
+  isAdhoc?: boolean;
+  orderComplete?: boolean;
+  acceptanceStatus?: "PENDING" | "PARTIAL" | "ACCEPTED";
+  createdBy?: { id: string; name: string } | null;
+  items?: PurchaseOrderItemDto[];
+  files?: Array<{ id: string; fileName: string; fileUrl: string; kind?: string }>;
+  comments?: PurchaseOrderCommentDto[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const purchaseOrdersApi = {
   list: (query?: Record<string, string | number | undefined>) =>
-    api.get<Paginated<Record<string, unknown>>>("/purchase-orders", query),
-  create: (body: Record<string, unknown>) => api.post("/purchase-orders", body),
+    api.get<Paginated<PurchaseOrderDto>>("/purchase-orders", query),
+  get: (id: string) => api.get<PurchaseOrderDto>(`/purchase-orders/${id}`),
+  create: (body: Record<string, unknown>) => api.post<PurchaseOrderDto>("/purchase-orders", body),
   update: (id: string, body: Record<string, unknown>) =>
-    api.put(`/purchase-orders/${id}`, body),
-  remove: (id: string) => api.delete(`/purchase-orders/${id}`),
+    api.put<PurchaseOrderDto>(`/purchase-orders/${id}`, body),
+  addComment: (id: string, message: string) =>
+    api.post<PurchaseOrderDto>(`/purchase-orders/${id}/comments`, { message }),
+  receive: (id: string, body: Record<string, unknown>) =>
+    api.post<PurchaseOrderDto>(`/purchase-orders/${id}/receive`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/purchase-orders/${id}`),
+  uploadFiles: async (id: string, files: File[], kind = "RECEIPT") => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    files.forEach((file) => form.append("file", file));
+    form.append("kind", kind);
+    const res = await fetch(`${base}/purchase-orders/${id}/files?kind=${encodeURIComponent(kind)}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Upload failed");
+    }
+    return json.data as PurchaseOrderDto;
+  },
+};
+
+export type ProcurementRequestItemDto = {
+  id?: string;
+  sortOrder?: number;
+  name: string;
+  code: string;
+  uom: string;
+  qty: number;
+  remark: string;
+};
+
+export type ProcurementRequestFileDto = {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  mimeType?: string | null;
+  size: number;
+};
+
+export type ProcurementRequestDto = {
+  id: string;
+  seq: number;
+  code: string;
+  name: string;
+  type: "MATERIAL" | "SERVICE";
+  projectId?: string | null;
+  project?: { id: string; name: string; address?: string | null } | null;
+  expectedDelivery?: string | null;
+  stage: "PENDING" | "APPROVED" | "ORDERED" | "CANCELLED";
+  reviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  isDraft?: boolean;
+  readByDaizy?: boolean;
+  linkedCount: number;
+  notes?: string | null;
+  items?: ProcurementRequestItemDto[];
+  files?: ProcurementRequestFileDto[];
+  createdBy?: { id: string; name: string; avatarUrl?: string | null } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const procurementRequestsApi = {
+  list: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<ProcurementRequestDto> & { pendingReview: number }>(
+      "/procurement/requests",
+      query
+    ),
+  get: (id: string) => api.get<ProcurementRequestDto>(`/procurement/requests/${id}`),
+  create: (body: Record<string, unknown>) =>
+    api.post<ProcurementRequestDto>("/procurement/requests", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<ProcurementRequestDto>(`/procurement/requests/${id}`, body),
+  raise: (id: string, body: Record<string, unknown>) =>
+    api.post<ProcurementRequestDto>(`/procurement/requests/${id}/raise`, body),
+  copy: (id: string) =>
+    api.post<ProcurementRequestDto>(`/procurement/requests/${id}/copy`, {}),
+  remove: (id: string) => api.delete<{ id: string }>(`/procurement/requests/${id}`),
+  uploadFiles: async (id: string, files: File[]) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    files.forEach((file) => form.append("file", file));
+    const res = await fetch(`${base}/procurement/requests/${id}/files`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Upload failed");
+    }
+    return json.data as ProcurementRequestDto;
+  },
+  removeFile: (id: string, fileId: string) =>
+    api.delete<ProcurementRequestDto>(`/procurement/requests/${id}/files/${fileId}`),
+};
+
+export type RfqItemDto = {
+  id?: string;
+  name: string;
+  code?: string;
+  uom?: string;
+  qty?: number;
+  remark?: string;
+};
+
+export type RfqBidDto = {
+  itemId: string;
+  rate: number;
+  amount: number;
+};
+
+export type RfqVendorRowDto = {
+  id?: string;
+  vendorId: string;
+  vendor?: { id: string; name: string } | null;
+  deliveryDate?: string | null;
+  responseStatus?: string;
+  lastResponseDate?: string | null;
+  totalBidding?: number;
+  vendorRemark?: string;
+  version?: number;
+  bids?: RfqBidDto[];
+};
+
+export type RfqDto = {
+  id: string;
+  seq: number;
+  code: string;
+  publicToken: string;
+  name: string;
+  projectId?: string | null;
+  project?: { id: string; name: string } | null;
+  requestId?: string | null;
+  request?: { id: string; code: string; name: string } | null;
+  expectedDelivery?: string | null;
+  placeOfSupply?: string | null;
+  remark?: string | null;
+  status: "PENDING" | "ORDERED" | "CANCELLED";
+  vendors?: RfqVendorRowDto[];
+  items?: RfqItemDto[];
+  files?: Array<{ id: string; fileName: string; fileUrl: string }>;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const rfqApi = {
+  list: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<RfqDto>>("/procurement/rfq", query),
+  get: (id: string) => api.get<RfqDto>(`/procurement/rfq/${id}`),
+  getPublic: (token: string) =>
+    api.get<RfqDto>(`/procurement/rfq/public/${token}`, undefined, false),
+  create: (body: Record<string, unknown>) => api.post<RfqDto>("/procurement/rfq", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<RfqDto>(`/procurement/rfq/${id}`, body),
+  cancel: (id: string) => api.post<RfqDto>(`/procurement/rfq/${id}/cancel`, {}),
+  copy: (id: string) => api.post<RfqDto>(`/procurement/rfq/${id}/copy`, {}),
+  addVendors: (id: string, vendorIds: string[]) =>
+    api.post<RfqDto>(`/procurement/rfq/${id}/vendors`, { vendorIds }),
+  removeVendor: (id: string, vendorId: string) =>
+    api.delete<RfqDto>(`/procurement/rfq/${id}/vendors/${vendorId}`),
+  fillVendor: (id: string, vendorId: string, body: Record<string, unknown>) =>
+    api.post<RfqDto>(`/procurement/rfq/${id}/vendors/${vendorId}/fill`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/procurement/rfq/${id}`),
+  uploadFiles: async (id: string, files: File[]) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    files.forEach((file) => form.append("file", file));
+    const res = await fetch(`${base}/procurement/rfq/${id}/files`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Upload failed");
+    }
+    return json.data as RfqDto;
+  },
 };
 
 export type VendorAlternateContact = {

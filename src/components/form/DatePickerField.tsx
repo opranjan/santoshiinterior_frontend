@@ -10,6 +10,7 @@ type Props = {
   value: string;
   onChange: (dateYmd: string) => void;
   placeholder?: string;
+  variant?: "input" | "icon";
 };
 
 /** Calendar picker (flatpickr) — native type="date" often looks like plain text on Windows. */
@@ -18,6 +19,7 @@ export default function DatePickerField({
   value,
   onChange,
   placeholder = "Select date",
+  variant = "input",
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fpRef = useRef<flatpickr.Instance | null>(null);
@@ -70,6 +72,22 @@ export default function DatePickerField({
       }
     }
   }, [value]);
+
+  if (variant === "icon") {
+    return (
+      <span className="relative inline-flex">
+        <input ref={inputRef} id={id} type="text" readOnly className="pointer-events-none absolute h-0 w-0 opacity-0" />
+        <button
+          type="button"
+          onClick={() => fpRef.current?.open()}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#FCE7EB] text-[#E85D75] hover:bg-[#F8D0D6]"
+          aria-label="Open calendar"
+        >
+          <CalenderIcon className="size-4" />
+        </button>
+      </span>
+    );
+  }
 
   return (
     <div className="relative">

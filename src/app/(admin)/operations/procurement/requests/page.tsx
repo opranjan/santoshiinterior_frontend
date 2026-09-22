@@ -1,4 +1,4 @@
-import PlaceholderPage from "@/components/common/PlaceholderPage";
+import ProcurementRequests from "@/components/procurement/ProcurementRequests";
 import { Metadata } from "next";
 import React from "react";
 
@@ -8,10 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function ProcurementRequestsPage() {
-  return (
-    <PlaceholderPage
-      title="Requests"
-      description="Raise material and service requests for projects, then convert them into RFQs and orders."
-    />
-  );
+  return <ProcurementRequests />;
 }

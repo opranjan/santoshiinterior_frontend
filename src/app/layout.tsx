@@ -4,6 +4,7 @@ import "flatpickr/dist/flatpickr.css";
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { AppToaster } from '@/components/ui/toast/ToastHost';
 import type { Metadata } from 'next';
 
 const outfit = Outfit({
@@ -29,6 +30,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <SidebarProvider>{children}</SidebarProvider>
+            <AppToaster />
           </AuthProvider>
         </ThemeProvider>
       </body>
