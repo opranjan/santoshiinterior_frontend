@@ -143,6 +143,16 @@ export type LeadMessageDto = {
   sentBy?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
+  warning?: string;
+  rawPayload?: {
+    status?: string;
+    errors?: Array<{
+      code?: number;
+      title?: string;
+      message?: string;
+      error_data?: { details?: string };
+    }>;
+  } | null;
 };
 
 export type LeadWorkspaceDto = {

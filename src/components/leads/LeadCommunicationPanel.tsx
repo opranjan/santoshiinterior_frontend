@@ -121,8 +121,8 @@ function formatSendError(err: unknown) {
   if (message.includes("132001") || message.includes("Template not found")) {
     return `${message} The start_chat template must exist on the connected Cloud API WhatsApp account (see Settings → Integrations).`;
   }
-  if (message.includes("132000")) {
-    return `${message} Set WHATSAPP_TEMPLATE_BODY_PARAM_COUNT in .env to match your template variables.`;
+  if (message.includes("131047") || message.includes("Re-engagement") || message.includes("24 hours")) {
+    return "WhatsApp blocked this text because the customer has not replied in 24 hours. Send the start_chat template (Hi) first, then wait for their reply.";
   }
   if (message.includes("190") || message.includes("Access token")) {
     return `${message} Regenerate the permanent token in Meta and update WHATSAPP_ACCESS_TOKEN.`;
@@ -338,6 +338,16 @@ function DateDivider({ label }: { label: string }) {
   );
 }
 
+function deliveryError(msg: LeadMessageDto) {
+  if (msg.status !== "FAILED") return "";
+  const err = msg.rawPayload?.errors?.[0];
+  const details = err?.error_data?.details || err?.message || err?.title;
+  if (String(err?.code) === "131047" || /24 hour|re-engagement/i.test(String(details))) {
+    return "Not delivered. Customer must reply within 24 hours before free text can be sent.";
+  }
+  return details || "Not delivered";
+}
+
 function ChatBubble({
   msg,
   clientName,
@@ -347,6 +357,8 @@ function ChatBubble({
 }) {
   const outbound = msg.direction === "OUTBOUND";
   const hasMedia = Boolean(msg.mediaUrl);
+  const failed = msg.status === "FAILED";
+  const failText = deliveryError(msg);
   const body =
     msg.body ||
     (msg.templateName ? `[Template: ${msg.templateName}]` : "");
@@ -358,7 +370,9 @@ function ChatBubble({
     <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
       <div
         className={`relative max-w-[min(85%,560px)] rounded-lg px-3 py-1.5 shadow-sm ${
-          outbound
+          failed
+            ? "rounded-tr-none border border-red-200 bg-red-50 text-[#111b21] dark:border-red-500/40 dark:bg-red-500/10 dark:text-white"
+            : outbound
             ? "rounded-tr-none bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-white"
             : "rounded-tl-none bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]"
         }`}
@@ -381,9 +395,19 @@ function ChatBubble({
             <p className="text-[13.5px] leading-relaxed opacity-80">—</p>
           ) : null}
 
+          {failText ? (
+            <p className="mt-1 text-[11px] leading-snug text-red-600 dark:text-red-300">
+              {failText}
+            </p>
+          ) : null}
+
           <div
             className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
-              outbound ? "text-[#667781] dark:text-white/70" : "text-[#667781] dark:text-gray-400"
+              failed
+                ? "text-red-500"
+                : outbound
+                  ? "text-[#667781] dark:text-white/70"
+                  : "text-[#667781] dark:text-gray-400"
             }`}
           >
             {outbound && msg.sentBy?.name ? (
@@ -564,12 +588,14 @@ export default function LeadCommunicationPanel({
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
         file: attachment || undefined,
-        templateName: !body && !attachment ? "start_chat" : undefined,
-        languageCode: !body && !attachment ? "en" : undefined,
+        templateName: !inSession && !attachment ? "start_chat" : undefined,
+        languageCode: !inSession && !attachment ? "en" : undefined,
       });
       setMessages((prev) => [...prev, created]);
       setText("");
       clearAttachment();
+      if (created.warning) setError(created.warning);
+      else setError("");
       void loadMessages();
       onRefresh?.();
       inputRef.current?.focus();
@@ -694,6 +720,11 @@ export default function LeadCommunicationPanel({
       {webhookMissing ? (
         <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
           Replies appear after the WhatsApp webhook is connected.
+        </div>
+      ) : null}
+      {!inSession ? (
+        <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+          This customer has not replied in 24 hours. WhatsApp only allows start_chat (Hi) until they reply, then you can send free text.
         </div>
       ) : null}
 
