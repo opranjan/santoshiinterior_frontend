@@ -442,6 +442,7 @@ export default function LeadCommunicationPanel({
   const [calling, setCalling] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const [waStatus, setWaStatus] = useState<WhatsAppStatusDto | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -485,7 +486,8 @@ export default function LeadCommunicationPanel({
         if (
           prev.length === rows.length &&
           prev[prev.length - 1]?.id === rows[rows.length - 1]?.id &&
-          prev[0]?.id === rows[0]?.id
+          prev[0]?.id === rows[0]?.id &&
+          prev.every((row, i) => row.status === rows[i]?.status)
         ) {
           return prev;
         }
@@ -584,6 +586,7 @@ export default function LeadCommunicationPanel({
     if ((!body && !attachment && inSession) || sending || !canSend) return;
     setSending(true);
     setError("");
+    setNotice("");
     try {
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
@@ -594,8 +597,8 @@ export default function LeadCommunicationPanel({
       setMessages((prev) => [...prev, created]);
       setText("");
       clearAttachment();
-      if (created.warning) setError(created.warning);
-      else setError("");
+      if (created.warning) setNotice(created.warning);
+      else setNotice("");
       void loadMessages();
       onRefresh?.();
       inputRef.current?.focus();
@@ -724,7 +727,7 @@ export default function LeadCommunicationPanel({
       ) : null}
       {!inSession ? (
         <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
-          This customer has not replied in 24 hours. WhatsApp only allows start_chat (Hi) until they reply, then you can send free text.
+          Until they reply, Send uses your approved start_chat template (Hi). That is allowed with billing — it is not the hello_world test-number block. Typed text still needs a reply within 24 hours (WhatsApp rule).
         </div>
       ) : null}
 
@@ -782,6 +785,11 @@ export default function LeadCommunicationPanel({
 
       {/* Composer */}
       <div className="shrink-0 bg-[#f0f2f5] px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:bg-[#202c33] sm:px-4 sm:py-2.5">
+        {notice ? (
+          <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+            {notice}
+          </div>
+        ) : null}
         {error ? (
           <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             {error}
