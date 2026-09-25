@@ -21,11 +21,34 @@ type Props = {
   assigneeName?: string | null;
   hideCustomerPhone?: boolean;
   leadOwnerName?: string | null;
+  projectName?: string | null;
   initialMessages?: LeadMessageDto[];
   onRefresh?: () => void;
   embedded?: boolean;
   onBack?: () => void;
 };
+
+type ChatTemplateId = "start_chat" | "interior_lead_followup";
+
+const FOLLOWUP_BODY = `Hi {{1}},
+
+Thank you for your interest in Santoshi Interior.
+
+We received your requirement for {{2}} and would be happy to help you with your interior design needs.
+
+Our team is available to discuss your requirement and the next steps.
+
+Regards,
+Santoshi Interior`;
+
+function firstName(name: string) {
+  const raw = String(name || "there").trim();
+  return raw.split(/\s+/)[0] || "there";
+}
+
+function fillPlaceholders(body: string, values: string[]) {
+  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => values[Number(n) - 1] || "");
+}
 
 type MessageGroup = {
   key: string;
@@ -119,10 +142,10 @@ function formatSendError(err: unknown) {
     return `${message} Use the approved start_chat template on this WhatsApp account — not hello_world.`;
   }
   if (message.includes("132001") || message.includes("Template not found")) {
-    return `${message} The start_chat template must exist on the connected Cloud API WhatsApp account (see Settings → Integrations).`;
+    return `${message} The selected template must exist and be APPROVED on the connected WhatsApp account (start_chat or interior_lead_followup).`;
   }
   if (message.includes("131047") || message.includes("Re-engagement") || message.includes("24 hours")) {
-    return "WhatsApp blocked this text because the customer has not replied in 24 hours. Send the start_chat template (Hi) first, then wait for their reply.";
+    return "WhatsApp blocked this text because the customer has not replied in 24 hours. Choose a template (start_chat or interior_lead_followup) and send that first.";
   }
   if (message.includes("190") || message.includes("Access token")) {
     return `${message} Regenerate the permanent token in Meta and update WHATSAPP_ACCESS_TOKEN.`;
@@ -157,6 +180,14 @@ function RefreshIcon({ className = "h-4 w-4", spinning = false }: { className?: 
       aria-hidden
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
     </svg>
   );
 }
@@ -351,9 +382,13 @@ function deliveryError(msg: LeadMessageDto) {
 function ChatBubble({
   msg,
   clientName,
+  canDelete,
+  onDelete,
 }: {
   msg: LeadMessageDto;
   clientName: string;
+  canDelete?: boolean;
+  onDelete?: (msg: LeadMessageDto) => void;
 }) {
   const outbound = msg.direction === "OUTBOUND";
   const hasMedia = Boolean(msg.mediaUrl);
@@ -367,7 +402,19 @@ function ChatBubble({
     !(hasMedia && msg.mediaType === "document" && body === msg.mediaFilename);
 
   return (
-    <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
+    <div className={`group flex items-end gap-1 ${outbound ? "justify-end" : "justify-start"}`}>
+      {canDelete && outbound ? (
+        <button
+          type="button"
+          title="Delete message"
+          onClick={() => onDelete?.(msg)}
+          className={`mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#667781] transition hover:bg-black/10 hover:text-red-600 dark:hover:bg-white/10 ${
+            failed ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <TrashIcon />
+        </button>
+      ) : null}
       <div
         className={`relative max-w-[min(85%,560px)] rounded-lg px-3 py-1.5 shadow-sm ${
           failed
@@ -417,6 +464,18 @@ function ChatBubble({
             {outbound ? <MessageStatus status={msg.status} /> : null}
           </div>
       </div>
+      {canDelete && !outbound ? (
+        <button
+          type="button"
+          title="Delete message"
+          onClick={() => onDelete?.(msg)}
+          className={`mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#667781] transition hover:bg-black/10 hover:text-red-600 dark:hover:bg-white/10 ${
+            failed ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <TrashIcon />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -430,6 +489,7 @@ export default function LeadCommunicationPanel({
   assigneeName,
   hideCustomerPhone = false,
   leadOwnerName,
+  projectName,
   initialMessages = [],
   onRefresh,
   embedded = false,
@@ -453,6 +513,8 @@ export default function LeadCommunicationPanel({
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [chatTemplate, setChatTemplate] = useState<ChatTemplateId>("start_chat");
+  const [requirement, setRequirement] = useState(projectName || "");
 
   const canViewAll = hasAnyPermission(user, [
     "messages.view.all",
@@ -512,6 +574,11 @@ export default function LeadCommunicationPanel({
   useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    setChatTemplate("start_chat");
+    setRequirement(projectName || "");
+  }, [leadId, projectName]);
 
   useEffect(() => {
     (async () => {
@@ -580,6 +647,24 @@ export default function LeadCommunicationPanel({
     }
   };
 
+  const removeChatMessage = async (msg: LeadMessageDto) => {
+    if (
+      !window.confirm(
+        "Delete this message from the CRM chat? It will not be removed from the customer's WhatsApp."
+      )
+    ) {
+      return;
+    }
+    setError("");
+    try {
+      await leadsApi.deleteMessage(leadId, msg.id);
+      setMessages((prev) => prev.filter((row) => row.id !== msg.id));
+      onRefresh?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete message");
+    }
+  };
+
   const send = async () => {
     const body = text.trim();
     const inSession = hasActiveWaSession(messages);
@@ -588,11 +673,24 @@ export default function LeadCommunicationPanel({
     setError("");
     setNotice("");
     try {
+      const followupValues =
+        chatTemplate === "interior_lead_followup"
+          ? [
+              firstName(clientName),
+              requirement.trim() || projectName || "interior design",
+            ]
+          : [];
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
         file: attachment || undefined,
-        templateName: !inSession && !attachment ? "start_chat" : undefined,
-        languageCode: !inSession && !attachment ? "en" : undefined,
+        ...( !inSession && !attachment
+          ? {
+              templateName: chatTemplate,
+              languageCode: "en",
+              useTemplate: true,
+              bodyValues: followupValues,
+            }
+          : {}),
       });
       setMessages((prev) => [...prev, created]);
       setText("");
@@ -727,7 +825,7 @@ export default function LeadCommunicationPanel({
       ) : null}
       {!inSession ? (
         <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
-          Until they reply, Send uses your approved start_chat template (Hi). That is allowed with billing — it is not the hello_world test-number block. Typed text still needs a reply within 24 hours (WhatsApp rule).
+          This number has not replied yet. Choose a template to send — WhatsApp only allows approved templates until they reply.
         </div>
       ) : null}
 
@@ -755,7 +853,9 @@ export default function LeadCommunicationPanel({
                 Start the conversation
               </p>
               <p className="mt-1.5 max-w-xs text-[13px] leading-relaxed text-[#667781] dark:text-gray-400">
-                Send a WhatsApp message to {clientName}. If they have not replied yet, an empty send uses start_chat (Hi). After they reply, your typed messages go through.
+                {inSession
+                  ? `Send a WhatsApp message to ${clientName}.`
+                  : `Pick start_chat (Hi) or interior_lead_followup, then send. After ${clientName} replies, you can type freely for 24 hours.`}
               </p>
             </div>
           ) : (
@@ -765,7 +865,13 @@ export default function LeadCommunicationPanel({
                   <DateDivider label={group.label} />
                   <div className="space-y-2">
                     {group.items.map((msg) => (
-                      <ChatBubble key={msg.id} msg={msg} clientName={clientName} />
+                      <ChatBubble
+                        key={msg.id}
+                        msg={msg}
+                        clientName={clientName}
+                        canDelete={canSend}
+                        onDelete={(row) => void removeChatMessage(row)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -811,6 +917,48 @@ export default function LeadCommunicationPanel({
               />
             ) : null}
 
+            {!inSession ? (
+              <div className="mb-2 space-y-2 rounded-2xl bg-white px-3 py-2.5 dark:bg-[#2a3942]">
+                <label className="block text-[11px] font-medium uppercase tracking-wide text-[#667781] dark:text-gray-400">
+                  Template
+                </label>
+                <select
+                  value={chatTemplate}
+                  onChange={(e) => setChatTemplate(e.target.value as ChatTemplateId)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#111b21] focus:border-[#25d366] focus:outline-none dark:border-gray-600 dark:bg-[#111b21] dark:text-[#e9edef]"
+                >
+                  <option value="start_chat">start_chat — Hi</option>
+                  <option value="interior_lead_followup">
+                    interior_lead_followup — Lead follow-up
+                  </option>
+                </select>
+                {chatTemplate === "interior_lead_followup" ? (
+                  <>
+                    <label className="block text-[11px] font-medium uppercase tracking-wide text-[#667781] dark:text-gray-400">
+                      Requirement
+                    </label>
+                    <input
+                      type="text"
+                      value={requirement}
+                      onChange={(e) => setRequirement(e.target.value)}
+                      placeholder="e.g. 3 BHK living room + kitchen"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:border-[#25d366] focus:outline-none dark:border-gray-600 dark:bg-[#111b21] dark:text-[#e9edef]"
+                    />
+                    <div className="whitespace-pre-wrap rounded-xl bg-[#efeae2] px-3 py-2 text-[12px] leading-5 text-[#111b21] dark:bg-[#0b141a] dark:text-[#e9edef]">
+                      {fillPlaceholders(FOLLOWUP_BODY, [
+                        firstName(clientName),
+                        requirement.trim() || projectName || "interior design",
+                      ])}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-[12px] text-[#667781] dark:text-gray-400">
+                    Sends the approved Hi opener. No extra body text is needed.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
             <input
               ref={imageInputRef}
               type="file"
@@ -826,6 +974,7 @@ export default function LeadCommunicationPanel({
               onChange={(e) => pickAttachment(e.target.files?.[0] || null)}
             />
 
+            {inSession ? (
             <div className="flex items-end gap-1 sm:gap-1.5">
               <div className="flex shrink-0 items-center pb-0.5">
                 <button
@@ -856,9 +1005,7 @@ export default function LeadCommunicationPanel({
                   placeholder={
                     attachment
                       ? "Add a caption (optional)"
-                      : inSession
-                        ? "Type a message"
-                        : "Type a message (or send empty for Hi)"
+                      : "Type a message"
                   }
                   className="max-h-32 min-h-[22px] w-full resize-none bg-transparent text-[15px] leading-snug text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
                   style={{ height: "auto" }}
@@ -872,9 +1019,9 @@ export default function LeadCommunicationPanel({
 
               <button
                 type="button"
-                disabled={sending || (inSession && !text.trim() && !attachment)}
+                disabled={sending || (!text.trim() && !attachment)}
                 onClick={() => void send()}
-                title={inSession ? "Send message" : "Send start_chat template"}
+                title="Send message"
                 className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600 sm:h-10 sm:w-10"
               >
                 {sending ? (
@@ -884,6 +1031,28 @@ export default function LeadCommunicationPanel({
                 )}
               </button>
             </div>
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={() => void send()}
+                  title={
+                    chatTemplate === "interior_lead_followup"
+                      ? "Send interior_lead_followup"
+                      : "Send start_chat"
+                  }
+                  className="flex h-10 items-center gap-2 rounded-full bg-[#25d366] px-4 text-sm font-semibold text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {sending ? (
+                    <RefreshIcon className="h-5 w-5" spinning />
+                  ) : (
+                    <SendIcon className="h-4 w-4" />
+                  )}
+                  Send template
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

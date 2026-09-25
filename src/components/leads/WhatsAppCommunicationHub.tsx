@@ -478,6 +478,7 @@ export default function WhatsAppCommunicationHub({
             salesOwnerId={loadedLead.salesOwnerId}
             assigneeName={loadedLead.assigneeName}
             leadOwnerName={loadedLead.leadOwnerName}
+            projectName={loadedLead.projectName}
             hideCustomerPhone={viewMode === "project"}
             initialMessages={messages}
             onRefresh={() => {

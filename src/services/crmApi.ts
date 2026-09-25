@@ -233,6 +233,7 @@ export const leadsApi = {
       templateName?: string;
       languageCode?: string;
       bodyValues?: string[];
+      useTemplate?: boolean;
       file?: File;
     }
   ) => {
@@ -261,6 +262,8 @@ export const leadsApi = {
     }
     return api.post<LeadMessageDto>(`/leads/${id}/messages`, payload);
   },
+  deleteMessage: (leadId: string, messageId: string) =>
+    api.delete<{ id: string }>(`/leads/${leadId}/messages/${messageId}`),
 };
 
 export type WhatsAppStatusDto = {
