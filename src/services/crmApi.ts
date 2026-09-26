@@ -423,13 +423,43 @@ export const customersApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put<CustomerDto>(`/customers/${id}`, body),
   remove: (id: string) => api.delete<{ id: string }>(`/customers/${id}`),
-  sendMessages: (body: {
+  sendMessages: async (body: {
     customerIds: string[];
     kind: CustomerMessageKind;
     body?: string;
     templateName?: string;
     languageCode?: string;
-  }) => api.post<CustomerMessageSendResult>("/customers/messages", body),
+    headerImage?: File;
+  }) => {
+    if (body.headerImage) {
+      const { tokenStorage } = await import("@/lib/auth");
+      const base = (
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+      ).replace(/\/$/, "");
+      const token = tokenStorage.getAccessToken();
+      const form = new FormData();
+      form.append("customerIds", JSON.stringify(body.customerIds));
+      form.append("kind", body.kind);
+      if (body.body?.trim()) form.append("body", body.body.trim());
+      if (body.templateName) form.append("templateName", body.templateName);
+      if (body.languageCode) form.append("languageCode", body.languageCode);
+      form.append("headerImage", body.headerImage);
+      const res = await fetch(`${base}/customers/messages`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+      if (!res.ok) {
+        throw new Error(
+          json?.error?.message || json?.message || "Failed to send WhatsApp"
+        );
+      }
+      return json.data as CustomerMessageSendResult;
+    }
+    return api.post<CustomerMessageSendResult>("/customers/messages", body);
+  },
 };
 
 export type DashboardDto = {

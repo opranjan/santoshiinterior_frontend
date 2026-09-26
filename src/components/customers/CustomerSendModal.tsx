@@ -85,6 +85,8 @@ export default function CustomerSendModal({
   const [templateKey, setTemplateKey] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [headerImage, setHeaderImage] = useState<string | null>(null);
+  const [headerFile, setHeaderFile] = useState<File | null>(null);
+  const [headerPreview, setHeaderPreview] = useState<string | null>(null);
   const [servicesLine, setServicesLine] = useState(OFFER_SERVICES_LINE);
   const [configured, setConfigured] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,6 +101,11 @@ export default function CustomerSendModal({
     setNotice("");
     setSaving(false);
     setTemplates([]);
+    setHeaderFile(null);
+    setHeaderPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     messagingApi
       .getStatus()
       .then((status) => {
@@ -149,6 +156,17 @@ export default function CustomerSendModal({
   const preview = customers.slice(0, 8);
   const extra = Math.max(0, customers.length - preview.length);
   const previewName = customers[0]?.name || "Customer";
+  const needsHeaderImage =
+    String(selectedTemplate?.headerFormat || "").toUpperCase() === "IMAGE" ||
+    selectedTemplate?.name === OFFER_TEMPLATE;
+
+  const pickHeaderFile = (file: File | null) => {
+    setHeaderPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+    setHeaderFile(file);
+  };
 
   const submit = async () => {
     setError("");
@@ -161,6 +179,10 @@ export default function CustomerSendModal({
       setError("Choose a WhatsApp template or write a message.");
       return;
     }
+    if (needsHeaderImage && !headerFile) {
+      setError("Upload a header image (JPG or PNG) for this template.");
+      return;
+    }
     try {
       setSaving(true);
       const result = await customersApi.sendMessages({
@@ -169,6 +191,7 @@ export default function CustomerSendModal({
         body: body.trim() || undefined,
         templateName: templateName || undefined,
         languageCode: languageCode || undefined,
+        headerImage: headerFile || undefined,
       });
       const failed = result.results.filter((row) => !row.ok);
       if (result.sent > 0) {
@@ -273,6 +296,38 @@ export default function CustomerSendModal({
               </div>
             ) : null}
 
+            {needsHeaderImage ? (
+              <div className="mb-4">
+                <Label>Header image</Label>
+                <p className="mb-2 text-xs text-gray-500">
+                  interior_design_offer uses an IMAGE header. Upload a JPG or PNG
+                  (max 5 MB). This image is sent with the template.
+                </p>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => pickHeaderFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-500 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600"
+                />
+                {headerFile ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {headerFile.name} · {(headerFile.size / 1024).toFixed(0)} KB
+                    <button
+                      type="button"
+                      className="ml-2 text-brand-600 hover:underline"
+                      onClick={() => pickHeaderFile(null)}
+                    >
+                      Remove
+                    </button>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-warning-600">
+                    Required before send. The previous default image URL is not reachable.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
             <div>
               <Label>
                 {kind === "whatsapp" ? "Message" : "Message / template text"}
@@ -303,7 +358,7 @@ export default function CustomerSendModal({
               template={selectedTemplate}
               customerName={previewName}
               servicesText={body || servicesLine}
-              headerImage={headerImage}
+              headerImage={headerPreview || headerImage}
             />
           </div>
         </div>
@@ -322,7 +377,7 @@ export default function CustomerSendModal({
           <Button
             size="sm"
             onClick={() => void submit()}
-            disabled={saving || !customers.length}
+            disabled={saving || !customers.length || (needsHeaderImage && !headerFile)}
           >
             {saving ? "Sending..." : "Send"}
           </Button>
