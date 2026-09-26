@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import React from "react";
-import CrmDashboard from "@/components/dashboard/CrmDashboard";
+import HomeDashboard from "@/components/dashboard/HomeDashboard";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function DashboardPage() {
-  return <CrmDashboard />;
+  return <HomeDashboard />;
 }

@@ -28,9 +28,45 @@ type Props = {
   onBack?: () => void;
 };
 
-type ChatTemplateId = "start_chat" | "interior_lead_followup";
+type ChatTemplateId = "start_chat" | "start_chat_ut" | "followup" | "interior_lead_followup";
 
-const FOLLOWUP_BODY = `Hi {{1}},
+const CHAT_TEMPLATES: Array<{
+  id: ChatTemplateId;
+  label: string;
+  params: 0 | 1 | 2;
+  body: string | null;
+}> = [
+  {
+    id: "start_chat_ut",
+    label: "start_chat_ut — Utility follow-up",
+    params: 1,
+    body: `Hi {{1}}
+
+Thank you for contacting Santoshi Interiors.
+
+We’re following up regarding your previous enquiry. If you still need assistance, simply reply to this message and our team will be happy to help.
+
+Regards,
+Santoshi Interiors`,
+  },
+  {
+    id: "followup",
+    label: "followup — Enquiry follow-up",
+    params: 1,
+    body: `Hi {{1}}, just following up on your enquiry with Santoshi Interiors.
+Are you still looking for interior design services? We’d be happy to assist you. 😊`,
+  },
+  {
+    id: "start_chat",
+    label: "start_chat — Hi",
+    params: 0,
+    body: null,
+  },
+  {
+    id: "interior_lead_followup",
+    label: "interior_lead_followup — Lead follow-up",
+    params: 2,
+    body: `Hi {{1}},
 
 Thank you for your interest in Santoshi Interior.
 
@@ -39,7 +75,9 @@ We received your requirement for {{2}} and would be happy to help you with your 
 Our team is available to discuss your requirement and the next steps.
 
 Regards,
-Santoshi Interior`;
+Santoshi Interior`,
+  },
+];
 
 function firstName(name: string) {
   const raw = String(name || "there").trim();
@@ -142,10 +180,13 @@ function formatSendError(err: unknown) {
     return `${message} Use the approved start_chat template on this WhatsApp account — not hello_world.`;
   }
   if (message.includes("132001") || message.includes("Template not found")) {
-    return `${message} The selected template must exist and be APPROVED on the connected WhatsApp account (start_chat or interior_lead_followup).`;
+    return `${message} The selected template must exist and be APPROVED on the connected WhatsApp account (start_chat_ut, followup, start_chat, or interior_lead_followup).`;
+  }
+  if (message.includes("131049") || message.includes("healthy ecosystem")) {
+    return "WhatsApp blocked this marketing template (131049). Do not send again to this number for 24 hours. Use start_chat_ut or followup (UTILITY), or recategorize the template in WhatsApp Manager.";
   }
   if (message.includes("131047") || message.includes("Re-engagement") || message.includes("24 hours")) {
-    return "WhatsApp blocked this text because the customer has not replied in 24 hours. Choose a template (start_chat or interior_lead_followup) and send that first.";
+    return "WhatsApp blocked this text because the customer has not replied in 24 hours. Choose a UTILITY template (start_chat_ut or followup) and send that first.";
   }
   if (message.includes("190") || message.includes("Access token")) {
     return `${message} Regenerate the permanent token in Meta and update WHATSAPP_ACCESS_TOKEN.`;
@@ -373,10 +414,26 @@ function deliveryError(msg: LeadMessageDto) {
   if (msg.status !== "FAILED") return "";
   const err = msg.rawPayload?.errors?.[0];
   const details = err?.error_data?.details || err?.message || err?.title;
-  if (String(err?.code) === "131047" || /24 hour|re-engagement/i.test(String(details))) {
+  const code = Number(err?.code);
+  if (code === 131049 || /healthy ecosystem/i.test(String(details))) {
+    return "WhatsApp blocked this as a marketing template (131049). Wait 24 hours before retrying this number. Use start_chat_ut or followup (UTILITY).";
+  }
+  if (code === 131047 || /24 hour|re-engagement/i.test(String(details))) {
     return "Not delivered. Customer must reply within 24 hours before free text can be sent.";
   }
   return details || "Not delivered";
+}
+
+function isMarketingLimitFailure(msg: LeadMessageDto) {
+  if (msg.status !== "FAILED" || msg.direction !== "OUTBOUND") return false;
+  const err = msg.rawPayload?.errors?.[0];
+  const details = String(err?.error_data?.details || err?.message || err?.title || "");
+  return Number(err?.code) === 131049 || /healthy ecosystem/i.test(details);
+}
+
+function templateCategorySuffix(status: WhatsAppStatusDto | null, name: string) {
+  const category = status?.approvedTemplates?.find((row) => row.name === name)?.category;
+  return category ? ` (${category})` : "";
 }
 
 function ChatBubble({
@@ -513,7 +570,7 @@ export default function LeadCommunicationPanel({
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
-  const [chatTemplate, setChatTemplate] = useState<ChatTemplateId>("start_chat");
+  const [chatTemplate, setChatTemplate] = useState<ChatTemplateId>("start_chat_ut");
   const [requirement, setRequirement] = useState(projectName || "");
 
   const canViewAll = hasAnyPermission(user, [
@@ -576,7 +633,7 @@ export default function LeadCommunicationPanel({
   }, [loadMessages]);
 
   useEffect(() => {
-    setChatTemplate("start_chat");
+    setChatTemplate("start_chat_ut");
     setRequirement(projectName || "");
   }, [leadId, projectName]);
 
@@ -668,18 +725,36 @@ export default function LeadCommunicationPanel({
   const send = async () => {
     const body = text.trim();
     const inSession = hasActiveWaSession(messages);
+    const selectedMeta = waStatus?.approvedTemplates?.find((row) => row.name === chatTemplate);
+    const selectedCat = String(selectedMeta?.category || "").toUpperCase();
+    const blockedMarketing =
+      selectedCat === "MARKETING" &&
+      messages.some(
+        (msg) =>
+          isMarketingLimitFailure(msg) &&
+          Date.now() - new Date(msg.createdAt).getTime() < 24 * 60 * 60 * 1000
+      );
     if ((!body && !attachment && inSession) || sending || !canSend) return;
+    if (!inSession && !attachment && blockedMarketing) {
+      setError(
+        "WhatsApp already blocked marketing templates to this number (131049). Wait 24 hours, or recategorize this template as UTILITY in WhatsApp Manager."
+      );
+      return;
+    }
     setSending(true);
     setError("");
     setNotice("");
     try {
+      const selectedSpec = CHAT_TEMPLATES.find((row) => row.id === chatTemplate);
       const followupValues =
-        chatTemplate === "interior_lead_followup"
+        selectedSpec?.params === 2
           ? [
               firstName(clientName),
               requirement.trim() || projectName || "interior design",
             ]
-          : [];
+          : selectedSpec?.params === 1
+            ? [firstName(clientName)]
+            : [];
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
         file: attachment || undefined,
@@ -741,6 +816,15 @@ export default function LeadCommunicationPanel({
   const hasInbound = messages.some((m) => m.direction === "INBOUND");
   const hasOutbound = messages.some((m) => m.direction === "OUTBOUND");
   const inSession = hasActiveWaSession(messages);
+  const selectedTemplateMeta = waStatus?.approvedTemplates?.find(
+    (row) => row.name === chatTemplate
+  );
+  const selectedCategory = String(selectedTemplateMeta?.category || "").toUpperCase();
+  const marketingBlocked = messages.some(
+    (msg) =>
+      isMarketingLimitFailure(msg) &&
+      Date.now() - new Date(msg.createdAt).getTime() < 24 * 60 * 60 * 1000
+  );
   const webhookMissing =
     waStatus &&
     !waStatus.webhookActivity?.lastReceivedAt &&
@@ -825,7 +909,11 @@ export default function LeadCommunicationPanel({
       ) : null}
       {!inSession ? (
         <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
-          This number has not replied yet. Choose a template to send — WhatsApp only allows approved templates until they reply.
+          {marketingBlocked
+            ? "WhatsApp blocked marketing templates to this number (131049). Do not retry for 24 hours. Use start_chat_ut or followup (UTILITY)."
+            : selectedCategory === "MARKETING"
+              ? `${chatTemplate} is a MARKETING template. WhatsApp often will not deliver it until the customer replies. Change it to UTILITY in WhatsApp Manager for openers.`
+              : "This number has not replied yet. Choose an approved template. UTILITY templates deliver; MARKETING templates may be blocked."}
         </div>
       ) : null}
 
@@ -855,7 +943,7 @@ export default function LeadCommunicationPanel({
               <p className="mt-1.5 max-w-xs text-[13px] leading-relaxed text-[#667781] dark:text-gray-400">
                 {inSession
                   ? `Send a WhatsApp message to ${clientName}.`
-                  : `Pick start_chat (Hi) or interior_lead_followup, then send. After ${clientName} replies, you can type freely for 24 hours.`}
+                  : `Pick start_chat_ut or followup (UTILITY), then send. After ${clientName} replies, you can type freely for 24 hours.`}
               </p>
             </div>
           ) : (
@@ -927,10 +1015,12 @@ export default function LeadCommunicationPanel({
                   onChange={(e) => setChatTemplate(e.target.value as ChatTemplateId)}
                   className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#111b21] focus:border-[#25d366] focus:outline-none dark:border-gray-600 dark:bg-[#111b21] dark:text-[#e9edef]"
                 >
-                  <option value="start_chat">start_chat — Hi</option>
-                  <option value="interior_lead_followup">
-                    interior_lead_followup — Lead follow-up
-                  </option>
+                  {CHAT_TEMPLATES.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.label}
+                      {templateCategorySuffix(waStatus, row.id)}
+                    </option>
+                  ))}
                 </select>
                 {chatTemplate === "interior_lead_followup" ? (
                   <>
@@ -945,12 +1035,22 @@ export default function LeadCommunicationPanel({
                       className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:border-[#25d366] focus:outline-none dark:border-gray-600 dark:bg-[#111b21] dark:text-[#e9edef]"
                     />
                     <div className="whitespace-pre-wrap rounded-xl bg-[#efeae2] px-3 py-2 text-[12px] leading-5 text-[#111b21] dark:bg-[#0b141a] dark:text-[#e9edef]">
-                      {fillPlaceholders(FOLLOWUP_BODY, [
-                        firstName(clientName),
-                        requirement.trim() || projectName || "interior design",
-                      ])}
+                      {fillPlaceholders(
+                        CHAT_TEMPLATES.find((row) => row.id === "interior_lead_followup")?.body || "",
+                        [
+                          firstName(clientName),
+                          requirement.trim() || projectName || "interior design",
+                        ]
+                      )}
                     </div>
                   </>
+                ) : CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.body ? (
+                  <div className="whitespace-pre-wrap rounded-xl bg-[#efeae2] px-3 py-2 text-[12px] leading-5 text-[#111b21] dark:bg-[#0b141a] dark:text-[#e9edef]">
+                    {fillPlaceholders(
+                      CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.body || "",
+                      [firstName(clientName)]
+                    )}
+                  </div>
                 ) : (
                   <p className="text-[12px] text-[#667781] dark:text-gray-400">
                     Sends the approved Hi opener. No extra body text is needed.
@@ -1035,13 +1135,9 @@ export default function LeadCommunicationPanel({
               <div className="flex justify-end">
                 <button
                   type="button"
-                  disabled={sending}
+                  disabled={sending || (selectedCategory === "MARKETING" && marketingBlocked)}
                   onClick={() => void send()}
-                  title={
-                    chatTemplate === "interior_lead_followup"
-                      ? "Send interior_lead_followup"
-                      : "Send start_chat"
-                  }
+                  title={`Send ${chatTemplate}`}
                   className="flex h-10 items-center gap-2 rounded-full bg-[#25d366] px-4 text-sm font-semibold text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   {sending ? (

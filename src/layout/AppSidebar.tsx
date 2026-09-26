@@ -6,6 +6,8 @@ import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
 import {
   filterNavItems,
+  FRANCHISEE_NAV_ITEMS,
+  isFranchiseeUser,
   NAV_ITEMS,
   OPERATIONS_NAV_ITEMS,
   OTHER_NAV_ITEMS,
@@ -38,6 +40,12 @@ type NavItem = NavPermissionGroup & {
 
 const ICONS: Record<string, React.ReactNode> = {
   Dashboard: <GridIcon />,
+  Projects: <TaskIcon />,
+  "DLP Payment": <DollarLineIcon />,
+  "Chat Box": <ChatIcon />,
+  "Customer Issue": <CheckCircleIcon />,
+  Documents: <DocsIcon />,
+  "Profile Settings": <UserCircleIcon />,
   Stores: <BoxCubeIcon />,
   Sales: <DollarLineIcon />,
   Quotations: <FileIcon />,
@@ -68,18 +76,24 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { user } = useAuth();
   const pathname = usePathname();
+  const franchisee = isFranchiseeUser(user);
 
   const navItems = useMemo(
-    () => withIcons(filterNavItems(NAV_ITEMS, user)),
-    [user]
+    () =>
+      withIcons(
+        franchisee ? FRANCHISEE_NAV_ITEMS : filterNavItems(NAV_ITEMS, user)
+      ),
+    [user, franchisee]
   );
   const othersItems = useMemo(
-    () => withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
-    [user]
+    () =>
+      franchisee ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
+    [user, franchisee]
   );
   const operationsItems = useMemo(
-    () => withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
-    [user]
+    () =>
+      franchisee ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
+    [user, franchisee]
   );
   const adminIndex = navItems.findIndex((item) => item.name === "Admin");
   const menuBeforeAdmin =

@@ -596,6 +596,29 @@ export const projectsApi = {
   ) => api.put<ProjectTaskDto>(`/projects/${id}/tasks/${taskId}`, body),
   removeTask: (id: string, taskId: string) =>
     api.delete(`/projects/${id}/tasks/${taskId}`),
+  uploadFile: async (id: string, file: File, kind: "elevation" | "video" | "document") => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    const res = await fetch(`${base}/projects/${id}/files`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "File upload failed"
+      );
+    }
+    return payload.data as Record<string, unknown>;
+  },
 };
 
 export const quotationsApi = {

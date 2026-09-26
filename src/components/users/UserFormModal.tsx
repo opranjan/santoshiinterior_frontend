@@ -25,12 +25,17 @@ export function emptyUserForm(defaultRoleId = ""): UserFormState {
     email: "",
     phone: "",
     sipExtension: "",
-    password: "Welcome@123",
+    password: generateTempPassword(),
     accessRoleId: defaultRoleId,
     dateOfBirth: "",
     managerId: "",
     storeId: "",
   };
+}
+
+export function generateTempPassword() {
+  const chunk = Math.random().toString(36).slice(-6).toUpperCase();
+  return `Fr@${chunk}1`;
 }
 
 export default function UserFormModal({
@@ -89,7 +94,9 @@ export default function UserFormModal({
                 {title}
               </h3>
               <p className="mt-1 text-sm text-gray-500">
-                Add login details and assign a role for CRM access.
+                {title.includes("Franchisee")
+                  ? "Create a franchisee login. Copy the email and password after save and share them."
+                  : "Add login details and assign a role for CRM access."}
               </p>
             </div>
             <button
@@ -143,18 +150,41 @@ export default function UserFormModal({
             {!isEdit ? (
               <div className="sm:col-span-2">
                 <Label>Temporary password</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={form.password}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, password: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, password: generateTempPassword() }))
+                    }
+                  >
+                    Generate
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Copy this after save and share it with the user. They sign in at the CRM login page.
+                </p>
+              </div>
+            ) : (
+              <div className="sm:col-span-2">
+                <Label>Set new password (optional)</Label>
                 <Input
                   type="text"
                   value={form.password}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, password: e.target.value }))
                   }
+                  placeholder="Leave blank to keep current password"
                 />
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Share this with the user for first login.
-                </p>
               </div>
-            ) : null}
+            )}
             <div>
               <Label>Date of birth</Label>
               <Input
@@ -240,6 +270,11 @@ export default function UserFormModal({
                       {role.permissions?.length ?? 0} permissions ·{" "}
                       {role.description || role.baseRole}
                     </p>
+                    {role.key === "FRANCHISEE" ? (
+                      <p className="mt-1 text-[11px] font-medium text-[#E85D75]">
+                        After login they see Dashboard, Projects, and Add New Project
+                      </p>
+                    ) : null}
                   </button>
                 );
               })}

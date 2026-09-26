@@ -7,7 +7,8 @@ export type CrmRoleKey =
   | "SITE"
   | "ACCOUNTS"
   | "HR"
-  | "STAFF";
+  | "STAFF"
+  | "FRANCHISEE";
 
 export type RoleDefinition = {
   key: CrmRoleKey;
@@ -101,10 +102,24 @@ export const CRM_ROLES: RoleDefinition[] = [
     description: "Basic CRM access with limited write permissions.",
     permissions: ["sales.view", "projects.view"],
   },
+  {
+    key: "FRANCHISEE",
+    label: "Franchisee",
+    global: false,
+    description: "Franchisee portal: add projects and view assigned work.",
+    permissions: [
+      "franchisee.portal",
+      "customers.view",
+      "projects.view",
+      "projects.manage",
+      "payments.manage",
+      "documents.manage",
+    ],
+  },
 ];
 
 export function getRoleMeta(role?: string | null) {
-  return CRM_ROLES.find((r) => r.key === role) || CRM_ROLES[CRM_ROLES.length - 1];
+  return CRM_ROLES.find((r) => r.key === role) || CRM_ROLES.find((r) => r.key === "STAFF")!;
 }
 
 export function displayRole(role?: string | null, roleLabel?: string | null) {

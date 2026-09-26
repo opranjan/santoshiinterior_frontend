@@ -121,7 +121,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/design", permissions: ["design.manage", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
-  { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view"] },
+  { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
   { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage"] },
   {
@@ -141,7 +141,6 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/calendar", permissions: ["sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
   { prefix: "/users", permissions: ["users.manage", "users.view"] },
   { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create"] },
-  { prefix: "/profile", permissions: [] },
 ];
 
 export const canAccessRoute = (
@@ -151,6 +150,24 @@ export const canAccessRoute = (
   if (!user) return false;
   const path = pathname.split("?")[0] || "/";
   if (path === "/forbidden" || path === "/profile") return true;
+  const franchiseeOnly = [
+    "/dlp-payment",
+    "/chat",
+    "/customer-issues",
+    "/documents",
+  ];
+  const franchiseeOk =
+    path === "/" ||
+    path === "/projects" ||
+    path.startsWith("/projects/") ||
+    path === "/payments" ||
+    path === "/profile" ||
+    franchiseeOnly.some((p) => path === p || path.startsWith(`${p}/`));
+  if (isFranchiseeUser(user)) return franchiseeOk;
+  if (franchiseeOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
+    return false;
+  }
+  if (path === "/franchisee" || path.startsWith("/franchisee/")) return false;
   if (user.role === "SUPER_ADMIN") return true;
   const match =
     ROUTE_PERMISSIONS.filter(
@@ -370,6 +387,26 @@ export const OTHER_NAV_ITEMS: NavPermissionGroup[] = [
   },
 ];
 
+const FRANCHISEE_NAV_PERMS = ["franchisee.portal", "projects.view", "projects.manage"];
+
+export const FRANCHISEE_NAV_ITEMS: NavPermissionGroup[] = [
+  { name: "Dashboard", path: "/", permissions: FRANCHISEE_NAV_PERMS },
+  {
+    name: "Projects",
+    permissions: FRANCHISEE_NAV_PERMS,
+    subItems: [
+      { name: "All Projects", path: "/projects", permissions: FRANCHISEE_NAV_PERMS },
+      { name: "Add New Project", path: "/projects/new", permissions: FRANCHISEE_NAV_PERMS },
+    ],
+  },
+  { name: "Payments", path: "/payments", permissions: ["payments.manage", "franchisee.portal"] },
+  { name: "DLP Payment", path: "/dlp-payment", permissions: FRANCHISEE_NAV_PERMS },
+  { name: "Chat Box", path: "/chat", permissions: FRANCHISEE_NAV_PERMS },
+  { name: "Customer Issue", path: "/customer-issues", permissions: FRANCHISEE_NAV_PERMS },
+  { name: "Documents", path: "/documents", permissions: ["documents.manage", "franchisee.portal"] },
+  { name: "Profile Settings", path: "/profile", permissions: FRANCHISEE_NAV_PERMS },
+];
+
 const filterNavNode = (
   item: NavPermissionItem,
   user: AuthUser | null | undefined
@@ -394,4 +431,14 @@ export const filterNavItems = (
   return items
     .map((item) => filterNavNode(item, user))
     .filter(Boolean) as NavPermissionGroup[];
+};
+
+export const isFranchiseeUser = (user: AuthUser | null | undefined) => {
+  if (!user) return false;
+  if (user.accessRole?.key === "FRANCHISEE") return true;
+  if (/franchisee/i.test(String(user.roleLabel || ""))) return true;
+  return (
+    hasPermission(user, "franchisee.portal") &&
+    !hasAnyPermission(user, ["sales.full", "sales.manage", "users.manage"])
+  );
 };

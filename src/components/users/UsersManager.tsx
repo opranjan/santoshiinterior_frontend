@@ -21,6 +21,7 @@ import { rolesApi, storesApi, usersApi } from "@/services/crmApi";
 import RoleManagementPanel from "./RoleManagementPanel";
 import UserFormModal, {
   emptyUserForm,
+  generateTempPassword,
   type UserFormState,
 } from "./UserFormModal";
 import { useAuth } from "@/context/AuthContext";
@@ -162,8 +163,18 @@ export default function UsersManager() {
   const [notice, setNotice] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null);
+  const [prefillFranchisee, setPrefillFranchisee] = useState(false);
+  const [credentials, setCredentials] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    franchisee: boolean;
+  } | null>(null);
 
-  const defaultRoleId = roles.find((r) => r.key === "SALES")?.id || roles[0]?.id || "";
+  const franchiseeRoleId = roles.find((r) => r.key === "FRANCHISEE")?.id || "";
+  const defaultRoleId = franchiseeRoleId
+    ? roles.find((r) => r.key === "SALES")?.id || roles[0]?.id || ""
+    : roles.find((r) => r.key === "SALES")?.id || roles[0]?.id || "";
 
   const loadUsers = useCallback(async () => {
     const data = await usersApi.list({
@@ -213,7 +224,12 @@ export default function UsersManager() {
   }, [users, tab]);
 
   const formInitial = useMemo((): UserFormState => {
-    if (!editingUser) return emptyUserForm(defaultRoleId);
+    if (!editingUser) {
+      const roleId = prefillFranchisee && franchiseeRoleId ? franchiseeRoleId : defaultRoleId;
+      const form = emptyUserForm(roleId);
+      form.password = generateTempPassword();
+      return form;
+    }
     return {
       name: editingUser.name,
       email: editingUser.email,
@@ -225,12 +241,14 @@ export default function UsersManager() {
       managerId: editingUser.managerId || "",
       storeId: editingUser.storeId || "",
     };
-  }, [editingUser, defaultRoleId]);
+  }, [editingUser, defaultRoleId, franchiseeRoleId, prefillFranchisee]);
 
   const saveUser = async (form: UserFormState) => {
     try {
       setSaving(true);
       setError("");
+      const selectedIsFranchisee =
+        roles.find((r) => r.id === form.accessRoleId)?.key === "FRANCHISEE";
       const body = {
         name: form.name.trim(),
         email: form.email.trim(),
@@ -243,15 +261,32 @@ export default function UsersManager() {
       };
 
       if (editingUser) {
-        await usersApi.update(editingUser.id, body);
+        await usersApi.update(editingUser.id, {
+          ...body,
+          ...(form.password.trim() ? { password: form.password.trim() } : {}),
+        });
         setNotice("User updated successfully");
+        if (form.password.trim()) {
+          setCredentials({
+            name: form.name.trim(),
+            email: form.email.trim(),
+            password: form.password.trim(),
+            franchisee: selectedIsFranchisee,
+          });
+        }
       } else {
         await usersApi.create({
           ...body,
           password: form.password.trim(),
           isActive: true,
         });
-        setNotice("User created — share the temporary password");
+        setCredentials({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password.trim(),
+          franchisee: selectedIsFranchisee,
+        });
+        setNotice("User created. Copy the login details and share them.");
       }
 
       setFormOpen(false);
@@ -301,16 +336,34 @@ export default function UsersManager() {
           </p>
         </div>
         {(tab === "active" || tab === "deactivated") && canManageUsers && (
-          <Button
-            size="sm"
-            className="bg-[#E85D75] hover:bg-[#d94c65]"
-            onClick={() => {
-              setEditingUser(null);
-              setFormOpen(true);
-            }}
-          >
-            + Add User
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!franchiseeRoleId) {
+                  setError("Franchisee role is not ready yet. Restart the API, then try again.");
+                  return;
+                }
+                setEditingUser(null);
+                setPrefillFranchisee(true);
+                setFormOpen(true);
+              }}
+            >
+              + Add Franchisee
+            </Button>
+            <Button
+              size="sm"
+              className="bg-[#E85D75] hover:bg-[#d94c65]"
+              onClick={() => {
+                setEditingUser(null);
+                setPrefillFranchisee(false);
+                setFormOpen(true);
+              }}
+            >
+              + Add User
+            </Button>
+          </div>
         )}
       </div>
 
@@ -528,7 +581,13 @@ export default function UsersManager() {
 
       <UserFormModal
         open={formOpen}
-        title={editingUser ? "Edit User" : "Add User"}
+        title={
+          editingUser
+            ? "Edit User"
+            : prefillFranchisee
+              ? "Add Franchisee"
+              : "Add User"
+        }
         initial={formInitial}
         roles={roles}
         managers={managerOptions}
@@ -537,9 +596,84 @@ export default function UsersManager() {
         onClose={() => {
           setFormOpen(false);
           setEditingUser(null);
+          setPrefillFranchisee(false);
         }}
         onSubmit={saveUser}
       />
+
+      {credentials ? (
+        <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Share login details
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {credentials.franchisee
+                ? "Give these to the franchisee. They sign in to the same CRM and will see their dashboard, projects, and add-project screens."
+                : "Give these to the user for first login."}
+            </p>
+            <dl className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5">
+              <div>
+                <dt className="text-xs text-gray-500">Name</dt>
+                <dd className="font-medium">{credentials.name}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-gray-500">Email</dt>
+                <dd className="font-medium">{credentials.email}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-gray-500">Password</dt>
+                <dd className="font-mono font-medium">{credentials.password}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-gray-500">Login URL</dt>
+                <dd className="break-all font-medium">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/signin`
+                    : "/signin"}
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  const origin =
+                    typeof window !== "undefined" ? window.location.origin : "";
+                  const text = [
+                    `Name: ${credentials.name}`,
+                    `Email: ${credentials.email}`,
+                    `Password: ${credentials.password}`,
+                    `Login: ${origin}/signin`,
+                    credentials.franchisee
+                      ? "After login they see Dashboard, Projects, and Add New Project"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join("\n");
+                  try {
+                    await navigator.clipboard.writeText(text);
+                    setNotice("Login details copied");
+                    window.setTimeout(() => setNotice(""), 2500);
+                  } catch {
+                    setError("Could not copy. Copy the details manually.");
+                  }
+                }}
+              >
+                Copy details
+              </Button>
+              <Button
+                size="sm"
+                className="bg-[#E85D75] hover:bg-[#d94c65]"
+                onClick={() => setCredentials(null)}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -15,7 +15,6 @@ export default function AdminLayout({
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
-  // Dynamic class for main content margin based on sidebar state
   const mainContentMargin = isMobileOpen
     ? "ml-0"
     : isExpanded || isHovered
@@ -25,22 +24,18 @@ export default function AdminLayout({
   return (
     <AuthGuard>
       <RoutePermissionGuard>
-      <div className="min-h-screen overflow-x-hidden xl:flex">
-        {/* Sidebar and Backdrop */}
-        <AppSidebar />
-        <Backdrop />
-        {/* Main Content Area — min-w-0 keeps wide tables from pushing header over the sidebar */}
-        <div
-          className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out admin-main-content ${mainContentMargin}`}
-        >
-          {/* Header */}
-          <AppHeader />
-          {/* Page Content — horizontal scroll stays inside this pane only */}
-          <div className="admin-page-content min-w-0 flex-1 overflow-x-auto p-4 mx-auto w-full max-w-(--breakpoint-2xl) md:p-6">
-            {children}
+        <div className="min-h-screen overflow-x-hidden xl:flex">
+          <AppSidebar />
+          <Backdrop />
+          <div
+            className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out admin-main-content ${mainContentMargin}`}
+          >
+            <AppHeader />
+            <div className="admin-page-content min-w-0 flex-1 overflow-x-auto p-4 mx-auto w-full max-w-(--breakpoint-2xl) md:p-6">
+              {children}
+            </div>
           </div>
         </div>
-      </div>
       </RoutePermissionGuard>
     </AuthGuard>
   );
