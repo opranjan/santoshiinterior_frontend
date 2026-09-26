@@ -39,17 +39,23 @@ const hints: Record<CustomerMessageKind, string> = {
   broadcast:
     "Sends the same WhatsApp template to every selected customer. Defaults to interior_design_offer.",
   marketing:
-    "Uses the interior_design_services marketing template (offers and services). Meta requires an approved marketing template.",
+    "Send from this customer list. Default is interior_design_offer (image header, {{1}} name, {{2}} services). If WhatsApp does not deliver it, switch the template below to start_chat_ut or followup (Utility).",
 };
 
 const OFFER_TEMPLATE = "interior_design_offer";
 const SERVICE_TEMPLATES = ["interior_design_services", "interior_design_service"];
+const UTILITY_TEMPLATES = ["start_chat_ut", "followup"];
+const MARKETING_PREFERRED = [
+  OFFER_TEMPLATE,
+  ...SERVICE_TEMPLATES,
+  ...UTILITY_TEMPLATES,
+];
 
 type TemplateRow = WhatsAppStatusDto["approvedTemplates"][number];
 
 function pickTemplate(kind: CustomerMessageKind, rows: TemplateRow[]) {
   const preferred =
-    kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE];
+    kind === "marketing" ? MARKETING_PREFERRED : [OFFER_TEMPLATE, ...UTILITY_TEMPLATES];
   for (const name of preferred) {
     const match = rows.find((row) => row.name === name);
     if (match) return match;
@@ -126,7 +132,7 @@ export default function CustomerSendModal({
 
   const visibleTemplates = useMemo(() => {
     const preferred =
-      kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE];
+      kind === "marketing" ? MARKETING_PREFERRED : [OFFER_TEMPLATE, ...UTILITY_TEMPLATES];
     const ranked = [...templates].sort((a, b) => {
       const ai = preferred.indexOf(a.name);
       const bi = preferred.indexOf(b.name);
@@ -194,21 +200,35 @@ export default function CustomerSendModal({
         headerImage: headerFile || undefined,
       });
       const failed = result.results.filter((row) => !row.ok);
-      if (result.sent > 0) {
+      const pending = result.results.filter(
+        (row) =>
+          row.ok &&
+          row.deliveryStatus !== "DELIVERED" &&
+          row.deliveryStatus !== "READ" &&
+          row.deliveryStatus !== "SENT"
+      );
+      if (result.sent > 0 && !pending.length) {
         onSent(new Date().toISOString());
       }
       if (failed.length && result.sent === 0) {
         setError(failed[0]?.error || "Send failed");
         return;
       }
+      const firstWarning = result.results.find((row) => row.warning)?.warning;
+      if (failed.length) {
+        setError(failed[0]?.error || "WhatsApp did not deliver the message");
+      }
       setNotice(
-        failed.length
-          ? `Sent to ${result.sent}. Failed for ${failed.length}: ${failed
-              .map((row) => row.name)
-              .join(", ")}`
-          : `Sent to ${result.sent} customer${result.sent === 1 ? "" : "s"}.`
+        firstWarning ||
+          (failed.length
+            ? `Queued for ${result.sent}. Failed for ${failed.length}: ${failed
+                .map((row) => row.name)
+                .join(", ")}`
+            : pending.length
+              ? "Meta accepted the template, but WhatsApp has not confirmed delivery yet."
+              : `Delivered to ${result.sent} customer${result.sent === 1 ? "" : "s"}.`)
       );
-      if (!failed.length) {
+      if (!failed.length && !pending.length && !firstWarning) {
         setTimeout(onClose, 700);
       }
     } catch (err) {
@@ -261,12 +281,12 @@ export default function CustomerSendModal({
 
             {configured &&
             templates.length > 0 &&
-            !(kind === "marketing" ? SERVICE_TEMPLATES : [OFFER_TEMPLATE]).some(
+            !(kind === "marketing" ? MARKETING_PREFERRED : [OFFER_TEMPLATE]).some(
               (name) => templates.some((row) => row.name === name)
             ) ? (
               <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
                 {kind === "marketing"
-                  ? "interior_design_services"
+                  ? "interior_design_offer"
                   : "interior_design_offer"}{" "}
                 is not on the connected Cloud API WhatsApp account. Create that
                 template in Meta for this same number, then it will appear here.
@@ -337,9 +357,11 @@ export default function CustomerSendModal({
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 placeholder={
-                  kind === "marketing"
-                    ? "Optional note. {{1}} is the customer name on interior_design_services."
-                    : "Optional {{2}} services text. Leave blank to send the approved template ({{1}} = first name)."
+                  needsHeaderImage || selectedTemplate?.name === OFFER_TEMPLATE
+                    ? "Optional {{2}} services text. Leave blank to use the default services line."
+                    : UTILITY_TEMPLATES.includes(selectedTemplate?.name || "")
+                      ? "{{1}} is filled with the customer first name. No extra text is required."
+                      : "Optional extra body text for this template."
                 }
                 className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               />
@@ -349,7 +371,7 @@ export default function CustomerSendModal({
               <p className="mt-3 text-sm text-error-500">{error}</p>
             ) : null}
             {notice ? (
-              <p className="mt-3 text-sm text-success-600">{notice}</p>
+              <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">{notice}</p>
             ) : null}
           </div>
 

@@ -412,6 +412,11 @@ export type CustomerMessageSendResult = {
     ok: boolean;
     error?: string;
     templateName?: string | null;
+    messageStatus?: string | null;
+    deliveryStatus?: string | null;
+    warning?: string | null;
+    to?: string | null;
+    waId?: string | null;
   }>;
 };
 
