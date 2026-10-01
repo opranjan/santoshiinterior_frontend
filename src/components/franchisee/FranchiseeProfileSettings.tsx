@@ -1,0 +1,333 @@
+"use client";
+
+import Link from "next/link";
+import React, { useEffect, useMemo, useState } from "react";
+import Badge from "@/components/ui/badge/Badge";
+import Button from "@/components/ui/button/Button";
+import { useAuth } from "@/context/AuthContext";
+import { designAssetUrl } from "@/lib/designAssets";
+import { authApi } from "@/services/crmApi";
+
+const CATEGORIES = [
+  "Carpenter",
+  "Painter",
+  "Modular & Kitchen",
+  "Electrician",
+  "Plumbing",
+  "Other",
+];
+
+const fieldClass =
+  "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+
+const card =
+  "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
+
+function initials(name?: string | null) {
+  return String(name || "F")
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function tradeHint(category: string) {
+  if (/paint/i.test(category)) return "Painting & Finishes";
+  if (/modular|kitchen/i.test(category)) return "Modular & Kitchen";
+  if (/electric/i.test(category)) return "Electrical works";
+  if (/plumb/i.test(category)) return "Plumbing works";
+  return "Wood Work & Carpentry";
+}
+
+function categoryOf(user: {
+  roleLabel?: string | null;
+  accessRole?: { label?: string } | null;
+} | null) {
+  const roleLabel = user?.roleLabel || "";
+  if (roleLabel && !/franchisee/i.test(roleLabel)) return roleLabel;
+  const access = user?.accessRole?.label || "";
+  if (access && !/franchisee/i.test(access)) return access;
+  return "Carpenter";
+}
+
+export default function FranchiseeProfileSettings() {
+  const { user, logout, applyUser } = useAuth();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [category, setCategory] = useState("Carpenter");
+  const [saving, setSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState("");
+  const [profileError, setProfileError] = useState("");
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [photoError, setPhotoError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    setName(user.name || "");
+    setPhone(user.phone || "");
+    setDateOfBirth(user.dateOfBirth ? String(user.dateOfBirth).slice(0, 10) : "");
+    setCategory(categoryOf(user));
+  }, [user]);
+
+  const photo = useMemo(() => designAssetUrl(user?.avatarUrl), [user?.avatarUrl]);
+
+  const saveProfile = async () => {
+    setSaving(true);
+    setProfileError("");
+    setProfileMsg("");
+    try {
+      const next = await authApi.updateMe({
+        name: name.trim(),
+        phone: phone.trim(),
+        dateOfBirth: dateOfBirth || null,
+        category,
+      });
+      applyUser(next);
+      setProfileMsg("Profile saved.");
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePassword = async () => {
+    setPasswordError("");
+    setPasswordMsg("");
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMsg("Password updated.");
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to update password");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const onPhoto = async (file?: File) => {
+    if (!file) return;
+    setPhotoError("");
+    try {
+      const next = await authApi.uploadAvatar(file);
+      applyUser(next);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Failed to upload photo");
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm text-gray-500">
+          <Link href="/" className="hover:text-gray-700">
+            Dashboard
+          </Link>
+          <span className="mx-1">›</span>
+          <span className="text-gray-800 dark:text-white/90">Profile Settings</span>
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-800 dark:text-white/90">
+          Profile Settings
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Your franchisee login and work details. Email stays as issued by the company.
+        </p>
+      </div>
+
+      <div className={`${card} flex flex-wrap items-center gap-4`}>
+        <label className="relative cursor-pointer">
+          <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-lg font-semibold text-white">
+            {photo ? (
+              <img src={photo} alt={user?.name || "Profile"} className="h-full w-full object-cover" />
+            ) : (
+              initials(user?.name)
+            )}
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => onPhoto(e.target.files?.[0])}
+          />
+        </label>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+              {user?.name || "Franchisee"}
+            </h2>
+            <Badge size="sm" color="info">
+              Franchisee
+            </Badge>
+            <Badge size="sm" color={user?.isActive === false ? "error" : "success"}>
+              {user?.isActive === false ? "Inactive" : "Active"}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">{user?.email}</p>
+          <p className="text-xs text-gray-400">
+            {category} · {tradeHint(category)}
+            {user?.store?.name ? ` · ${user.store.name}` : ""}
+          </p>
+          <p className="mt-2 text-xs text-brand-600">Click the photo to upload a new one</p>
+          {photoError ? <p className="mt-1 text-xs text-error-500">{photoError}</p> : null}
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className={card}>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
+            Personal Information
+          </h3>
+          <div className="mt-4 space-y-3">
+            <div>
+              <p className="mb-1 text-sm text-gray-600">Full name</p>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-sm text-gray-600">Email (login)</p>
+              <input value={user?.email || ""} readOnly className={`${fieldClass} bg-gray-50 dark:bg-gray-800`} />
+            </div>
+            <div>
+              <p className="mb-1 text-sm text-gray-600">Phone</p>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-sm text-gray-600">Date of birth</p>
+              <input
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className={card}>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
+            Work Category
+          </h3>
+          <p className="mt-1 text-xs text-gray-500">
+            Shown on your dashboard as My Category.
+          </p>
+          <div className="mt-4 space-y-3">
+            <div>
+              <p className="mb-1 text-sm text-gray-600">Category</p>
+              <select
+                value={CATEGORIES.includes(category) ? category : "Other"}
+                onChange={(e) => setCategory(e.target.value)}
+                className={fieldClass}
+              >
+                {CATEGORIES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04]">
+              {tradeHint(category)}
+            </p>
+            <div>
+              <p className="mb-1 text-sm text-gray-600">Store</p>
+              <input
+                value={user?.store?.name || "Assigned by company"}
+                readOnly
+                className={`${fieldClass} bg-gray-50 dark:bg-gray-800`}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {profileError ? (
+        <p className="text-sm text-error-500">{profileError}</p>
+      ) : null}
+      {profileMsg ? <p className="text-sm text-success-600">{profileMsg}</p> : null}
+      <Button size="sm" onClick={saveProfile} disabled={saving}>
+        {saving ? "Saving…" : "Save Profile"}
+      </Button>
+
+      <div className={card}>
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
+          Login &amp; Security
+        </h3>
+        <p className="mt-1 text-xs text-gray-500">
+          Change the password the company shared with you.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div>
+            <p className="mb-1 text-sm text-gray-600">Current password</p>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-sm text-gray-600">New password</p>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-sm text-gray-600">Confirm password</p>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+        </div>
+        {passwordError ? (
+          <p className="mt-3 text-sm text-error-500">{passwordError}</p>
+        ) : null}
+        {passwordMsg ? (
+          <p className="mt-3 text-sm text-success-600">{passwordMsg}</p>
+        ) : null}
+        <div className="mt-4">
+          <Button size="sm" variant="outline" onClick={savePassword} disabled={passwordSaving}>
+            {passwordSaving ? "Updating…" : "Update Password"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={logout}>
+          Logout
+        </Button>
+      </div>
+    </div>
+  );
+}

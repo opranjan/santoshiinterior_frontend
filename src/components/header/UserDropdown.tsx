@@ -1,10 +1,9 @@
 "use client";
-import Image from "next/image";
-import Link from "next/link";
 import React, { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { useAuth } from "@/context/AuthContext";
+import { designAssetUrl } from "@/lib/designAssets";
 
 export default function UserDropdown() {
   const { user, logout } = useAuth();
@@ -30,11 +29,11 @@ export default function UserDropdown() {
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11 bg-brand-500 text-white flex items-center justify-center text-sm font-semibold">
           {user?.avatarUrl ? (
-            <Image
-              width={44}
-              height={44}
-              src={user.avatarUrl}
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={designAssetUrl(user.avatarUrl)}
               alt={displayName}
+              className="h-11 w-11 object-cover"
             />
           ) : (
             displayName
@@ -97,7 +96,7 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/settings"
+              href="/profile"
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               Account settings

@@ -62,6 +62,7 @@ const ICONS: Record<string, React.ReactNode> = {
   HR: <UserIcon />,
   Calendar: <CalenderIcon />,
   Admin: <UserCircleIcon />,
+  Franchisees: <GroupIcon />,
   Integrations: <PlugInIcon />,
   Communication: <ChatIcon />,
 };

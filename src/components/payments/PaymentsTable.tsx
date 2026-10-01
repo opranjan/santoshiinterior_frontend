@@ -24,6 +24,8 @@ type PaymentType =
   | "Material"
   | "Handover"
   | "Vendor"
+  | "Franchisee Payout"
+  | "DLP"
   | "Other";
 type PaymentMethod = "UPI" | "Bank Transfer" | "Cash" | "Cheque" | "Card";
 
@@ -59,6 +61,8 @@ const types: PaymentType[] = [
   "Material",
   "Handover",
   "Vendor",
+  "Franchisee Payout",
+  "DLP",
   "Other",
 ];
 
@@ -407,6 +411,17 @@ export default function PaymentsTable() {
       setError("Payment amount must be greater than 0");
       return;
     }
+    if (
+      (form.type === "Franchisee Payout" || form.type === "DLP") &&
+      !selectedProject?.id
+    ) {
+      setError(
+        form.type === "DLP"
+          ? "Link DLP to the assigned project. This is the company settling delay-in-payment with the franchisee."
+          : "Link the payout to the franchisee’s assigned project. This is company paying the franchisee, not a customer collection."
+      );
+      return;
+    }
 
     const status = deriveStatus(
       amount,
@@ -550,7 +565,8 @@ export default function PaymentsTable() {
             Payments
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Track customer installments and vendor payments by project.
+            Customer collections stay here. Use <span className="font-medium">Franchisee Payout</span> or{" "}
+            <span className="font-medium">DLP</span> when the company pays a franchisee for assigned work.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -853,7 +869,11 @@ export default function PaymentsTable() {
                   }
                   className={`${selectClass} w-full`}
                 >
-                  <option value="">Select project (optional)</option>
+                  <option value="">
+                    {form.type === "Franchisee Payout" || form.type === "DLP"
+                      ? "Select assigned project (required)"
+                      : "Select project (optional)"}
+                  </option>
                   {apiProjects.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} · {p.client}
@@ -879,6 +899,16 @@ export default function PaymentsTable() {
                     </option>
                   ))}
                 </select>
+                {form.type === "Franchisee Payout" ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Company payout to the franchisee for this assigned project.
+                  </p>
+                ) : null}
+                {form.type === "DLP" ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Delay in Payments: company settling the delayed customer amount with the franchisee.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <Label>Method</Label>

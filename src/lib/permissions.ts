@@ -140,6 +140,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/hr", permissions: ["hr.manage", "users.view", "users.manage"] },
   { prefix: "/calendar", permissions: ["sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
   { prefix: "/users", permissions: ["users.manage", "users.view"] },
+  { prefix: "/franchisees", permissions: ["users.manage", "users.view"] },
   { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create"] },
 ];
 
@@ -298,6 +299,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     permissions: ["users.manage", "users.view", "settings.manage", "settings.view"],
     subItems: [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view"] },
+      { name: "Franchisees", path: "/franchisees", permissions: ["users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
     ],
   },

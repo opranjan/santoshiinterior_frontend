@@ -18,6 +18,32 @@ export const authApi = {
     password: string;
   }) => api.post<AuthResponse>("/auth/register", payload, false),
   me: () => api.get<AuthUser>("/auth/me"),
+  updateMe: (body: Record<string, unknown>) =>
+    api.put<AuthUser>("/auth/me", body),
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    api.post<AuthUser>("/auth/me/password", body),
+  uploadAvatar: async (file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("avatar", file);
+    const res = await fetch(`${base}/auth/me/avatar`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        json?.error?.message || json?.message || "Failed to upload photo"
+      );
+    }
+    return json.data as AuthUser;
+  },
 };
 
 export type StoreDto = {
@@ -1179,6 +1205,8 @@ export const usersApi = {
     api.post<AuthUser>("/users", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.put<AuthUser>(`/users/${id}`, body),
+  setProjects: (id: string, projectIds: string[]) =>
+    api.put<AuthUser>(`/users/${id}/projects`, { projectIds }),
   deactivate: (id: string) => api.patch<AuthUser>(`/users/${id}/deactivate`),
   activate: (id: string) => api.patch<AuthUser>(`/users/${id}/activate`),
   remove: (id: string) => api.delete<{ id: string }>(`/users/${id}`),

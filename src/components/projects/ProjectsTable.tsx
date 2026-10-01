@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leadsApi, projectsApi, storesApi } from "@/services/crmApi";
+import { leadsApi, projectsApi, storesApi, usersApi } from "@/services/crmApi";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
 import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
@@ -49,6 +49,7 @@ type Project = {
   progress: number;
   salesOwner: string;
   assignedTo: string;
+  assignedToId: string | null;
   financialYear: string;
   startDate: string;
   endDate: string;
@@ -99,6 +100,8 @@ const budgets = [
 ];
 
 const stores = ["All Stores", "Main Branch", "North Store", "South Store"];
+
+type StaffOption = { id: string; name: string };
 
 const team = [
   "Mukesh singh",
@@ -301,6 +304,7 @@ export default function ProjectsTable() {
   const [sourceLeadClientName, setSourceLeadClientName] = useState("");
   const [tasksProject, setTasksProject] = useState<Project | null>(null);
 
+  const [staff, setStaff] = useState<StaffOption[]>([]);
   const [form, setForm] = useState({
     name: "",
     client: "",
@@ -312,7 +316,8 @@ export default function ProjectsTable() {
     status: "Kickoff" as ProjectStatus,
     progress: 0,
     salesOwner: "Mukesh singh",
-    assignedTo: "Mukesh singh",
+    assignedTo: "",
+    assignedToId: "",
     financialYear: "2026-27",
     startDate: "",
     endDate: "",
@@ -324,7 +329,10 @@ export default function ProjectsTable() {
   const mapProject = (dto: Record<string, unknown>): Project => {
     const store = dto.store as { name?: string } | null | undefined;
     const salesOwner = dto.salesOwner as { name?: string } | null | undefined;
-    const assignedTo = dto.assignedTo as { name?: string } | null | undefined;
+    const assignedTo = dto.assignedTo as
+      | { id?: string; name?: string }
+      | null
+      | undefined;
     const statusLabel = enumToLabel(String(dto.status || "KICKOFF")) as ProjectStatus;
     return {
       id: String(dto.id),
@@ -339,6 +347,7 @@ export default function ProjectsTable() {
       progress: Number(dto.progress || 0),
       salesOwner: salesOwner?.name || "",
       assignedTo: assignedTo?.name || "",
+      assignedToId: assignedTo?.id || (dto.assignedToId as string | null) || null,
       financialYear: String(dto.financialYear || ""),
       startDate: formatDate((dto.startDate as string | null) || ""),
       endDate: formatDate((dto.endDate as string | null) || ""),
@@ -366,10 +375,21 @@ export default function ProjectsTable() {
           projectsApi.list({ limit: 100 }),
           storesApi.list({ limit: 100 }),
         ]);
+        let staffRows: StaffOption[] = [];
+        try {
+          const userData = await usersApi.list({ limit: 200, isActive: "true" });
+          staffRows = (userData.items || []).map((u) => ({
+            id: u.id,
+            name: u.name,
+          }));
+        } catch {
+          staffRows = [];
+        }
         if (cancelled) return;
         setStoreOptions(
           storeData.items.map((s) => ({ id: s.id, name: s.name }))
         );
+        setStaff(staffRows);
         if (storeData.items[0]) {
           setForm((prev) => ({ ...prev, store: storeData.items[0].name }));
         }
@@ -399,11 +419,12 @@ export default function ProjectsTable() {
         const prefilled = projectFormFromLead(lead, {
           store: storeOptions[0]?.name || "Main Branch",
           salesOwner: "Mukesh singh",
-          assignedTo: lead.assignedTo?.name || "Mukesh singh",
+          assignedTo: lead.assignedTo?.name || "",
         });
         setForm((prev) => ({
           ...prev,
           ...prefilled,
+          assignedToId: lead.assignedToId || lead.assignedTo?.id || "",
           status: "Kickoff",
           progress: 0,
           endDate: "",
@@ -471,7 +492,8 @@ export default function ProjectsTable() {
       status: "Kickoff",
       progress: 0,
       salesOwner: "Mukesh singh",
-      assignedTo: "Mukesh singh",
+      assignedTo: "",
+      assignedToId: "",
       financialYear: "2026-27",
       startDate: "",
       endDate: "",
@@ -503,6 +525,7 @@ export default function ProjectsTable() {
       progress: p.progress,
       salesOwner: p.salesOwner,
       assignedTo: p.assignedTo,
+      assignedToId: p.assignedToId || "",
       financialYear: p.financialYear,
       startDate: p.startDate,
       endDate: p.endDate,
@@ -535,6 +558,7 @@ export default function ProjectsTable() {
       address: form.address || null,
       description: form.description || null,
       latestRemark: form.latestRemark || null,
+      assignedToId: form.assignedToId || null,
     };
 
     try {
@@ -625,14 +649,26 @@ export default function ProjectsTable() {
     }
   };
 
-  const updateAssignee = (id: string, assignedTo: string) => {
-    setProjects((prev) =>
-      prev.map((p) =>
+  const updateAssignee = async (id: string, assignedToId: string) => {
+    const option = staff.find((u) => u.id === assignedToId);
+    const prev = projects;
+    setProjects((current) =>
+      current.map((p) =>
         p.id === id
-          ? { ...p, assignedTo, updatedAt: new Date().toISOString() }
+          ? {
+              ...p,
+              assignedToId: assignedToId || null,
+              assignedTo: option?.name || "",
+              updatedAt: new Date().toISOString(),
+            }
           : p
       )
     );
+    try {
+      await projectsApi.update(id, { assignedToId: assignedToId || null });
+    } catch {
+      setProjects(prev);
+    }
   };
 
   return (
@@ -849,15 +885,20 @@ export default function ProjectsTable() {
                           {initials(p.assignedTo)}
                         </span>
                         <select
-                          value={p.assignedTo}
+                          value={p.assignedToId || ""}
                           onChange={(e) =>
-                            updateAssignee(p.id, e.target.value)
+                            void updateAssignee(p.id, e.target.value)
                           }
-                          className="h-8 max-w-[120px] rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
+                          className="h-8 max-w-[140px] rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
                         >
-                          {team.map((m) => (
-                            <option key={m} value={m}>
-                              {m}
+                          <option value="">Unassigned</option>
+                          {p.assignedToId &&
+                          !staff.some((u) => u.id === p.assignedToId) ? (
+                            <option value={p.assignedToId}>{p.assignedTo}</option>
+                          ) : null}
+                          {staff.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
                             </option>
                           ))}
                         </select>
@@ -1132,15 +1173,24 @@ export default function ProjectsTable() {
               <div>
                 <Label>Assigned To</Label>
                 <select
-                  value={form.assignedTo}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, assignedTo: e.target.value }))
-                  }
+                  value={form.assignedToId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const name = staff.find((u) => u.id === id)?.name || "";
+                    setForm((f) => ({ ...f, assignedToId: id, assignedTo: name }));
+                  }}
                   className={`${selectClass} w-full`}
                 >
-                  {team.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
+                  <option value="">Unassigned</option>
+                  {form.assignedToId &&
+                  !staff.some((u) => u.id === form.assignedToId) ? (
+                    <option value={form.assignedToId}>
+                      {form.assignedTo || "Assigned"}
+                    </option>
+                  ) : null}
+                  {staff.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
                     </option>
                   ))}
                 </select>

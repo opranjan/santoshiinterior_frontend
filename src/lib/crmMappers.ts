@@ -124,7 +124,10 @@ export function mapPayment(dto: Record<string, unknown>) {
     projectName: String(project?.name || ""),
     client: String(dto.clientName || project?.clientName || ""),
     store: mapStoreName(store),
-    type: enumToLabel(String(dto.type || "ADVANCE")),
+    type:
+      String(dto.type || "").toUpperCase() === "DLP"
+        ? "DLP"
+        : enumToLabel(String(dto.type || "ADVANCE")),
     method: paymentMethodToLabel(String(dto.method || "UPI")),
     amount: Number(dto.amount || 0),
     paidAmount: Number(dto.paidAmount || 0),

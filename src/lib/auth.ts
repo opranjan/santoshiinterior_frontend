@@ -28,6 +28,7 @@ export type AuthUser = {
   lastLoginAt?: string | null;
   lastActiveAt?: string | null;
   store?: { id: string; name: string; code: string } | null;
+  _count?: { assignedProjects?: number };
 };
 
 export const tokenStorage = {

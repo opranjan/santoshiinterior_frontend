@@ -24,6 +24,7 @@ type AuthContextValue = {
   }) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  applyUser: (next: AuthUser) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -85,6 +86,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = "/signin";
   }, []);
 
+  const applyUser = useCallback((next: AuthUser) => {
+    setUser(next);
+    const access = tokenStorage.getAccessToken();
+    const refresh = tokenStorage.getRefreshToken();
+    if (access && refresh) tokenStorage.setSession(access, refresh, next);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -94,8 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       refreshUser,
+      applyUser,
     }),
-    [user, loading, login, register, logout, refreshUser]
+    [user, loading, login, register, logout, refreshUser, applyUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
