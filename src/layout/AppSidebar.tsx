@@ -78,7 +78,7 @@ const withIcons = (items: NavPermissionGroup[]): NavItem[] =>
   }));
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { isExpanded, isMobileOpen, isHovered, setIsHovered, closeMobileSidebar } = useSidebar();
   const { user } = useAuth();
   const pathname = usePathname();
   const franchisee = isFranchiseeUser(user);
@@ -133,6 +133,7 @@ const AppSidebar: React.FC = () => {
         <li key={subItem.name}>
           <Link
             href={subItem.path}
+            onClick={closeMobileSidebar}
             className={`menu-dropdown-item ${
               isActive(subItem.path)
                 ? "menu-dropdown-item-active"
@@ -191,6 +192,7 @@ const AppSidebar: React.FC = () => {
             nav.path && (
               <Link
                 href={nav.path}
+                onClick={closeMobileSidebar}
                 className={`menu-item group ${
                   isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
                 }`}
@@ -254,6 +256,10 @@ const AppSidebar: React.FC = () => {
   );
 
   useEffect(() => {
+    closeMobileSidebar();
+  }, [pathname, closeMobileSidebar]);
+
+  useEffect(() => {
     let submenuMatched = false;
     (["main", "others", "operations"] as const).forEach((menuType) => {
       const items =
@@ -312,7 +318,7 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`no-print fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 lg:z-[60]
+      className={`no-print fixed inset-y-0 left-0 top-16 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-white px-5 text-gray-900 transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 lg:top-0 lg:h-screen lg:z-[60]
         ${vendor || franchisee ? "vendor-sidebar" : ""}
         ${
           isExpanded || isMobileOpen
@@ -331,7 +337,7 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link href="/">
+        <Link href="/" onClick={closeMobileSidebar}>
           {vendor || franchisee ? (
             isExpanded || isHovered || isMobileOpen ? (
               <span className="flex items-center gap-3">

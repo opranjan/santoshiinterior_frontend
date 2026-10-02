@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 type SidebarContextType = {
   isExpanded: boolean;
@@ -9,6 +9,7 @@ type SidebarContextType = {
   openSubmenu: string | null;
   toggleSidebar: () => void;
   toggleMobileSidebar: () => void;
+  closeMobileSidebar: () => void;
   setIsHovered: (isHovered: boolean) => void;
   setActiveItem: (item: string | null) => void;
   toggleSubmenu: (item: string) => void;
@@ -36,7 +37,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 768;
+      const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (!mobile) {
         setIsMobileOpen(false);
@@ -51,13 +52,31 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  const toggleSidebar = () => {
-    setIsExpanded((prev) => !prev);
-  };
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
+  }, [isMobileOpen]);
 
-  const toggleMobileSidebar = () => {
+  const toggleSidebar = useCallback(() => {
+    setIsExpanded((prev) => !prev);
+  }, []);
+
+  const toggleMobileSidebar = useCallback(() => {
     setIsMobileOpen((prev) => !prev);
-  };
+  }, []);
+
+  const closeMobileSidebar = useCallback(() => {
+    setIsMobileOpen(false);
+  }, []);
 
   const toggleSubmenu = (item: string) => {
     setOpenSubmenu((prev) => (prev === item ? null : item));
@@ -73,6 +92,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
         openSubmenu,
         toggleSidebar,
         toggleMobileSidebar,
+        closeMobileSidebar,
         setIsHovered,
         setActiveItem,
         toggleSubmenu,

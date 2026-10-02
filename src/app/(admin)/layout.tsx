@@ -30,11 +30,11 @@ export default function AdminLayout({
   return (
     <AuthGuard>
       <RoutePermissionGuard>
-        <div className={`min-h-screen overflow-x-hidden xl:flex ${partner ? "vendor-shell" : ""}`}>
+        <div className={`min-h-screen overflow-x-hidden xl:flex ${isMobileOpen ? "max-lg:h-dvh max-lg:overflow-hidden" : ""} ${partner ? "vendor-shell" : ""}`}>
           <AppSidebar />
           <Backdrop />
           <div
-            className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out admin-main-content ${mainContentMargin}`}
+            className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out admin-main-content ${mainContentMargin} ${isMobileOpen ? "max-lg:overflow-hidden" : ""}`}
           >
             <AppHeader />
             <div className="admin-page-content min-w-0 flex-1 overflow-x-auto p-4 mx-auto w-full max-w-(--breakpoint-2xl) md:p-6">
