@@ -8,9 +8,11 @@ import {
   filterNavItems,
   FRANCHISEE_NAV_ITEMS,
   isFranchiseeUser,
+  isVendorUser,
   NAV_ITEMS,
   OPERATIONS_NAV_ITEMS,
   OTHER_NAV_ITEMS,
+  VENDOR_NAV_ITEMS,
   type NavPermissionGroup,
   type NavPermissionItem,
 } from "@/lib/permissions";
@@ -58,6 +60,8 @@ const ICONS: Record<string, React.ReactNode> = {
   "Work Order": <DocsIcon />,
   "Purchase Order": <FileIcon />,
   Payments: <BoxIconLine />,
+  "Pay Franchisee": <DollarLineIcon />,
+  "Pay Vendor": <DollarLineIcon />,
   "Warranty Desk": <CheckCircleIcon />,
   HR: <UserIcon />,
   Calendar: <CalenderIcon />,
@@ -78,23 +82,28 @@ const AppSidebar: React.FC = () => {
   const { user } = useAuth();
   const pathname = usePathname();
   const franchisee = isFranchiseeUser(user);
+  const vendor = isVendorUser(user);
 
   const navItems = useMemo(
     () =>
       withIcons(
-        franchisee ? FRANCHISEE_NAV_ITEMS : filterNavItems(NAV_ITEMS, user)
+        franchisee
+          ? FRANCHISEE_NAV_ITEMS
+          : vendor
+            ? VENDOR_NAV_ITEMS
+            : filterNavItems(NAV_ITEMS, user)
       ),
-    [user, franchisee]
+    [user, franchisee, vendor]
   );
   const othersItems = useMemo(
     () =>
-      franchisee ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
-    [user, franchisee]
+      franchisee || vendor ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
+    [user, franchisee, vendor]
   );
   const operationsItems = useMemo(
     () =>
-      franchisee ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
-    [user, franchisee]
+      franchisee || vendor ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
+    [user, franchisee, vendor]
   );
   const adminIndex = navItems.findIndex((item) => item.name === "Admin");
   const menuBeforeAdmin =
@@ -304,6 +313,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`no-print fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 lg:z-[60]
+        ${vendor || franchisee ? "vendor-sidebar" : ""}
         ${
           isExpanded || isMobileOpen
             ? "w-[290px]"
@@ -322,7 +332,31 @@ const AppSidebar: React.FC = () => {
         }`}
       >
         <Link href="/">
-          {isExpanded || isHovered || isMobileOpen ? (
+          {vendor || franchisee ? (
+            isExpanded || isHovered || isMobileOpen ? (
+              <span className="flex items-center gap-3">
+                <img
+                  src="/images/logo/santoshi-interiors.jpg"
+                  alt="Santoshi Interiors"
+                  className="h-12 w-12 rounded-lg object-contain"
+                />
+                <span className="flex flex-col">
+                  <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                    {vendor ? "Vendor Panel" : "Franchisee Panel"}
+                  </span>
+                  <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
+                    Santoshi Interiors
+                  </span>
+                </span>
+              </span>
+            ) : (
+              <img
+                src="/images/logo/santoshi-interiors.jpg"
+                alt="Santoshi Interiors"
+                className="h-10 w-10 rounded-lg object-contain"
+              />
+            )
+          ) : isExpanded || isHovered || isMobileOpen ? (
             <span className="flex flex-col">
               <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
                 Santoshi Interior

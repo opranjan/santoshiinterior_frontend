@@ -23,6 +23,22 @@ export type AuthUser = {
     permissions?: string[];
   } | null;
   storeId?: string | null;
+  vendorId?: string | null;
+  vendor?: {
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    contactPerson?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    pincode?: string | null;
+    gstin?: string | null;
+    category?: string | null;
+    status?: string | null;
+  } | null;
   isActive?: boolean;
   avatarUrl?: string | null;
   lastLoginAt?: string | null;

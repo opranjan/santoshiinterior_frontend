@@ -122,6 +122,7 @@ export default function VendorDataHub({ vendorId }: { vendorId: string }) {
           icon={<IconDocs />}
         />
         <Tile href={`${base}/invoices`} label="Invoices" icon={<IconInvoices />} />
+        <Tile href={`${base}/portal`} label="Portal Login" icon={<IconBasic />} />
       </div>
     </div>
   );

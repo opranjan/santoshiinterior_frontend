@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import AcceptancePreviewDrawer from "@/components/procurement/AcceptancePreviewDrawer";
 import CreateOrderModal from "@/components/procurement/CreateOrderModal";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { purchaseOrdersApi, type PurchaseOrderDto } from "@/services/crmApi";
+import { useAuth } from "@/context/AuthContext";
+import { isVendorUser } from "@/lib/permissions";
 
 const PINK = "#E85D75";
 
@@ -45,6 +47,22 @@ function daysPassed(iso?: string | null) {
   return days > 0 ? days : null;
 }
 
+const VENDOR_ORDER_STATE_VALUES = new Set([
+  "ORDER_ACCEPTED",
+  "PARTIALLY_DELIVERED",
+  "FULLY_DELIVERED",
+  "ORDER_REJECTED",
+]);
+
+function statesForVendor(current?: string) {
+  const allowed = ORDER_STATES.filter((state) => VENDOR_ORDER_STATE_VALUES.has(state.value));
+  const currentMeta = ORDER_STATES.find((state) => state.value === current);
+  if (currentMeta && !VENDOR_ORDER_STATE_VALUES.has(currentMeta.value)) {
+    return [currentMeta, ...allowed];
+  }
+  return allowed;
+}
+
 function paymentLabel(state?: string) {
   if (state === "PARTIAL") return "Partial";
   if (state === "PAID") return "Paid";
@@ -52,7 +70,8 @@ function paymentLabel(state?: string) {
 }
 
 export default function ProcurementOrders() {
-  const router = useRouter();
+  const { user } = useAuth();
+  const vendorView = isVendorUser(user);
   const [items, setItems] = useState<PurchaseOrderDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<"mine" | "approved" | "pending">("mine");
@@ -62,6 +81,7 @@ export default function ProcurementOrders() {
   const [stateFilter, setStateFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [preview, setPreview] = useState<PurchaseOrderDto | null>(null);
   const filterRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
@@ -91,6 +111,16 @@ export default function ProcurementOrders() {
   }, []);
 
   const filterCount = Number(Boolean(kindFilter)) + Number(Boolean(stateFilter));
+
+  const openPreview = async (row: PurchaseOrderDto) => {
+    setPreview(row);
+    try {
+      const full = await purchaseOrdersApi.get(row.id);
+      setPreview(full);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to load order");
+    }
+  };
 
   const updateState = async (row: PurchaseOrderDto, orderState: string) => {
     try {
@@ -148,11 +178,13 @@ export default function ProcurementOrders() {
                 <label className="mb-1 block text-xs text-gray-500">Order state</label>
                 <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className="h-9 w-full rounded-lg border px-2 text-sm">
                   <option value="">All</option>
-                  {ORDER_STATES.map((state) => (
+                  {(vendorView ? ORDER_STATES.filter((s) => VENDOR_ORDER_STATE_VALUES.has(s.value)) : ORDER_STATES).map(
+                    (state) => (
                     <option key={state.value} value={state.value}>
                       {state.label}
                     </option>
-                  ))}
+                    )
+                  )}
                 </select>
               </div>
             ) : null}
@@ -166,6 +198,7 @@ export default function ProcurementOrders() {
             />
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">⌕</span>
           </div>
+          {vendorView ? null : (
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
@@ -174,6 +207,7 @@ export default function ProcurementOrders() {
           >
             + Create Order
           </button>
+          )}
         </div>
       </div>
 
@@ -232,7 +266,7 @@ export default function ProcurementOrders() {
                   <tr
                     key={row.id}
                     className="cursor-pointer border-t border-gray-100 hover:bg-[#FFF5F7]"
-                    onClick={() => router.push(`/operations/procurement/orders/${row.id}`)}
+                    onClick={() => void openPreview(row)}
                   >
                     <td className="px-3 py-3 text-gray-500">{index + 1}.</td>
                     <td className="px-3 py-3">
@@ -270,7 +304,7 @@ export default function ProcurementOrders() {
                         onChange={(e) => void updateState(row, e.target.value)}
                         className={`h-9 max-w-[170px] rounded-full border px-2 text-xs font-medium ${stateMeta.className}`}
                       >
-                        {ORDER_STATES.map((state) => (
+                        {(vendorView ? statesForVendor(row.orderState) : ORDER_STATES).map((state) => (
                           <option key={state.value} value={state.value}>
                             {state.label}
                           </option>
@@ -286,6 +320,17 @@ export default function ProcurementOrders() {
       </div>
 
       <CreateOrderModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <AcceptancePreviewDrawer
+        open={Boolean(preview)}
+        row={preview}
+        showReceive={false}
+        vendorView={vendorView}
+        onClose={() => setPreview(null)}
+        onUpdated={(updated) => {
+          setPreview(updated);
+          setItems((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+        }}
+      />
     </div>
   );
 }

@@ -50,6 +50,8 @@ type Project = {
   salesOwner: string;
   assignedTo: string;
   assignedToId: string | null;
+  franchiseeIds: string[];
+  franchiseeNames: string;
   financialYear: string;
   startDate: string;
   endDate: string;
@@ -102,6 +104,33 @@ const budgets = [
 const stores = ["All Stores", "Main Branch", "North Store", "South Store"];
 
 type StaffOption = { id: string; name: string };
+
+function isFranchiseeAccount(user: {
+  accessRole?: { key?: string; label?: string } | null;
+}) {
+  const key = user.accessRole?.key || "";
+  const label = String(user.accessRole?.label || "");
+  return key === "FRANCHISEE" || /franchisee/i.test(label);
+}
+
+function franchiseesFromDto(dto: Record<string, unknown>) {
+  const rows = Array.isArray(dto.assignees)
+    ? (dto.assignees as Array<{
+        userId?: string;
+        user?: { id?: string; name?: string } | null;
+      }>)
+    : [];
+  const people = rows
+    .map((row) => ({
+      id: row.user?.id || row.userId || "",
+      name: row.user?.name || "",
+    }))
+    .filter((row) => row.id);
+  return {
+    franchiseeIds: people.map((row) => row.id),
+    franchiseeNames: people.map((row) => row.name || "Franchisee").join(", "),
+  };
+}
 
 const team = [
   "Mukesh singh",
@@ -305,6 +334,9 @@ export default function ProjectsTable() {
   const [tasksProject, setTasksProject] = useState<Project | null>(null);
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [franchisees, setFranchisees] = useState<StaffOption[]>([]);
+  const [franchiseePickerId, setFranchiseePickerId] = useState<string | null>(null);
+  const franchiseePickerRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState({
     name: "",
     client: "",
@@ -318,6 +350,7 @@ export default function ProjectsTable() {
     salesOwner: "Mukesh singh",
     assignedTo: "",
     assignedToId: "",
+    franchiseeIds: [] as string[],
     financialYear: "2026-27",
     startDate: "",
     endDate: "",
@@ -348,6 +381,7 @@ export default function ProjectsTable() {
       salesOwner: salesOwner?.name || "",
       assignedTo: assignedTo?.name || "",
       assignedToId: assignedTo?.id || (dto.assignedToId as string | null) || null,
+      ...franchiseesFromDto(dto),
       financialYear: String(dto.financialYear || ""),
       startDate: formatDate((dto.startDate as string | null) || ""),
       endDate: formatDate((dto.endDate as string | null) || ""),
@@ -376,20 +410,24 @@ export default function ProjectsTable() {
           storesApi.list({ limit: 100 }),
         ]);
         let staffRows: StaffOption[] = [];
+        let franchiseeRows: StaffOption[] = [];
         try {
           const userData = await usersApi.list({ limit: 200, isActive: "true" });
-          staffRows = (userData.items || []).map((u) => ({
-            id: u.id,
-            name: u.name,
-          }));
+          (userData.items || []).forEach((u) => {
+            const option = { id: u.id, name: u.name };
+            if (isFranchiseeAccount(u)) franchiseeRows.push(option);
+            else staffRows.push(option);
+          });
         } catch {
           staffRows = [];
+          franchiseeRows = [];
         }
         if (cancelled) return;
         setStoreOptions(
           storeData.items.map((s) => ({ id: s.id, name: s.name }))
         );
         setStaff(staffRows);
+        setFranchisees(franchiseeRows);
         if (storeData.items[0]) {
           setForm((prev) => ({ ...prev, store: storeData.items[0].name }));
         }
@@ -439,6 +477,25 @@ export default function ProjectsTable() {
       }
     })();
   }, [searchParams, loading, storeOptions, router]);
+
+  useEffect(() => {
+    if (!franchiseePickerId) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const node = franchiseePickerRef.current;
+      if (node && !node.contains(event.target as Node)) {
+        setFranchiseePickerId(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFranchiseePickerId(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [franchiseePickerId]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -494,6 +551,7 @@ export default function ProjectsTable() {
       salesOwner: "Mukesh singh",
       assignedTo: "",
       assignedToId: "",
+      franchiseeIds: [],
       financialYear: "2026-27",
       startDate: "",
       endDate: "",
@@ -526,6 +584,7 @@ export default function ProjectsTable() {
       salesOwner: p.salesOwner,
       assignedTo: p.assignedTo,
       assignedToId: p.assignedToId || "",
+      franchiseeIds: p.franchiseeIds || [],
       financialYear: p.financialYear,
       startDate: p.startDate,
       endDate: p.endDate,
@@ -559,6 +618,7 @@ export default function ProjectsTable() {
       description: form.description || null,
       latestRemark: form.latestRemark || null,
       assignedToId: form.assignedToId || null,
+      assigneeIds: form.franchiseeIds,
     };
 
     try {
@@ -666,6 +726,31 @@ export default function ProjectsTable() {
     );
     try {
       await projectsApi.update(id, { assignedToId: assignedToId || null });
+    } catch {
+      setProjects(prev);
+    }
+  };
+
+  const updateFranchisees = async (id: string, nextIds: string[]) => {
+    const prev = projects;
+    const names = franchisees
+      .filter((user) => nextIds.includes(user.id))
+      .map((user) => user.name)
+      .join(", ");
+    setProjects((current) =>
+      current.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              franchiseeIds: nextIds,
+              franchiseeNames: names,
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      )
+    );
+    try {
+      await projectsApi.update(id, { assigneeIds: nextIds });
     } catch {
       setProjects(prev);
     }
@@ -787,6 +872,7 @@ export default function ProjectsTable() {
                     "Status",
                     "Progress",
                     "Assigned To",
+                    "Franchisees",
                     "Timeline",
                     "Latest Remark",
                     "Actions",
@@ -905,6 +991,54 @@ export default function ProjectsTable() {
                       </div>
                     </TableCell>
 
+                    <TableCell className="px-4 py-3 min-w-[180px]">
+                      <div
+                        className="relative"
+                        ref={franchiseePickerId === p.id ? franchiseePickerRef : undefined}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFranchiseePickerId((id) => (id === p.id ? null : p.id))
+                          }
+                          className="max-w-[160px] truncate text-left text-xs text-gray-600 hover:text-brand-600 dark:text-gray-300"
+                        >
+                          {p.franchiseeNames || "Assign franchisees"}
+                        </button>
+                        {franchiseePickerId === p.id ? (
+                          <div className="absolute z-30 mt-1 max-h-40 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                            {franchisees.length ? (
+                              franchisees.map((user) => {
+                                const checked = p.franchiseeIds.includes(user.id);
+                                return (
+                                  <label
+                                    key={user.id}
+                                    className="flex items-center gap-2 rounded px-1 py-1 text-xs text-gray-700 dark:text-gray-300"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => {
+                                        const next = checked
+                                          ? p.franchiseeIds.filter((fid) => fid !== user.id)
+                                          : [...p.franchiseeIds, user.id];
+                                        void updateFranchisees(p.id, next);
+                                      }}
+                                    />
+                                    {user.name}
+                                  </label>
+                                );
+                              })
+                            ) : (
+                              <p className="px-1 py-2 text-xs text-gray-400">
+                                No franchisee accounts yet
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+
                     <TableCell className="px-4 py-3 text-start whitespace-nowrap">
                       <p className="text-sm text-gray-700 dark:text-gray-300">
                         {p.startDate}
@@ -962,6 +1096,12 @@ export default function ProjectsTable() {
                           className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
                         >
                           Quotation
+                        </Link>
+                        <Link
+                          href={`/customer-issues?projectId=${p.id}`}
+                          className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                        >
+                          Issue
                         </Link>
                         <button
                           type="button"
@@ -1194,6 +1334,44 @@ export default function ProjectsTable() {
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  CRM staff owner. Separate from franchisees.
+                </p>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Assign to franchisees</Label>
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2 dark:border-gray-700">
+                  {franchisees.length ? (
+                    franchisees.map((user) => {
+                      const checked = form.franchiseeIds.includes(user.id);
+                      return (
+                        <label
+                          key={user.id}
+                          className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setForm((f) => ({
+                                ...f,
+                                franchiseeIds: checked
+                                  ? f.franchiseeIds.filter((id) => id !== user.id)
+                                  : [...f.franchiseeIds, user.id],
+                              }))
+                            }
+                          />
+                          {user.name}
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-gray-400">No franchisee accounts yet</p>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  One project can be assigned to multiple franchisees. This does not change Assigned To.
+                </p>
               </div>
               <div>
                 <Label>Start Date</Label>

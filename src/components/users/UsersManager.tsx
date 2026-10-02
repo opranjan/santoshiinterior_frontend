@@ -17,7 +17,7 @@ import {
   formatActivityDate,
   formatDob,
 } from "@/lib/userRoles";
-import { rolesApi, storesApi, usersApi } from "@/services/crmApi";
+import { rolesApi, storesApi, usersApi, vendorsApi } from "@/services/crmApi";
 import RoleManagementPanel from "./RoleManagementPanel";
 import UserFormModal, {
   emptyUserForm,
@@ -153,6 +153,7 @@ export default function UsersManager() {
     unassignedActiveUsers: number;
   } | null>(null);
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([]);
+  const [vendors, setVendors] = useState<Array<{ id: string; name: string }>>([]);
   const [managerOptions, setManagerOptions] = useState<AuthUser[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -190,12 +191,14 @@ export default function UsersManager() {
     try {
       setLoading(true);
       setError("");
-      const [storesRes, rolesRes, activeUsers] = await Promise.all([
+      const [storesRes, rolesRes, activeUsers, vendorsRes] = await Promise.all([
         storesApi.list({ limit: 100 }),
         rolesApi.list(),
         usersApi.list({ limit: 200, isActive: "true" }),
+        vendorsApi.list({ limit: 200 }).catch(() => ({ items: [] })),
       ]);
       setStores(storesRes.items.map((s) => ({ id: s.id, name: s.name })));
+      setVendors((vendorsRes.items || []).map((v) => ({ id: v.id, name: v.name })));
       setRoles(rolesRes);
       setManagerOptions(
         activeUsers.items.filter((u) =>
@@ -240,6 +243,7 @@ export default function UsersManager() {
       dateOfBirth: editingUser.dateOfBirth?.slice(0, 10) || "",
       managerId: editingUser.managerId || "",
       storeId: editingUser.storeId || "",
+      vendorId: editingUser.vendorId || "",
     };
   }, [editingUser, defaultRoleId, franchiseeRoleId, prefillFranchisee]);
 
@@ -249,6 +253,7 @@ export default function UsersManager() {
       setError("");
       const selectedIsFranchisee =
         roles.find((r) => r.id === form.accessRoleId)?.key === "FRANCHISEE";
+      const selectedIsVendor = roles.find((r) => r.id === form.accessRoleId)?.key === "VENDOR";
       const body = {
         name: form.name.trim(),
         email: form.email.trim(),
@@ -258,6 +263,7 @@ export default function UsersManager() {
         dateOfBirth: form.dateOfBirth || null,
         managerId: form.managerId || null,
         storeId: form.storeId || null,
+        vendorId: selectedIsVendor ? form.vendorId || null : null,
       };
 
       if (editingUser) {
@@ -592,6 +598,7 @@ export default function UsersManager() {
         roles={roles}
         managers={managerOptions}
         stores={stores}
+        vendors={vendors}
         saving={saving}
         onClose={() => {
           setFormOpen(false);
@@ -609,7 +616,7 @@ export default function UsersManager() {
             </h3>
             <p className="mt-1 text-sm text-gray-500">
               {credentials.franchisee
-                ? "Give these to the franchisee. They sign in to the same CRM and will see their dashboard, projects, and add-project screens."
+                ? "Give these to the franchisee. They sign in to the same CRM and will see their dashboard and assigned projects."
                 : "Give these to the user for first login."}
             </p>
             <dl className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5">
@@ -647,7 +654,7 @@ export default function UsersManager() {
                     `Password: ${credentials.password}`,
                     `Login: ${origin}/signin`,
                     credentials.franchisee
-                      ? "After login they see Dashboard, Projects, and Add New Project"
+                      ? "After login they see Dashboard and assigned Projects"
                       : "",
                   ]
                     .filter(Boolean)

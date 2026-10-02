@@ -1,11 +1,13 @@
 "use client";
 
 import { useSidebar } from "@/context/SidebarContext";
+import { useAuth } from "@/context/AuthContext";
 import AuthGuard from "@/components/auth/AuthGuard";
 import RoutePermissionGuard from "@/components/auth/RoutePermissionGuard";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
+import { isFranchiseeUser, isVendorUser } from "@/lib/permissions";
 import React from "react";
 
 export default function AdminLayout({
@@ -14,6 +16,10 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const { user } = useAuth();
+  const vendor = isVendorUser(user);
+  const franchisee = isFranchiseeUser(user);
+  const partner = vendor || franchisee;
 
   const mainContentMargin = isMobileOpen
     ? "ml-0"
@@ -24,7 +30,7 @@ export default function AdminLayout({
   return (
     <AuthGuard>
       <RoutePermissionGuard>
-        <div className="min-h-screen overflow-x-hidden xl:flex">
+        <div className={`min-h-screen overflow-x-hidden xl:flex ${partner ? "vendor-shell" : ""}`}>
           <AppSidebar />
           <Backdrop />
           <div

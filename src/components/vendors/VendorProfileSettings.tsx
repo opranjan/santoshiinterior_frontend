@@ -3,28 +3,19 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
-import Link from "next/link";
+import VendorPageHeader from "@/components/vendors/VendorPageHeader";
 import { useAuth } from "@/context/AuthContext";
 import { designAssetUrl } from "@/lib/designAssets";
-import { authApi } from "@/services/crmApi";
-
-const CATEGORIES = [
-  "Carpenter",
-  "Painter",
-  "Modular & Kitchen",
-  "Electrician",
-  "Plumbing",
-  "Other",
-];
+import { authApi, vendorsApi, type VendorDto } from "@/services/crmApi";
 
 const fieldClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
 
 const card =
-  "rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[var(--vendor-line)] dark:bg-[var(--vendor-paper)]";
+  "vendor-card p-5";
 
 function initials(name?: string | null) {
-  return String(name || "F")
+  return String(name || "V")
     .split(/\s+/)
     .map((part) => part[0])
     .join("")
@@ -32,35 +23,19 @@ function initials(name?: string | null) {
     .toUpperCase();
 }
 
-function tradeHint(category: string) {
-  if (/paint/i.test(category)) return "Painting & Finishes";
-  if (/modular|kitchen/i.test(category)) return "Modular & Kitchen";
-  if (/electric/i.test(category)) return "Electrical works";
-  if (/plumb/i.test(category)) return "Plumbing works";
-  return "Wood Work & Carpentry";
+function value(text?: string | null) {
+  return String(text || "").trim() || "—";
 }
 
-function categoryOf(user: {
-  roleLabel?: string | null;
-  accessRole?: { label?: string } | null;
-} | null) {
-  const roleLabel = user?.roleLabel || "";
-  if (roleLabel && !/franchisee/i.test(roleLabel)) return roleLabel;
-  const access = user?.accessRole?.label || "";
-  if (access && !/franchisee/i.test(access)) return access;
-  return "Carpenter";
-}
-
-export default function FranchiseeProfileSettings() {
+export default function VendorProfileSettings() {
   const { user, logout, applyUser } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [category, setCategory] = useState("Carpenter");
+  const [vendor, setVendor] = useState<VendorDto | null>(null);
   const [saving, setSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
   const [profileError, setProfileError] = useState("");
-
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -72,12 +47,21 @@ export default function FranchiseeProfileSettings() {
   useEffect(() => {
     if (!user) return;
     setName(user.name || "");
-    setPhone(user.phone || "");
+    setPhone(user.phone || user.vendor?.phone || "");
     setDateOfBirth(user.dateOfBirth ? String(user.dateOfBirth).slice(0, 10) : "");
-    setCategory(categoryOf(user));
   }, [user]);
 
+  useEffect(() => {
+    const vendorId = user?.vendorId || user?.vendor?.id;
+    if (!vendorId) return;
+    vendorsApi
+      .get(vendorId)
+      .then(setVendor)
+      .catch(() => setVendor(null));
+  }, [user?.vendorId, user?.vendor?.id]);
+
   const photo = useMemo(() => designAssetUrl(user?.avatarUrl), [user?.avatarUrl]);
+  const company = vendor || user?.vendor;
 
   const saveProfile = async () => {
     setSaving(true);
@@ -88,7 +72,6 @@ export default function FranchiseeProfileSettings() {
         name: name.trim(),
         phone: phone.trim(),
         dateOfBirth: dateOfBirth || null,
-        category,
       });
       applyUser(next);
       setProfileMsg("Profile saved.");
@@ -135,47 +118,33 @@ export default function FranchiseeProfileSettings() {
     }
   };
 
+  const location = [company?.city, company?.state, company?.country].filter(Boolean).join(", ");
+
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-sm text-gray-500">
-          <Link href="/" className="hover:text-gray-700">
-            Dashboard
-          </Link>
-          <span className="mx-1">›</span>
-          <span className="text-gray-800 dark:text-white/90">Profile Settings</span>
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-800 dark:text-white/90">
-          Profile Settings
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Your franchisee login and work details. Email stays as issued by the company.
-        </p>
-      </div>
+      <VendorPageHeader
+        title="Profile"
+        subtitle="Your vendor login. Company details come from the CRM vendor record."
+      />
 
       <div className={`${card} flex flex-wrap items-center gap-4`}>
         <label className="relative cursor-pointer">
-          <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-lg font-semibold text-white">
+          <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#111] text-lg font-semibold text-[#c4a574]">
             {photo ? (
               <img src={photo} alt={user?.name || "Profile"} className="h-full w-full object-cover" />
             ) : (
-              initials(user?.name)
+              initials(user?.name || company?.name)
             )}
           </span>
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => onPhoto(e.target.files?.[0])}
-          />
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
         </label>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-              {user?.name || "Franchisee"}
+              {user?.name || company?.name || "Vendor"}
             </h2>
             <Badge size="sm" color="info">
-              Franchisee
+              Vendor
             </Badge>
             <Badge size="sm" color={user?.isActive === false ? "error" : "success"}>
               {user?.isActive === false ? "Inactive" : "Active"}
@@ -183,27 +152,22 @@ export default function FranchiseeProfileSettings() {
           </div>
           <p className="mt-1 text-sm text-gray-500">{user?.email}</p>
           <p className="text-xs text-gray-400">
-            {category} · {tradeHint(category)}
-            {user?.store?.name ? ` · ${user.store.name}` : ""}
+            {company?.name || "Vendor company"}
+            {company?.category ? ` · ${company.category}` : ""}
+            {location ? ` · ${location}` : ""}
           </p>
-          <p className="mt-2 text-xs text-brand-600">Click the photo to upload a new one</p>
+          <p className="mt-2 text-xs text-[#9a7748]">Click the photo to upload a new one</p>
           {photoError ? <p className="mt-1 text-xs text-error-500">{photoError}</p> : null}
         </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className={card}>
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-            Personal Information
-          </h3>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">Personal Information</h3>
           <div className="mt-4 space-y-3">
             <div>
               <p className="mb-1 text-sm text-gray-600">Full name</p>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={fieldClass}
-              />
+              <input value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} />
             </div>
             <div>
               <p className="mb-1 text-sm text-gray-600">Email (login)</p>
@@ -211,11 +175,7 @@ export default function FranchiseeProfileSettings() {
             </div>
             <div>
               <p className="mb-1 text-sm text-gray-600">Phone</p>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={fieldClass}
-              />
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} className={fieldClass} />
             </div>
             <div>
               <p className="mb-1 text-sm text-gray-600">Date of birth</p>
@@ -230,94 +190,76 @@ export default function FranchiseeProfileSettings() {
         </div>
 
         <div className={card}>
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-            Work Category
-          </h3>
-          <p className="mt-1 text-xs text-gray-500">
-            Shown on your dashboard as My Category.
-          </p>
-          <div className="mt-4 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">Vendor company</h3>
+          <p className="mt-1 text-xs text-gray-500">Read-only details from the CRM vendor record.</p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <p className="mb-1 text-sm text-gray-600">Category</p>
-              <select
-                value={CATEGORIES.includes(category) ? category : "Other"}
-                onChange={(e) => setCategory(e.target.value)}
-                className={fieldClass}
-              >
-                {CATEGORIES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
+              <p className="mb-1 text-xs text-gray-500">Business name</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{value(company?.name)}</p>
             </div>
-            <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-white/[0.04]">
-              {tradeHint(category)}
-            </p>
             <div>
-              <p className="mb-1 text-sm text-gray-600">Store</p>
-              <input
-                value={user?.store?.name || "Assigned by company"}
-                readOnly
-                className={`${fieldClass} bg-gray-50 dark:bg-gray-800`}
-              />
+              <p className="mb-1 text-xs text-gray-500">Contact person</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {value(vendor?.contactPerson || user?.name)}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-gray-500">Company phone</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{value(company?.phone)}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-gray-500">Company email</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{value(company?.email)}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-gray-500">GSTIN</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{value(vendor?.gstin || company?.gstin)}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-gray-500">Category</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{value(company?.category)}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="mb-1 text-xs text-gray-500">Address</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {value(
+                  [vendor?.address || company?.address, location, vendor?.pincode || company?.pincode]
+                    .filter((part) => part && part !== "—")
+                    .join(", ")
+                )}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {profileError ? (
-        <p className="text-sm text-error-500">{profileError}</p>
-      ) : null}
+      {profileError ? <p className="text-sm text-error-500">{profileError}</p> : null}
       {profileMsg ? <p className="text-sm text-success-600">{profileMsg}</p> : null}
-      <Button size="sm" onClick={saveProfile} disabled={saving}>
+      <Button size="sm" onClick={() => void saveProfile()} disabled={saving}>
         {saving ? "Saving…" : "Save Profile"}
       </Button>
 
       <div className={card}>
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-          Login &amp; Security
-        </h3>
-        <p className="mt-1 text-xs text-gray-500">
-          Change the password the company shared with you.
-        </p>
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">Login &amp; Security</h3>
+        <p className="mt-1 text-xs text-gray-500">Change the password shared with you.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div>
             <p className="mb-1 text-sm text-gray-600">Current password</p>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className={fieldClass}
-            />
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={fieldClass} />
           </div>
           <div>
             <p className="mb-1 text-sm text-gray-600">New password</p>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className={fieldClass}
-            />
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={fieldClass} />
           </div>
           <div>
             <p className="mb-1 text-sm text-gray-600">Confirm password</p>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className={fieldClass}
-            />
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={fieldClass} />
           </div>
         </div>
-        {passwordError ? (
-          <p className="mt-3 text-sm text-error-500">{passwordError}</p>
-        ) : null}
-        {passwordMsg ? (
-          <p className="mt-3 text-sm text-success-600">{passwordMsg}</p>
-        ) : null}
+        {passwordError ? <p className="mt-3 text-sm text-error-500">{passwordError}</p> : null}
+        {passwordMsg ? <p className="mt-3 text-sm text-success-600">{passwordMsg}</p> : null}
         <div className="mt-4">
-          <Button size="sm" variant="outline" onClick={savePassword} disabled={passwordSaving}>
+          <Button size="sm" variant="outline" onClick={() => void savePassword()} disabled={passwordSaving}>
             {passwordSaving ? "Updating…" : "Update Password"}
           </Button>
         </div>

@@ -17,6 +17,7 @@ export type UserFormState = {
   dateOfBirth: string;
   managerId: string;
   storeId: string;
+  vendorId: string;
 };
 
 export function emptyUserForm(defaultRoleId = ""): UserFormState {
@@ -30,6 +31,7 @@ export function emptyUserForm(defaultRoleId = ""): UserFormState {
     dateOfBirth: "",
     managerId: "",
     storeId: "",
+    vendorId: "",
   };
 }
 
@@ -45,6 +47,7 @@ export default function UserFormModal({
   roles,
   managers,
   stores,
+  vendors = [],
   saving,
   onClose,
   onSubmit,
@@ -55,6 +58,7 @@ export default function UserFormModal({
   roles: AccessRoleDto[];
   managers: AuthUser[];
   stores: Array<{ id: string; name: string }>;
+  vendors?: Array<{ id: string; name: string }>;
   saving: boolean;
   onClose: () => void;
   onSubmit: (form: UserFormState) => Promise<void>;
@@ -272,7 +276,12 @@ export default function UserFormModal({
                     </p>
                     {role.key === "FRANCHISEE" ? (
                       <p className="mt-1 text-[11px] font-medium text-[#E85D75]">
-                        After login they see Dashboard, Projects, and Add New Project
+                        After login they see assigned projects from the CRM. They cannot add projects.
+                      </p>
+                    ) : null}
+                    {role.key === "VENDOR" ? (
+                      <p className="mt-1 text-[11px] font-medium text-[#E85D75]">
+                        After login they see vendor dashboard, design, assigned projects, and procurement.
                       </p>
                     ) : null}
                   </button>
@@ -287,6 +296,23 @@ export default function UserFormModal({
             ) : (
               <p className="mt-2 text-xs text-red-500">Please select a role.</p>
             )}
+            {selectedRole?.key === "VENDOR" ? (
+              <div className="mt-4">
+                <Label>Vendor company</Label>
+                <select
+                  value={form.vendorId}
+                  onChange={(e) => setForm((f) => ({ ...f, vendorId: e.target.value }))}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                >
+                  <option value="">Select vendor</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -296,7 +322,7 @@ export default function UserFormModal({
           </Button>
           <Button
             size="sm"
-            disabled={saving || !form.accessRoleId}
+            disabled={saving || !form.accessRoleId || (selectedRole?.key === "VENDOR" && !form.vendorId)}
             className="bg-[#E85D75] hover:bg-[#d94c65]"
             onClick={() => void onSubmit(form)}
           >

@@ -14,6 +14,8 @@ import {
   type RfqDto,
   type VendorDto,
 } from "@/services/crmApi";
+import { useAuth } from "@/context/AuthContext";
+import { isVendorUser } from "@/lib/permissions";
 
 const PINK = "#E85D75";
 const fieldClass =
@@ -60,6 +62,8 @@ function formatDate(iso?: string | null) {
 
 export default function ProcurementRfqs() {
   const router = useRouter();
+  const { user } = useAuth();
+  const vendorView = isVendorUser(user);
   const searchParams = useSearchParams();
   const requestId = searchParams.get("requestId") || "";
   const [items, setItems] = useState<RfqDto[]>([]);
@@ -297,6 +301,7 @@ export default function ProcurementRfqs() {
             />
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">⌕</span>
           </div>
+          {vendorView ? null : (
           <button
             type="button"
             onClick={() => openGenerate()}
@@ -305,6 +310,7 @@ export default function ProcurementRfqs() {
           >
             + Generate RFQ
           </button>
+          )}
         </div>
       </div>
 

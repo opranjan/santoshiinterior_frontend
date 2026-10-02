@@ -47,20 +47,10 @@ function isFranchiseeAccount(user: { accessRole?: { key?: string; label?: string
   );
 }
 
-function assigneeLabel(user?: AssigneeUser | null) {
-  if (!user) return "";
-  if (isFranchiseeAccount(user)) return user.roleLabel || "Franchisee";
-  return "Internal";
-}
-
-function projectAssigneeIds(project: ProjectRow) {
-  const ids = (project.assignees || [])
+function projectFranchiseeIds(project: ProjectRow) {
+  return (project.assignees || [])
     .map((row) => row.userId || row.user?.id)
     .filter(Boolean) as string[];
-  if (project.assignedToId && !ids.includes(project.assignedToId)) {
-    ids.push(project.assignedToId);
-  }
-  return ids;
 }
 
 function categoryOf(user: AuthUser) {
@@ -247,7 +237,7 @@ export default function AdminFranchiseeManager() {
   const openAssign = (user: AuthUser) => {
     setAssigning(user);
     setSelectedProjectIds(
-      projects.filter((p) => projectAssigneeIds(p).includes(user.id)).map((p) => p.id)
+      projects.filter((p) => projectFranchiseeIds(p).includes(user.id)).map((p) => p.id)
     );
   };
 
@@ -275,8 +265,8 @@ export default function AdminFranchiseeManager() {
             Franchisee Management
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Create franchisee logins, set work category, and assign projects. A project can have
-            several franchisees and internal staff at the same time.
+            Create franchisee logins, set work category, and assign projects to franchisees.
+            This is separate from a project’s Assigned To person in CRM. One project can go to several franchisees.
           </p>
         </div>
         <Button size="sm" onClick={openCreate}>
@@ -521,10 +511,11 @@ export default function AdminFranchiseeManager() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                  Assign Projects
+                  Assign to franchisee
                 </h3>
                 <p className="text-sm text-gray-500">
-                  {assigning.name} will see these projects. Other assignees stay on the project.
+                  {assigning.name} will see these projects. CRM Assigned To is unchanged. Other
+                  franchisees on the same project stay assigned.
                 </p>
               </div>
               <button type="button" onClick={() => setAssigning(null)} className="text-gray-400">
@@ -536,13 +527,11 @@ export default function AdminFranchiseeManager() {
                 const checked = selectedProjectIds.includes(project.id);
                 const others = (project.assignees || [])
                   .map((row) => row.user)
-                  .filter((user): user is AssigneeUser => Boolean(user && user.id !== assigning.id));
-                const fallbackOther =
-                  !others.length &&
-                  project.assignedToId &&
-                  project.assignedToId !== assigning.id
-                    ? project.assignedTo?.name
-                    : "";
+                  .filter(
+                    (user): user is AssigneeUser =>
+                      Boolean(user && user.id !== assigning.id && isFranchiseeAccount(user))
+                  );
+                const crmOwner = project.assignedTo?.name || "";
                 return (
                   <label
                     key={project.id}
@@ -566,13 +555,10 @@ export default function AdminFranchiseeManager() {
                       </span>
                       <span className="text-xs text-gray-400">
                         {project.clientName || "—"}
+                        {crmOwner ? ` · CRM Assigned To: ${crmOwner}` : ""}
                         {others.length
-                          ? ` · also ${others
-                              .map((user) => `${user.name} (${assigneeLabel(user)})`)
-                              .join(", ")}`
-                          : fallbackOther
-                            ? ` · also ${fallbackOther}`
-                            : ""}
+                          ? ` · other franchisees: ${others.map((user) => user.name).join(", ")}`
+                          : ""}
                       </span>
                     </span>
                   </label>

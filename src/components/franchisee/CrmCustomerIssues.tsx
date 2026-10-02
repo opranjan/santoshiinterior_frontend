@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
-import Link from "next/link";
 import { projectsApi, warrantyApi } from "@/services/crmApi";
 import { formatDate, labelToEnum, warrantyTypeToLabel } from "@/lib/mappers";
 
@@ -14,6 +14,7 @@ type ProjectRow = {
   clientName?: string | null;
   phone?: string | null;
   address?: string | null;
+  assignees?: Array<{ userId?: string; user?: { id?: string; name?: string } | null }>;
 };
 
 type IssueRow = {
@@ -33,6 +34,7 @@ type IssueRow = {
     name: string;
     clientName?: string | null;
     address?: string | null;
+    assignees?: Array<{ userId?: string; user?: { id?: string; name?: string } | null }>;
   } | null;
 };
 
@@ -49,29 +51,21 @@ const fieldClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
 
 const card =
-  "rounded-2xl border border-[#eadfcf] bg-white p-4 dark:border-[var(--vendor-line)] dark:bg-[var(--vendor-paper)]";
+  "rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]";
 
 function codeFromId(prefix: string, id: string) {
   const digits = id.replace(/\D/g, "").slice(-5).padStart(5, "0");
   return `${prefix}-${digits}`;
 }
 
-const WORK_STATUSES = [
-  { value: "OPEN", label: "Open" },
-  { value: "IN_PROGRESS", label: "In Progress" },
-  { value: "WAITING_PARTS", label: "Waiting parts" },
-  { value: "RESOLVED", label: "Mark solved (awaiting CRM)" },
-];
-
 function statusMeta(status?: string | null) {
   const key = String(status || "OPEN").toUpperCase();
   if (key === "CLOSED") return { label: "Approved", color: "success" as const };
   if (key === "RESOLVED") return { label: "Pending approval", color: "warning" as const };
-  if (key === "IN_PROGRESS" || key === "ASSIGNED") {
+  if (key === "REJECTED") return { label: "Not solved", color: "error" as const };
+  if (key === "IN_PROGRESS" || key === "ASSIGNED" || key === "WAITING_PARTS") {
     return { label: "In Progress", color: "warning" as const };
   }
-  if (key === "WAITING_PARTS") return { label: "Waiting parts", color: "info" as const };
-  if (key === "REJECTED") return { label: "Not solved", color: "error" as const };
   return { label: "Open", color: "error" as const };
 }
 
@@ -87,7 +81,14 @@ function typeLabel(type?: string | null) {
   return warrantyTypeToLabel(String(type || "COMPLAINT").toUpperCase());
 }
 
-export default function FranchiseeCustomerIssues() {
+function franchiseeNames(project?: ProjectRow | IssueRow["project"]) {
+  return (project?.assignees || [])
+    .map((row) => row.user?.name)
+    .filter(Boolean)
+    .join(", ");
+}
+
+export default function CrmCustomerIssues() {
   const searchParams = useSearchParams();
   const prefillProjectId = searchParams.get("projectId") || "";
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -97,10 +98,9 @@ export default function FranchiseeCustomerIssues() {
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(Boolean(prefillProjectId));
   const [viewing, setViewing] = useState<IssueRow | null>(null);
-  const [workStatus, setWorkStatus] = useState("IN_PROGRESS");
-  const [workNote, setWorkNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [approvalNote, setApprovalNote] = useState("");
   const [form, setForm] = useState({
     projectId: prefillProjectId,
     type: "COMPLAINT",
@@ -111,8 +111,8 @@ export default function FranchiseeCustomerIssues() {
 
   const load = async () => {
     const [projectRes, issueRes] = await Promise.all([
-      projectsApi.list({ limit: 100 }),
-      warrantyApi.list({ limit: 100 }),
+      projectsApi.list({ limit: 200 }),
+      warrantyApi.list({ limit: 200 }),
     ]);
     setProjects((projectRes.items || []) as ProjectRow[]);
     setIssues((issueRes.items || []) as IssueRow[]);
@@ -123,8 +123,9 @@ export default function FranchiseeCustomerIssues() {
     (async () => {
       try {
         await load();
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load customer issues");
           setProjects([]);
           setIssues([]);
         }
@@ -137,46 +138,34 @@ export default function FranchiseeCustomerIssues() {
     };
   }, []);
 
-  const assignedIds = useMemo(() => new Set(projects.map((row) => row.id)), [projects]);
-
-  const mine = useMemo(
-    () =>
-      issues.filter((row) => {
-        const projectId = row.projectId || row.project?.id;
-        return projectId && assignedIds.has(projectId);
-      }),
-    [issues, assignedIds]
-  );
-
   const filtered = useMemo(() => {
-    return mine.filter((row) => {
-      const bucket = statusMeta(row.status).label;
-      if (statusFilter === "open") return bucket === "Open";
-      if (statusFilter === "progress") return bucket === "In Progress";
-      if (statusFilter === "resolved") {
-        return bucket === "Approved" || bucket === "Pending approval";
+    return issues.filter((row) => {
+      const key = String(row.status || "OPEN").toUpperCase();
+      if (statusFilter === "open") return key === "OPEN";
+      if (statusFilter === "progress") {
+        return key === "IN_PROGRESS" || key === "ASSIGNED" || key === "WAITING_PARTS";
       }
+      if (statusFilter === "pending") return key === "RESOLVED";
+      if (statusFilter === "approved") return key === "CLOSED";
+      if (statusFilter === "rejected") return key === "REJECTED";
       return true;
     });
-  }, [mine, statusFilter]);
+  }, [issues, statusFilter]);
 
   const totals = useMemo(() => {
-    const open = mine.filter((row) => statusMeta(row.status).label === "Open").length;
-    const progress = mine.filter((row) => statusMeta(row.status).label === "In Progress").length;
-    const resolved = mine.filter((row) => {
-      const label = statusMeta(row.status).label;
-      return label === "Approved" || label === "Pending approval";
-    }).length;
-    return { total: mine.length, open, progress, resolved };
-  }, [mine]);
+    const pending = issues.filter((row) => String(row.status).toUpperCase() === "RESOLVED").length;
+    const approved = issues.filter((row) => String(row.status).toUpperCase() === "CLOSED").length;
+    const open = issues.filter((row) => statusMeta(row.status).label === "Open").length;
+    return { total: issues.length, open, pending, approved };
+  }, [issues]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const selectedProject = projects.find((row) => row.id === form.projectId);
 
-  const raiseIssue = async () => {
+  const createIssue = async () => {
     if (!form.projectId) {
-      setError("Select the assigned project for this customer issue.");
+      setError("Select the project for this customer issue.");
       return;
     }
     if (!form.subject.trim()) {
@@ -206,7 +195,29 @@ export default function FranchiseeCustomerIssues() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to raise issue");
+      setError(err instanceof Error ? err.message : "Failed to add issue");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const decide = async (row: IssueRow, solved: boolean) => {
+    setSaving(true);
+    setError("");
+    try {
+      const note = approvalNote.trim();
+      await warrantyApi.update(row.id, {
+        status: solved ? "CLOSED" : "REJECTED",
+        resolution: note
+          ? `${row.resolution ? `${row.resolution}\n` : ""}${solved ? "CRM approved" : "CRM: not solved"}: ${note}`
+          : row.resolution || (solved ? "Approved as solved" : "Not solved"),
+        resolvedAt: solved ? new Date().toISOString() : null,
+      });
+      setApprovalNote("");
+      setViewing(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update issue");
     } finally {
       setSaving(false);
     }
@@ -227,8 +238,8 @@ export default function FranchiseeCustomerIssues() {
             Customer Issue
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Raise and update site issues on projects assigned to you. CRM approves whether the issue
-            is solved.
+            Add issues against a project. Assigned franchisees can see them and update work status.
+            CRM approves whether the issue is solved.
           </p>
         </div>
         <Button
@@ -238,9 +249,15 @@ export default function FranchiseeCustomerIssues() {
             setShowForm(true);
           }}
         >
-          + Raise Issue
+          + Add Issue
         </Button>
       </div>
+
+      {error && !showForm && !viewing ? (
+        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <div className={card}>
@@ -248,22 +265,18 @@ export default function FranchiseeCustomerIssues() {
           <p className="mt-2 text-2xl font-semibold text-brand-600">
             {loading ? "—" : totals.total}
           </p>
-          <p className="mt-2 text-xs font-medium text-brand-600">All cases</p>
         </div>
         <div className={card}>
           <p className="text-xs text-gray-500">Open</p>
           <p className="mt-2 text-2xl font-semibold text-error-500">{totals.open}</p>
-          <p className="mt-2 text-xs text-gray-400">New / reopened</p>
         </div>
         <div className={card}>
-          <p className="text-xs text-gray-500">In Progress</p>
-          <p className="mt-2 text-2xl font-semibold text-warning-600">{totals.progress}</p>
-          <p className="mt-2 text-xs text-gray-400">You are working it</p>
+          <p className="text-xs text-gray-500">Pending approval</p>
+          <p className="mt-2 text-2xl font-semibold text-warning-600">{totals.pending}</p>
         </div>
         <div className={card}>
-          <p className="text-xs text-gray-500">Resolved</p>
-          <p className="mt-2 text-2xl font-semibold text-success-600">{totals.resolved}</p>
-          <p className="mt-2 text-xs text-gray-400">Pending or approved by CRM</p>
+          <p className="text-xs text-gray-500">Approved</p>
+          <p className="mt-2 text-2xl font-semibold text-success-600">{totals.approved}</p>
         </div>
       </div>
 
@@ -283,7 +296,9 @@ export default function FranchiseeCustomerIssues() {
             <option value="all">All Status</option>
             <option value="open">Open</option>
             <option value="progress">In Progress</option>
-            <option value="resolved">Solved / approved</option>
+            <option value="pending">Pending approval</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Not solved</option>
           </select>
         </div>
         <div className="overflow-x-auto">
@@ -291,11 +306,11 @@ export default function FranchiseeCustomerIssues() {
             <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
               <tr>
                 <th className="px-4 py-2">Sr. No.</th>
-                <th className="px-4 py-2">Site / Project Name</th>
+                <th className="px-4 py-2">Project</th>
+                <th className="px-4 py-2">Franchisees</th>
                 <th className="px-4 py-2">Issue ID</th>
-                <th className="px-4 py-2">Issue Type</th>
                 <th className="px-4 py-2">Description</th>
-                <th className="px-4 py-2">Raised Date</th>
+                <th className="px-4 py-2">Raised</th>
                 <th className="px-4 py-2">Priority</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Action</th>
@@ -305,6 +320,7 @@ export default function FranchiseeCustomerIssues() {
               {paged.map((row, index) => {
                 const status = statusMeta(row.status);
                 const priority = priorityMeta(row.priority);
+                const key = String(row.status || "").toUpperCase();
                 return (
                   <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
                     <td className="px-4 py-3 text-gray-500">
@@ -318,8 +334,10 @@ export default function FranchiseeCustomerIssues() {
                         {row.project?.clientName || row.clientName || ""}
                       </p>
                     </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {franchiseeNames(row.project) || "Not assigned"}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{codeFromId("ISS", row.id)}</td>
-                    <td className="px-4 py-3 text-gray-600">{typeLabel(row.type)}</td>
                     <td className="max-w-[220px] px-4 py-3 text-gray-600">
                       <p className="truncate">{row.subject || row.issue || "—"}</p>
                     </td>
@@ -337,21 +355,39 @@ export default function FranchiseeCustomerIssues() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const key = String(row.status || "OPEN").toUpperCase();
-                          setWorkStatus(
-                            key === "CLOSED" || key === "REJECTED" ? "IN_PROGRESS" : key
-                          );
-                          setWorkNote(row.resolution || "");
-                          setError("");
-                          setViewing(row);
-                        }}
-                        className="text-sm font-medium text-brand-600"
-                      >
-                        Update
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError("");
+                            setApprovalNote("");
+                            setViewing(row);
+                          }}
+                          className="text-sm font-medium text-brand-600"
+                        >
+                          Review
+                        </button>
+                        {key !== "CLOSED" ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void decide(row, true)}
+                              className="text-sm font-medium text-success-600"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void decide(row, false)}
+                              className="text-sm font-medium text-error-500"
+                            >
+                              Not solved
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -359,7 +395,7 @@ export default function FranchiseeCustomerIssues() {
               {!loading && !paged.length ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-10 text-center text-gray-400">
-                    No customer issues on your assigned projects yet.
+                    No customer issues yet. Add one for a project.
                   </td>
                 </tr>
               ) : null}
@@ -390,17 +426,12 @@ export default function FranchiseeCustomerIssues() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-gray-600 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-gray-300">
-        Issues on projects assigned to you. Update work status here; CRM approves whether the issue
-        is solved.
-      </div>
-
       {showForm ? (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                Raise Issue
+                Add Customer Issue
               </h3>
               <button type="button" onClick={() => setShowForm(false)} className="text-gray-400">
                 ✕
@@ -419,7 +450,7 @@ export default function FranchiseeCustomerIssues() {
                   onChange={(e) => setForm((f) => ({ ...f, projectId: e.target.value }))}
                   className={fieldClass}
                 >
-                  <option value="">Select assigned project</option>
+                  <option value="">Select project</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
@@ -427,10 +458,12 @@ export default function FranchiseeCustomerIssues() {
                     </option>
                   ))}
                 </select>
+                {selectedProject ? (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Franchisees: {franchiseeNames(selectedProject) || "none assigned yet"}
+                  </p>
+                ) : null}
               </div>
-              {selectedProject?.clientName ? (
-                <p className="text-xs text-gray-500">Customer: {selectedProject.clientName}</p>
-              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="mb-1 text-sm text-gray-600">Issue Type</p>
@@ -484,8 +517,8 @@ export default function FranchiseeCustomerIssues() {
               <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={raiseIssue} disabled={saving}>
-                {saving ? "Raising…" : "Raise Issue"}
+              <Button size="sm" onClick={() => void createIssue()} disabled={saving}>
+                {saving ? "Saving…" : "Add Issue"}
               </Button>
             </div>
           </div>
@@ -508,85 +541,56 @@ export default function FranchiseeCustomerIssues() {
                 {error}
               </p>
             ) : null}
-            <div className="space-y-3 text-sm">
+            <div className="space-y-2 text-sm">
               <p>
                 <span className="text-gray-400">Project: </span>
                 {viewing.project?.name || "—"}
               </p>
               <p>
-                <span className="text-gray-400">Customer: </span>
-                {viewing.project?.clientName || viewing.clientName || "—"}
+                <span className="text-gray-400">Franchisees: </span>
+                {franchiseeNames(viewing.project) || "Not assigned"}
               </p>
               <p>
-                <span className="text-gray-400">Type: </span>
-                {typeLabel(viewing.type)}
+                <span className="text-gray-400">Status: </span>
+                {statusMeta(viewing.status).label}
               </p>
               <p className="font-medium text-gray-800 dark:text-white/90">{viewing.subject}</p>
               <p className="text-gray-600">{viewing.issue || "—"}</p>
               <p>
-                <span className="text-gray-400">CRM decision: </span>
-                {statusMeta(viewing.status).label}
+                <span className="text-gray-400">Franchisee update: </span>
+                {viewing.resolution || "No update yet."}
               </p>
-              {String(viewing.status).toUpperCase() === "CLOSED" ? (
-                <p className="text-xs text-gray-500">
-                  CRM approved this as solved. Status is locked until they reopen it.
-                </p>
-              ) : (
-                <>
-                  <div>
-                    <p className="mb-1 text-sm text-gray-600">Work status</p>
-                    <select
-                      value={workStatus}
-                      onChange={(e) => setWorkStatus(e.target.value)}
-                      className={fieldClass}
-                    >
-                      {WORK_STATUSES.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <p className="mb-1 text-sm text-gray-600">Update note</p>
-                    <textarea
-                      value={workNote}
-                      onChange={(e) => setWorkNote(e.target.value)}
-                      rows={3}
-                      placeholder="What you did on site…"
-                      className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-                    />
-                  </div>
-                </>
-              )}
+              {String(viewing.status).toUpperCase() !== "CLOSED" ? (
+                <div>
+                  <p className="mb-1 text-sm text-gray-600">Approval note</p>
+                  <textarea
+                    value={approvalNote}
+                    onChange={(e) => setApprovalNote(e.target.value)}
+                    rows={3}
+                    placeholder="Optional note when you approve or mark not solved"
+                    className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
+              ) : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <Button size="sm" variant="outline" onClick={() => setViewing(null)}>
                 Close
               </Button>
               {String(viewing.status).toUpperCase() !== "CLOSED" ? (
-                <Button
-                  size="sm"
-                  disabled={saving}
-                  onClick={async () => {
-                    setSaving(true);
-                    setError("");
-                    try {
-                      await warrantyApi.update(viewing.id, {
-                        status: workStatus,
-                        resolution: workNote.trim() || viewing.resolution,
-                      });
-                      setViewing(null);
-                      await load();
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "Failed to update issue");
-                    } finally {
-                      setSaving(false);
-                    }
-                  }}
-                >
-                  {saving ? "Saving…" : "Save status"}
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={saving}
+                    onClick={() => void decide(viewing, false)}
+                  >
+                    Not solved
+                  </Button>
+                  <Button size="sm" disabled={saving} onClick={() => void decide(viewing, true)}>
+                    Approve solved
+                  </Button>
+                </>
               ) : null}
             </div>
           </div>

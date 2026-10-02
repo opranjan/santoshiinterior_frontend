@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import {
+  downloadPurchaseOrderDocument,
   linesFromOrder,
   PurchaseOrderDocument,
 } from "@/components/procurement/PurchaseOrderPreview";
 import { purchaseOrdersApi, type PurchaseOrderDto } from "@/services/crmApi";
+
+const PAGE_SIZE = 8;
 
 const ORDER_STATES = [
   { value: "ORDER_CREATED", label: "Order Created" },
@@ -24,6 +27,21 @@ const PAYMENT_STATES = [
   { value: "PARTIAL", label: "Partial Done" },
   { value: "PAID", label: "Paid" },
 ];
+const VENDOR_ORDER_STATE_VALUES = new Set([
+  "ORDER_ACCEPTED",
+  "PARTIALLY_DELIVERED",
+  "FULLY_DELIVERED",
+  "ORDER_REJECTED",
+]);
+
+function statesForVendor(current?: string) {
+  const allowed = ORDER_STATES.filter((state) => VENDOR_ORDER_STATE_VALUES.has(state.value));
+  const currentMeta = ORDER_STATES.find((state) => state.value === current);
+  if (currentMeta && !VENDOR_ORDER_STATE_VALUES.has(currentMeta.value)) {
+    return [currentMeta, ...allowed];
+  }
+  return allowed;
+}
 
 function formatStamp(iso?: string | null) {
   if (!iso) return "";
@@ -41,16 +59,24 @@ export default function AcceptancePreviewDrawer({
   row,
   onClose,
   onUpdated,
+  showReceive = true,
+  vendorView = false,
 }: {
   open: boolean;
   row: PurchaseOrderDto | null;
   onClose: () => void;
   onUpdated: (row: PurchaseOrderDto) => void;
+  showReceive?: boolean;
+  vendorView?: boolean;
 }) {
   const router = useRouter();
   const [comment, setComment] = useState("");
+  const [page, setPage] = useState(1);
+  const totals = linesFromOrder(row || { items: [] });
+  const pages = Math.max(1, Math.ceil((totals.items.length || 1) / PAGE_SIZE));
+  const currentPage = Math.min(page, pages);
+  const pageItems = totals.items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   if (!row) return null;
-  const totals = linesFromOrder(row);
   const vendor = row.vendorRecord;
 
   const patch = async (body: Record<string, unknown>) => {
@@ -88,10 +114,35 @@ export default function AcceptancePreviewDrawer({
       <div className="grid max-h-[80vh] min-h-[520px] lg:grid-cols-[1.2fr_0.8fr]">
         <div className="overflow-y-auto border-r border-gray-100 bg-gray-50 p-4">
           <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
-            <button type="button" className="rounded border bg-white px-2 py-1">
+            <button
+              type="button"
+                  title="Download PDF"
+              onClick={() => downloadPurchaseOrderDocument(row)}
+              className="rounded border bg-white px-2 py-1 hover:bg-gray-50"
+            >
               ↓
             </button>
-            <span>1 / 1</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded border bg-white px-2 py-1 disabled:opacity-40"
+              >
+                ˄
+              </button>
+              <button
+                type="button"
+                disabled={currentPage >= pages}
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                className="rounded border bg-white px-2 py-1 disabled:opacity-40"
+              >
+                ˅
+              </button>
+              <span>
+                {currentPage} / {pages}
+              </span>
+            </div>
           </div>
           <div className="rounded-lg border bg-white shadow-sm">
             <PurchaseOrderDocument
@@ -105,34 +156,51 @@ export default function AcceptancePreviewDrawer({
               vendorBilling={row.vendorBillingAddress || vendor?.name || row.vendor}
               vendorGst={vendor?.gstin}
               detailed
-              {...totals}
+              serialOffset={(currentPage - 1) * PAGE_SIZE}
+              itemCount={totals.items.length}
+              items={pageItems}
+              baseAmount={totals.baseAmount}
+              taxAmount={totals.taxAmount}
+              totalAmount={totals.totalAmount}
             />
           </div>
         </div>
         <div className="flex flex-col p-4">
           <div className="mb-3 flex gap-2">
-            <select
-              value={row.orderState}
-              onChange={(e) => void patch({ orderState: e.target.value })}
-              className="h-10 flex-1 rounded-lg border border-gray-200 px-2 text-sm"
-            >
-              {ORDER_STATES.map((state) => (
-                <option key={state.value} value={state.value}>
-                  {state.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={row.paymentState}
-              onChange={(e) => void patch({ paymentState: e.target.value })}
-              className="h-10 flex-1 rounded-lg border border-gray-200 px-2 text-sm"
-            >
-              {PAYMENT_STATES.map((state) => (
-                <option key={state.value} value={state.value}>
-                  {state.label}
-                </option>
-              ))}
-            </select>
+            <label className="flex-1 text-xs text-gray-500">
+              Order State
+              <select
+                value={row.orderState}
+                onChange={(e) => void patch({ orderState: e.target.value })}
+                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-2 text-sm text-gray-800"
+              >
+                {(vendorView ? statesForVendor(row.orderState) : ORDER_STATES).map((state) => (
+                  <option key={state.value} value={state.value}>
+                    {state.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex-1 text-xs text-gray-500">
+              Payment Status
+              {vendorView ? (
+                <p className="mt-1 flex h-10 items-center rounded-lg border border-gray-100 bg-gray-50 px-2 text-sm text-gray-700">
+                  {PAYMENT_STATES.find((state) => state.value === row.paymentState)?.label || "Not Initiated"}
+                </p>
+              ) : (
+                <select
+                  value={row.paymentState}
+                  onChange={(e) => void patch({ paymentState: e.target.value })}
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-2 text-sm text-gray-800"
+                >
+                  {PAYMENT_STATES.map((state) => (
+                    <option key={state.value} value={state.value}>
+                      {state.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
           </div>
           <p className="mb-2 text-sm font-medium text-gray-700">Comments</p>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
@@ -161,16 +229,18 @@ export default function AcceptancePreviewDrawer({
               ➤
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              router.push(`/operations/procurement/acceptances/${row.id}`);
-            }}
-            className="mt-3 h-10 rounded-lg bg-[#E85D75] text-sm font-medium text-white"
-          >
-            Receive items
-          </button>
+          {showReceive ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push(`/operations/procurement/acceptances/${row.id}`);
+              }}
+              className="mt-3 h-10 rounded-lg bg-[#E85D75] text-sm font-medium text-white"
+            >
+              Receive items
+            </button>
+          ) : null}
         </div>
       </div>
     </Modal>

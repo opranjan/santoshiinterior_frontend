@@ -1,4 +1,3 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import AiDesignStudio from "@/components/design/AiDesignStudio";
 import { Metadata } from "next";
 import React from "react";
@@ -9,10 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function DesigningPage() {
-  return (
-    <div>
-      <PageBreadcrumb pageTitle="Designing" />
-      <AiDesignStudio mode="designing" />
-    </div>
-  );
+  return <AiDesignStudio mode="designing" />;
 }

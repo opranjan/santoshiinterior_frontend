@@ -84,8 +84,11 @@ type ProjectPay = {
   lastPaidAt: string | null;
 };
 
-const card =
-  "rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]";
+const card = "vendor-card p-4";
+const dateClass =
+  "h-10 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-3 text-sm text-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20";
+const selectClass =
+  "h-9 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-2 text-sm text-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20";
 
 export default function FranchiseePayments() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -243,76 +246,52 @@ export default function FranchiseePayments() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm text-gray-500">
-            <Link href="/" className="hover:text-gray-700">
-              Dashboard
-            </Link>
-            <span className="mx-1">›</span>
-            <span className="text-gray-800 dark:text-white/90">Payments</span>
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-800 dark:text-white/90">
-            Payments
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="vendor-rise">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Franchisee panel</p>
+          <h1 className="vendor-serif mt-2 text-3xl text-[#111] md:text-4xl">Payments</h1>
+          <div className="vendor-gold-rule mt-3" />
+          <p className="mt-3 max-w-xl text-sm text-[#6b645b]">
             These are payouts from Santoshi Interior to you for assigned projects — not customer collections.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-          />
-          <span className="text-gray-400">–</span>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-          />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={dateClass} />
+          <span className="text-[#c4a574]">–</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={dateClass} />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Link href="/projects" className={card}>
-          <p className="text-xs text-gray-500">Total Projects</p>
-          <p className="mt-2 text-2xl font-semibold text-brand-600">
-            {loading ? "—" : totals.projects}
-          </p>
-          <p className="mt-2 text-xs font-medium text-brand-600">View Projects</p>
+        <Link href="/projects" className={`${card} vendor-rise`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Total Projects</p>
+          <p className="vendor-serif mt-2 text-3xl text-[#111]">{loading ? "—" : totals.projects}</p>
+          <p className="mt-2 text-xs font-medium text-[#9a7748]">View Projects</p>
         </Link>
-        <div className={card}>
-          <p className="text-xs text-gray-500">Total Project Amount</p>
-          <p className="mt-2 text-2xl font-semibold text-success-600">
-            {formatINR(totals.projectAmount)}
-          </p>
-          <p className="mt-2 text-xs text-gray-400">View Details</p>
+        <div className={`${card} vendor-rise vendor-rise-delay-1`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Total Project Amount</p>
+          <p className="vendor-serif mt-2 text-3xl text-success-600">{formatINR(totals.projectAmount)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
         </div>
-        <div className={card}>
-          <p className="text-xs text-gray-500">Total Paid by Company</p>
-          <p className="mt-2 text-2xl font-semibold text-brand-500">
-            {formatINR(totals.paid)}
-          </p>
-          <p className="mt-2 text-xs text-gray-400">View Details</p>
+        <div className={`${card} vendor-rise vendor-rise-delay-2`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Total Paid by Company</p>
+          <p className="vendor-serif mt-2 text-3xl text-[#9a7748]">{formatINR(totals.paid)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
         </div>
-        <div className={card}>
-          <p className="text-xs text-gray-500">Pending Receivable</p>
-          <p className="mt-2 text-2xl font-semibold text-warning-600">
-            {formatINR(totals.pending)}
-          </p>
-          <p className="mt-2 text-xs text-gray-400">View Details</p>
+        <div className={`${card} vendor-rise vendor-rise-delay-3`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Pending Receivable</p>
+          <p className="vendor-serif mt-2 text-3xl text-warning-600">{formatINR(totals.pending)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-            Payment by Project
-          </h2>
+      <div className="vendor-card vendor-rise overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Assigned payouts</p>
+            <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payment by Project</h2>
+          </div>
           <div className="flex items-center gap-2">
             <select
               value={statusFilter}
@@ -320,7 +299,7 @@ export default function FranchiseePayments() {
                 setStatusFilter(e.target.value);
                 setProjectPage(1);
               }}
-              className="h-9 rounded-lg border border-gray-300 bg-transparent px-2 text-sm dark:border-gray-700"
+              className={selectClass}
             >
               <option value="all">All statuses</option>
               <option value="paid">Paid</option>
@@ -334,41 +313,37 @@ export default function FranchiseePayments() {
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
+            <thead className="bg-[#fbf8f2] text-left text-[11px] uppercase tracking-[0.12em] text-[#9a7748] dark:bg-white/[0.02]">
               <tr>
-                <th className="px-4 py-2">Sr. No.</th>
-                <th className="px-4 py-2">Site / Project Name</th>
-                <th className="px-4 py-2">Project ID</th>
-                <th className="px-4 py-2">Project Amount (₹)</th>
-                <th className="px-4 py-2">Total Paid by Company</th>
-                <th className="px-4 py-2">Pending Amount (₹)</th>
-                <th className="px-4 py-2">Last Payment Date</th>
-                <th className="px-4 py-2">Status</th>
+                <th className="px-5 py-2.5">Sr. No.</th>
+                <th className="px-4 py-2.5">Site / Project Name</th>
+                <th className="px-4 py-2.5">Project ID</th>
+                <th className="px-4 py-2.5">Project Amount (₹)</th>
+                <th className="px-4 py-2.5">Total Paid by Company</th>
+                <th className="px-4 py-2.5">Pending Amount (₹)</th>
+                <th className="px-4 py-2.5">Last Payment Date</th>
+                <th className="px-4 py-2.5">Status</th>
               </tr>
             </thead>
             <tbody>
               {pagedProjects.map((row, index) => {
                 const status = payStatus(row);
                 return (
-                  <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
-                    <td className="px-4 py-3 text-gray-500">
+                  <tr key={row.id} className="border-t border-[#eee6d8] dark:border-[var(--vendor-line)]">
+                    <td className="px-5 py-3 text-[#8a8175]">
                       {(projectPage - 1) * PAGE_SIZE + index + 1}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-800 dark:text-white/90">{row.name}</p>
-                      {row.location ? (
-                        <p className="text-xs text-gray-400">{row.location}</p>
-                      ) : null}
+                      <p className="font-medium text-[#111]">{row.name}</p>
+                      {row.location ? <p className="text-xs text-[#8a8175]">{row.location}</p> : null}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{codeFromId("PROJ", row.id)}</td>
-                    <td className="px-4 py-3">{formatAmount(row.projectAmount)}</td>
-                    <td className="px-4 py-3 font-medium text-success-600">
-                      {formatAmount(row.paid)}
-                    </td>
+                    <td className="px-4 py-3 text-[#6b645b]">{codeFromId("PROJ", row.id)}</td>
+                    <td className="px-4 py-3 vendor-serif text-lg text-[#111]">{formatAmount(row.projectAmount)}</td>
+                    <td className="px-4 py-3 font-medium text-success-600">{formatAmount(row.paid)}</td>
                     <td className="px-4 py-3 font-medium text-error-500">
                       {row.pending ? formatAmount(row.pending) : "0"}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-3 text-[#6b645b]">
                       {row.lastPaidAt ? formatDate(row.lastPaidAt) : "—"}
                     </td>
                     <td className="px-4 py-3">
@@ -381,7 +356,7 @@ export default function FranchiseePayments() {
               })}
               {!loading && !pagedProjects.length ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={8} className="px-5 py-10 text-center text-[#8a8175]">
                     No project payments yet.
                   </td>
                 </tr>
@@ -389,7 +364,7 @@ export default function FranchiseePayments() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+        <div className="flex items-center justify-between px-5 py-3 text-sm text-[#8a8175]">
           <p>
             Showing {filteredProjects.length ? (projectPage - 1) * PAGE_SIZE + 1 : 0} to{" "}
             {Math.min(projectPage * PAGE_SIZE, filteredProjects.length)} of {filteredProjects.length}{" "}
@@ -403,8 +378,8 @@ export default function FranchiseePayments() {
                 onClick={() => setProjectPage(page)}
                 className={`h-8 w-8 rounded-lg text-sm ${
                   page === projectPage
-                    ? "bg-brand-500 text-white"
-                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-300"
+                    ? "bg-[#c4a574] text-black"
+                    : "text-[#6b645b] hover:bg-[#f4efe6]"
                 }`}
               >
                 {page}
@@ -414,58 +389,47 @@ export default function FranchiseePayments() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-            Payment Transactions
-          </h2>
-          <p className="text-xs text-gray-500">All payouts received from the company for your assigned projects.</p>
+      <div className="vendor-card vendor-rise overflow-hidden">
+        <div className="px-5 py-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Company payouts</p>
+          <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payment Transactions</h2>
+          <p className="mt-1 text-xs text-[#8a8175]">All payouts received from the company for your assigned projects.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
+            <thead className="bg-[#fbf8f2] text-left text-[11px] uppercase tracking-[0.12em] text-[#9a7748] dark:bg-white/[0.02]">
               <tr>
-                <th className="px-4 py-2">Sr. No.</th>
-                <th className="px-4 py-2">Site / Project Name</th>
-                <th className="px-4 py-2">Transaction ID</th>
-                <th className="px-4 py-2">Amount (₹)</th>
-                <th className="px-4 py-2">Payment Date</th>
-                <th className="px-4 py-2">Paid By</th>
-                <th className="px-4 py-2">Payment Mode</th>
-                <th className="px-4 py-2">Remarks</th>
+                <th className="px-5 py-2.5">Sr. No.</th>
+                <th className="px-4 py-2.5">Site / Project Name</th>
+                <th className="px-4 py-2.5">Transaction ID</th>
+                <th className="px-4 py-2.5">Amount (₹)</th>
+                <th className="px-4 py-2.5">Payment Date</th>
+                <th className="px-4 py-2.5">Paid By</th>
+                <th className="px-4 py-2.5">Payment Mode</th>
+                <th className="px-4 py-2.5">Remarks</th>
               </tr>
             </thead>
             <tbody>
               {txnRows.map((row, index) => (
-                <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
-                  <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                <tr key={row.id} className="border-t border-[#eee6d8] dark:border-[var(--vendor-line)]">
+                  <td className="px-5 py-3 text-[#8a8175]">{index + 1}</td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-800 dark:text-white/90">
-                      {row.project?.name || row.clientName || "—"}
-                    </p>
-                    {row.project?.address ? (
-                      <p className="text-xs text-gray-400">{row.project.address}</p>
-                    ) : null}
+                    <p className="font-medium text-[#111]">{row.project?.name || row.clientName || "—"}</p>
+                    {row.project?.address ? <p className="text-xs text-[#8a8175]">{row.project.address}</p> : null}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {row.invoiceNo || codeFromId("PAY", row.id)}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-success-600">
+                  <td className="px-4 py-3 text-[#6b645b]">{row.invoiceNo || codeFromId("PAY", row.id)}</td>
+                  <td className="px-4 py-3 vendor-serif text-lg text-success-600">
                     {formatAmount(money(row.paidAmount || row.amount))}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {formatDate(row.paidDate || row.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    Santoshi Interior Pvt. Ltd.
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{methodLabel(row.method)}</td>
-                  <td className="px-4 py-3 text-gray-600">{row.remark || "—"}</td>
+                  <td className="px-4 py-3 text-[#6b645b]">{formatDate(row.paidDate || row.createdAt)}</td>
+                  <td className="px-4 py-3 text-[#6b645b]">Santoshi Interior Pvt. Ltd.</td>
+                  <td className="px-4 py-3 text-[#6b645b]">{methodLabel(row.method)}</td>
+                  <td className="px-4 py-3 text-[#6b645b]">{row.remark || "—"}</td>
                 </tr>
               ))}
               {!loading && !txnRows.length ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={8} className="px-5 py-10 text-center text-[#8a8175]">
                     No payment transactions yet.
                   </td>
                 </tr>
@@ -474,7 +438,7 @@ export default function FranchiseePayments() {
           </table>
         </div>
         {rangedPayments.length > 5 ? (
-          <div className="px-4 py-3">
+          <div className="px-5 py-3">
             <Button size="sm" variant="outline" onClick={() => setShowAllTxn((v) => !v)}>
               {showAllTxn ? "Show less" : "View All Transactions"}
             </Button>

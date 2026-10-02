@@ -23,15 +23,18 @@ type PaymentRow = {
   amount?: number | string;
   paidAmount?: number | string;
   status?: string;
-  type?: string;
-  projectId?: string | null;
-  project?: { id?: string } | null;
 };
 
 type IssueRow = {
   id: string;
   subject?: string | null;
   status?: string | null;
+  project?: { name?: string | null } | null;
+};
+
+type DocRow = {
+  id: string;
+  fileName?: string | null;
   project?: { name?: string | null } | null;
 };
 
@@ -61,6 +64,13 @@ function statusColor(label: string): "success" | "warning" | "error" | "info" {
   return "info";
 }
 
+function issueLabel(status?: string | null) {
+  const key = String(status || "OPEN").toUpperCase();
+  if (key === "RESOLVED" || key === "CLOSED") return "Resolved";
+  if (key === "IN_PROGRESS" || key === "ASSIGNED") return "In Progress";
+  return "Open";
+}
+
 const QUICK_ACTIONS = [
   { label: "Projects", hint: "View Projects", href: "/projects", icon: "📁" },
   { label: "Payments", hint: "View Payments", href: "/payments", icon: "₹" },
@@ -70,32 +80,32 @@ const QUICK_ACTIONS = [
   { label: "Documents", hint: "View Documents", href: "/documents", icon: "📄" },
 ];
 
-const card =
-  "rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]";
-
 export default function FranchiseeDashboardHome() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [dlpPayments, setDlpPayments] = useState<PaymentRow[]>([]);
   const [issues, setIssues] = useState<IssueRow[]>([]);
+  const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [projectRes, paymentRes, dlpRes, issueRes] = await Promise.all([
-          projectsApi.list({ limit: 100 }),
+        const [projectRes, paymentRes, dlpRes, issueRes, fileRes] = await Promise.all([
+          projectsApi.list({ limit: 8 }),
           paymentsApi.list({ limit: 50, type: "FRANCHISEE_PAYOUT" }).catch(() => ({ items: [] })),
           paymentsApi.list({ limit: 50, type: "DLP" }).catch(() => ({ items: [] })),
-          warrantyApi.list({ limit: 20 }).catch(() => ({ items: [] })),
+          warrantyApi.list({ limit: 8 }).catch(() => ({ items: [] })),
+          projectsApi.listFiles({ limit: 8 }).catch(() => ({ items: [] })),
         ]);
         if (cancelled) return;
         setProjects((projectRes.items || []) as ProjectRow[]);
         setPayments((paymentRes.items || []) as PaymentRow[]);
         setDlpPayments((dlpRes.items || []) as PaymentRow[]);
         setIssues((issueRes.items || []) as IssueRow[]);
+        setDocs((fileRes.items || []) as DocRow[]);
       } catch {
         if (!cancelled) {
           setProjects([]);
@@ -121,14 +131,10 @@ export default function FranchiseeDashboardHome() {
   }, [projects]);
 
   const earnings = useMemo(() => {
-    const payouts = payments.filter((row) => {
-      const kind = String(row.type || "").toUpperCase();
-      return !kind || kind === "FRANCHISEE_PAYOUT" || kind.includes("FRANCHISEE");
-    });
-    const received = payouts
+    const received = payments
       .filter((row) => String(row.status || "").toUpperCase() === "PAID")
       .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const pending = payouts
+    const pending = payments
       .filter((row) => String(row.status || "").toUpperCase() !== "PAID")
       .reduce((sum, row) => sum + Number(row.amount || 0), 0);
     return { received, pending, total: received + pending };
@@ -153,147 +159,162 @@ export default function FranchiseeDashboardHome() {
     ? "Painting & Finishes"
     : /modular|kitchen/i.test(category)
       ? "Modular & Kitchen"
-      : "Wood Work & Carpentry";
+      : /electric/i.test(category)
+        ? "Electrical works"
+        : /plumb/i.test(category)
+          ? "Plumbing works"
+          : "Wood Work & Carpentry";
 
   const kpis = [
-    { label: "Total Projects", value: loading ? "—" : counts.total, tone: "text-brand-600", href: "/projects" },
+    { label: "Total Projects", value: loading ? "—" : counts.total, tone: "text-[#9a7748]", href: "/projects" },
     { label: "Completed", value: loading ? "—" : counts.completed, tone: "text-success-600", href: "/projects" },
     { label: "Ongoing", value: loading ? "—" : counts.ongoing, tone: "text-warning-600", href: "/projects" },
     { label: "Pending", value: loading ? "—" : counts.pending, tone: "text-error-600", href: "/projects" },
   ];
 
+  const paidPct = earnings.total > 0 ? Math.round((earnings.received / earnings.total) * 100) : 0;
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
-            Welcome back, {firstName(user?.name)}!
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Here&apos;s what&apos;s happening with your business today.
-          </p>
+    <div className="space-y-5 pb-6">
+      <section className="vendor-card vendor-rise overflow-hidden">
+        <div className="flex flex-col bg-black lg:h-36 lg:flex-row lg:items-stretch">
+          <div className="flex h-36 w-full items-center justify-center bg-black lg:w-36 lg:shrink-0">
+            <img
+              src="/images/logo/santoshi-interiors.jpg"
+              alt="Santoshi Interiors"
+              className="h-full w-auto max-w-full object-contain"
+            />
+          </div>
+          <div className="flex flex-1 flex-col justify-center border-t border-white/10 px-6 py-4 lg:border-l lg:border-t-0 lg:px-8 lg:py-0">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-[#c4a574]">Franchisee panel · {today}</p>
+            <h1 className="mt-1 font-serif text-3xl tracking-tight text-[#f7f3ea] md:text-4xl">
+              Welcome back, {firstName(user?.name)}!
+            </h1>
+            <p className="mt-1.5 max-w-xl text-sm leading-6 text-[#d8d0c3]">
+              Here&apos;s what&apos;s happening with your business today.
+            </p>
+          </div>
         </div>
-        <Link href="/projects/new">
-          <Button size="sm">+ Add New Project</Button>
-        </Link>
-      </div>
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {kpis.map((kpi) => (
-              <Link key={kpi.label} href={kpi.href} className={card}>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{kpi.label}</p>
-                <p className={`mt-2 text-3xl font-semibold ${kpi.tone}`}>{kpi.value}</p>
-                <p className="mt-3 text-xs font-medium text-brand-600">View all</p>
+            {kpis.map((kpi, index) => (
+              <Link
+                key={kpi.label}
+                href={kpi.href}
+                className={`vendor-card vendor-rise vendor-rise-delay-${index + 1} p-4`}
+              >
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">{kpi.label}</p>
+                <p className={`vendor-serif mt-2 text-3xl ${kpi.tone}`}>{kpi.value}</p>
+                <p className="mt-3 text-xs font-medium text-[#9a7748]">View all</p>
               </Link>
             ))}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className={card}>
-              <p className="text-sm font-semibold text-gray-800 dark:text-white/90">My Category</p>
+            <div className="vendor-card vendor-rise p-5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">My Category</p>
+              <div className="vendor-gold-rule mt-2" />
               <div className="mt-4 flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-lg dark:bg-amber-500/15">
-                  🔨
-                </span>
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f4efe6] text-lg">🔨</span>
                 <div>
-                  <p className="font-semibold text-gray-800 dark:text-white/90">{category}</p>
-                  <p className="text-xs text-gray-500">{tradeHint}</p>
+                  <p className="vendor-serif text-2xl text-[#111]">{category}</p>
+                  <p className="text-xs text-[#8a8175]">{tradeHint}</p>
                 </div>
               </div>
               <Link
                 href="/profile"
-                className="mt-4 inline-flex rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                className="mt-4 inline-flex border border-[#e4d9c8] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-[#9a7748] transition hover:border-[#c4a574] hover:bg-[#c4a574] hover:text-black"
               >
                 View Category Details
               </Link>
             </div>
 
-            <div className={card}>
+            <div className="vendor-card vendor-rise p-5">
               <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                Earnings Overview
-              </p>
-              <span className="text-xs text-gray-400">Company payouts</span>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Earnings Overview</p>
+                <span className="text-[10px] uppercase tracking-[0.14em] text-[#8a8175]">This Month</span>
               </div>
-              <p className="mt-1 text-xs text-gray-500">Total Earnings</p>
-              <p className="mt-1 text-2xl font-semibold text-gray-800 dark:text-white/90">
+              <div className="vendor-gold-rule mt-2" />
+              <p className="mt-3 text-xs text-[#8a8175]">Total Earnings</p>
+              <p className="vendor-serif mt-1 text-3xl text-[#111]">
                 {loading ? "—" : formatINR(earnings.total)}
               </p>
+              <div className="mt-3 h-1 overflow-hidden bg-[#e4d9c8] dark:bg-white/10">
+                <div className="h-full bg-[#c4a574] transition-all duration-700" style={{ width: `${Math.max(paidPct, 3)}%` }} />
+              </div>
               <div className="mt-4 flex gap-6 text-sm">
                 <div>
-                  <p className="text-xs text-gray-500">Received from company</p>
+                  <p className="text-xs text-[#8a8175]">Received</p>
                   <p className="font-semibold text-success-600">{formatINR(earnings.received)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Pending</p>
+                  <p className="text-xs text-[#8a8175]">Pending</p>
                   <p className="font-semibold text-error-500">{formatINR(earnings.pending)}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className={card}>
-            <p className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Quick Actions</p>
+          <div className="vendor-card vendor-rise p-5">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Quick Actions</p>
+            <div className="vendor-gold-rule mb-4 mt-2" />
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {QUICK_ACTIONS.map((action) => (
                 <Link
                   key={action.label}
                   href={action.href}
-                  className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-center transition hover:border-brand-300 dark:border-gray-800 dark:bg-white/[0.02]"
+                  className="rounded-xl border border-[#eee6d8] bg-[#fbf8f2] px-3 py-3 text-center transition hover:-translate-y-0.5 hover:border-[#c4a574] dark:border-[var(--vendor-line)] dark:bg-black/20"
                 >
                   <span className="text-lg">{action.icon}</span>
-                  <p className="mt-1 text-sm font-medium text-gray-800 dark:text-white/90">
-                    {action.label}
-                  </p>
-                  <p className="text-[11px] text-gray-400">{action.hint}</p>
+                  <p className="mt-1 text-sm font-medium text-[#111]">{action.label}</p>
+                  <p className="text-[11px] text-[#8a8175]">{action.hint}</p>
                 </Link>
               ))}
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-            <div className="flex items-center justify-between px-4 py-3">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                Projects Overview
-              </h2>
-              <Link href="/projects" className="text-sm font-medium text-brand-600">
+          <div className="vendor-card vendor-rise overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Assigned work</p>
+                <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Projects Overview</h2>
+              </div>
+              <Link href="/projects" className="text-xs uppercase tracking-[0.16em] text-[#9a7748]">
                 View All
               </Link>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
+                <thead className="bg-[#fbf8f2] text-left text-[11px] uppercase tracking-[0.14em] text-[#9a7748] dark:bg-white/[0.02]">
                   <tr>
-                    <th className="px-4 py-2">Project Name</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Location</th>
-                    <th className="px-4 py-2">End Date</th>
-                    <th className="px-4 py-2">Action</th>
+                    <th className="px-5 py-2.5">Project Name</th>
+                    <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5">Location</th>
+                    <th className="px-4 py-2.5">End Date</th>
+                    <th className="px-4 py-2.5">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.slice(0, 8).map((row) => {
+                  {projects.map((row) => {
                     const label = bucketStatus(row.status);
                     return (
-                      <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
-                        <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-white/90">
-                          {row.name}
-                        </td>
-                        <td className="px-4 py-2.5">
+                      <tr key={row.id} className="border-t border-[#eee6d8] dark:border-[var(--vendor-line)]">
+                        <td className="px-5 py-3 font-medium text-[#111]">{row.name}</td>
+                        <td className="px-4 py-3">
                           <Badge size="sm" color={statusColor(label)}>
                             {label}
                           </Badge>
                         </td>
-                        <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
-                          {row.address || "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                        <td className="px-4 py-3 text-[#6b645b]">{row.address || "—"}</td>
+                        <td className="px-4 py-3 text-[#6b645b]">
                           {row.endDate ? formatDate(row.endDate) : "—"}
                         </td>
-                        <td className="px-4 py-2.5">
-                          <Link href="/projects" className="text-sm font-medium text-brand-600">
+                        <td className="px-4 py-3">
+                          <Link href="/projects" className="text-xs uppercase tracking-[0.14em] text-[#9a7748]">
                             View
                           </Link>
                         </td>
@@ -302,8 +323,8 @@ export default function FranchiseeDashboardHome() {
                   })}
                   {!loading && !projects.length ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                        No projects yet. Add your first project.
+                      <td colSpan={5} className="px-5 py-8 text-center text-[#8a8175]">
+                        No projects assigned yet.
                       </td>
                     </tr>
                   ) : null}
@@ -312,91 +333,72 @@ export default function FranchiseeDashboardHome() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-            <div className="flex items-center justify-between px-4 py-3">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">Customer Issues</h2>
-              <Link href="/customer-issues" className="text-sm font-medium text-brand-600">
+          <div className="vendor-card vendor-rise overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4">
+              <h2 className="vendor-serif text-2xl text-[#111]">Customer Issues</h2>
+              <Link href="/customer-issues" className="text-xs uppercase tracking-[0.16em] text-[#9a7748]">
                 View All
               </Link>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
-                  <tr>
-                    <th className="px-4 py-2">Project</th>
-                    <th className="px-4 py-2">Issue</th>
-                    <th className="px-4 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {issues.slice(0, 5).map((row) => {
-                    const key = String(row.status || "OPEN").toUpperCase();
-                    const label =
-                      key === "RESOLVED" || key === "CLOSED"
-                        ? "Resolved"
-                        : key === "IN_PROGRESS" || key === "ASSIGNED"
-                          ? "In Progress"
-                          : "Open";
-                    return (
-                      <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
-                        <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">
-                          {row.project?.name || "—"}
-                        </td>
-                        <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-white/90">
-                          {row.subject || "—"}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <Badge
-                            size="sm"
-                            color={
-                              label === "Resolved"
-                                ? "success"
-                                : label === "In Progress"
-                                  ? "warning"
-                                  : "error"
-                            }
-                          >
-                            {label}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {!loading && !issues.length ? (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-gray-400">
-                        No customer issues yet. Raise one from Customer Issue when a site problem
-                        comes up.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+            {issues.length ? (
+              <div className="divide-y divide-[#eee6d8] dark:divide-[var(--vendor-line)]">
+                {issues.slice(0, 5).map((row) => (
+                  <Link
+                    key={row.id}
+                    href="/customer-issues"
+                    className="flex items-center justify-between px-5 py-3 text-sm hover:bg-[#fbf8f2] dark:hover:bg-white/[0.02]"
+                  >
+                    <span>
+                      <span className="font-medium text-[#111]">{row.subject || "Issue"}</span>
+                      <span className="ml-2 text-xs text-[#8a8175]">{row.project?.name || ""}</span>
+                    </span>
+                    <Badge size="sm" color="light">
+                      {issueLabel(row.status)}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="px-5 pb-5 text-sm text-[#8a8175]">
+                No customer issues yet. Raise one from Customer Issue when a site problem comes up.
+              </p>
+            )}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-            <div className="flex items-center justify-between px-4 py-3">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">Documents</h2>
-              <Link href="/documents" className="text-sm font-medium text-brand-600">
+          <div className="vendor-card vendor-rise overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4">
+              <h2 className="vendor-serif text-2xl text-[#111]">Documents</h2>
+              <Link href="/documents" className="text-xs uppercase tracking-[0.16em] text-[#9a7748]">
                 View All
               </Link>
             </div>
-            <p className="px-4 pb-4 text-sm text-gray-400">
-              Shared drawings, agreements, and ID proofs will appear here.
-            </p>
+            {docs.length ? (
+              <div className="divide-y divide-[#eee6d8] dark:divide-[var(--vendor-line)]">
+                {docs.slice(0, 5).map((row) => (
+                  <p key={row.id} className="px-5 py-3 text-sm text-[#111]">
+                    {row.fileName || "File"}
+                    {row.project?.name ? <span className="ml-2 text-xs text-[#8a8175]">{row.project.name}</span> : null}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="px-5 pb-5 text-sm text-[#8a8175]">
+                Shared drawings, agreements, and ID proofs will appear here.
+              </p>
+            )}
           </div>
         </div>
 
         <aside className="space-y-5">
-          <div className={card}>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">Chat Box</h2>
-              <Link href="/chat" className="text-xs text-gray-400">
+          <div className="vendor-card vendor-rise p-5">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Support</p>
+            <div className="mb-3 mt-1 flex items-center justify-between">
+              <h2 className="vendor-serif text-2xl text-[#111]">Chat Box</h2>
+              <Link href="/chat" className="text-xs text-[#c4a574]">
                 •••
               </Link>
             </div>
-            <p className="text-sm leading-relaxed text-gray-500">
+            <p className="text-sm leading-relaxed text-[#6b645b]">
               Chat with the Santoshi Interior team, project managers, and support from here.
             </p>
             <Link href="/chat" className="mt-4 inline-flex w-full">
@@ -406,25 +408,21 @@ export default function FranchiseeDashboardHome() {
             </Link>
           </div>
 
-          <div className={card}>
+          <div className="vendor-card vendor-rise p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                Payments Summary
-              </h2>
-              <Link href="/payments" className="text-xs font-medium text-brand-600">
+              <h2 className="vendor-serif text-2xl text-[#111]">Payments Summary</h2>
+              <Link href="/payments" className="text-[10px] uppercase tracking-[0.14em] text-[#9a7748]">
                 View All
               </Link>
             </div>
-            <p className="text-xs text-gray-500">Total Earnings</p>
-            <p className="text-xl font-semibold text-gray-800 dark:text-white/90">
-              {formatINR(earnings.total)}
-            </p>
-            <div className="mt-3 space-y-1 text-sm">
-              <p>
-                Received <span className="float-right font-medium text-success-600">{formatINR(earnings.received)}</span>
+            <p className="text-xs text-[#8a8175]">Total Earnings</p>
+            <p className="vendor-serif text-2xl text-[#111]">{formatINR(earnings.total)}</p>
+            <div className="mt-3 space-y-2 text-sm">
+              <p className="flex justify-between text-[#6b645b]">
+                Received <span className="font-medium text-success-600">{formatINR(earnings.received)}</span>
               </p>
-              <p>
-                Pending <span className="float-right font-medium text-error-500">{formatINR(earnings.pending)}</span>
+              <p className="flex justify-between text-[#6b645b]">
+                Pending <span className="font-medium text-error-500">{formatINR(earnings.pending)}</span>
               </p>
             </div>
             <Link href="/payments" className="mt-4 inline-flex w-full">
@@ -434,15 +432,15 @@ export default function FranchiseeDashboardHome() {
             </Link>
           </div>
 
-          <div className={card}>
-            <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">DLP Payment</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              Delay in Payments settled by the company for your assigned projects.
+          <div className="vendor-card vendor-rise p-5">
+            <h2 className="vendor-serif text-2xl text-[#111]">DLP Payment</h2>
+            <p className="mt-2 text-sm text-[#6b645b]">
+              Delay-in-payments the company settles with you will show here.
             </p>
-            <p className="mt-3 text-lg font-semibold text-error-500">{formatINR(dlpPending)}</p>
+            <p className="vendor-serif mt-3 text-2xl text-error-500">{loading ? "—" : formatINR(dlpPending)}</p>
             <Link href="/dlp-payment" className="mt-3 inline-flex w-full">
               <Button size="sm" variant="outline" className="w-full">
-                Pay Now
+                Open DLP
               </Button>
             </Link>
           </div>

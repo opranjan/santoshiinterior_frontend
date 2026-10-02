@@ -32,6 +32,8 @@ type HubProps = {
 
 type ViewMode = "project" | "lead";
 
+const EMPTY_MESSAGES: LeadMessageDto[] = [];
+
 const AVATAR_COLORS = [
   "bg-[#128c7e] text-white",
   "bg-[#25d366] text-white",
@@ -120,7 +122,7 @@ function EmptyChatState() {
 export default function WhatsAppCommunicationHub({
   selectedLeadId: selectedLeadIdProp,
   selectedLead: selectedLeadProp,
-  initialMessages: initialMessagesProp = [],
+  initialMessages: initialMessagesProp = EMPTY_MESSAGES,
   onRefresh,
   fullHeight = false,
 }: HubProps) {
@@ -196,9 +198,9 @@ export default function WhatsAppCommunicationHub({
     }
 
     if (!activeLeadId) {
-      setLoadedLead(null);
-      setMessages([]);
-      setChatError(null);
+      setLoadedLead((prev) => (prev ? null : prev));
+      setMessages((prev) => (prev.length ? EMPTY_MESSAGES : prev));
+      setChatError((prev) => (prev ? null : prev));
       return;
     }
 

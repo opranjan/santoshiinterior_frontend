@@ -680,6 +680,12 @@ export const projectsApi = {
     }
     return payload.data as Record<string, unknown>;
   },
+  listFiles: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<Record<string, unknown>>>("/projects/files", query),
+  listProjectFiles: (id: string) =>
+    api.get<Array<Record<string, unknown>>>(`/projects/${id}/files`),
+  removeFile: (id: string, fileId: string) =>
+    api.delete<{ id: string }>(`/projects/${id}/files/${fileId}`),
 };
 
 export const quotationsApi = {

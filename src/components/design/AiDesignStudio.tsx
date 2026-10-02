@@ -1,7 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
-import Button from "@/components/ui/button/Button";
 import { designApi, type DesignGenerationDto } from "@/services/crmApi";
 import { designAssetUrl } from "@/lib/designAssets";
 import DesignGeneratingLoader from "@/components/design/DesignGeneratingLoader";
@@ -21,10 +21,8 @@ type SourcePreview = {
 const MAX_IMAGES = 6;
 
 const defaultPrompts = {
-  designing:
-    "Describe the interior style, colors, materials, and layout changes you want.",
-  elevation:
-    "Describe the facade materials, architectural style, and lighting you want.",
+  designing: "e.g. warm walnut, cream walls, hidden lighting, keep the window",
+  elevation: "e.g. stone and white plaster, large windows, evening light",
 };
 
 export default function AiDesignStudio({ mode }: Props) {
@@ -51,19 +49,14 @@ export default function AiDesignStudio({ mode }: Props) {
   useEffect(() => {
     void designApi
       .history()
-      .then((items) =>
-        setHistory(items.filter((item) => item.mode === mode).slice(0, 6))
-      )
+      .then((items) => setHistory(items.filter((item) => item.mode === mode).slice(0, 8)))
       .catch(() => setHistory([]));
   }, [mode, result?.id]);
 
   const addFiles = (fileList?: FileList | File[] | null) => {
     if (!fileList?.length) return;
-    const incoming = Array.from(fileList).filter((file) =>
-      file.type.startsWith("image/")
-    );
+    const incoming = Array.from(fileList).filter((file) => file.type.startsWith("image/"));
     if (!incoming.length) return;
-
     setSources((prev) => {
       const remaining = MAX_IMAGES - prev.length;
       if (remaining <= 0) return prev;
@@ -85,15 +78,6 @@ export default function AiDesignStudio({ mode }: Props) {
       return prev.filter((item) => item.id !== id);
     });
     setResult(null);
-  };
-
-  const clearSources = () => {
-    sources.forEach((item) => {
-      if (item.url.startsWith("blob:")) URL.revokeObjectURL(item.url);
-    });
-    setSources([]);
-    setResult(null);
-    setError("");
   };
 
   const generate = async () => {
@@ -130,56 +114,64 @@ export default function AiDesignStudio({ mode }: Props) {
     }
   };
 
-  const formatHistoryLabel = (item: DesignGenerationDto) => {
-    if (item.userPrompt?.trim()) {
-      return item.userPrompt.trim().slice(0, 40);
-    }
-    return new Date(item.createdAt).toLocaleDateString();
-  };
-
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="text-center sm:text-left">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600 dark:text-brand-300">
-          {isDesign ? "AI Interior · ChatGPT" : "AI Elevation · ChatGPT"}
-        </p>
-        <h2 className="font-outfit mt-1 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
-          {isDesign ? "Design from your photos" : "Elevation from your photos"}
-        </h2>
-        <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
-          Upload up to {MAX_IMAGES} reference photos and describe the changes you
-          want. The AI edits your photos directly — same approach as ChatGPT image
-          editing.
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">
+            {isDesign ? "Interior" : "Architecture"}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white md:text-3xl">
+            {isDesign ? "Designing" : "Elevation"}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Upload a photo, write what to change, generate a concept.
+          </p>
+        </div>
+        <div className="flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-gray-700 dark:bg-gray-900">
+          <Link
+            href="/design/designing"
+            className={`rounded-md px-3 py-1.5 text-sm ${
+              isDesign ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:text-gray-800 dark:text-gray-400"
+            }`}
+          >
+            Designing
+          </Link>
+          <Link
+            href="/design/elevation"
+            className={`rounded-md px-3 py-1.5 text-sm ${
+              !isDesign ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "text-gray-500 hover:text-gray-800 dark:text-gray-400"
+            }`}
+          >
+            Elevation
+          </Link>
+        </div>
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
           {error}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="grid grid-cols-1 lg:grid-cols-2">
-          <div className="border-b border-gray-100 p-5 dark:border-gray-800 sm:p-7 lg:border-b-0 lg:border-r">
-            <label className="mb-2 block text-sm font-medium text-gray-800 dark:text-white/90">
-              {isDesign ? "Room photos" : "Building photos"}{" "}
-              <span className="font-normal text-gray-400">
-                ({sources.length}/{MAX_IMAGES})
-              </span>
-            </label>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/jpg"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                addFiles(e.target.files);
-                e.target.value = "";
-              }}
-            />
+      <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/jpg"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
 
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-800 dark:text-white">
+              Photos <span className="font-normal text-gray-400">({sources.length}/{MAX_IMAGES})</span>
+            </p>
             {sources.length === 0 ? (
               <button
                 type="button"
@@ -194,237 +186,118 @@ export default function AiDesignStudio({ mode }: Props) {
                   setDragOver(false);
                   addFiles(e.dataTransfer.files);
                 }}
-                className={`flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-12 text-center transition ${
+                className={`flex w-full flex-col items-center justify-center rounded-xl border border-dashed px-3 py-10 text-center text-sm ${
                   dragOver
-                    ? "border-brand-500 bg-brand-50"
-                    : "border-gray-200 hover:border-brand-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.03]"
+                    ? "border-gray-900 bg-gray-50 dark:border-white dark:bg-white/5"
+                    : "border-gray-300 text-gray-500 hover:border-gray-400 dark:border-gray-700"
                 }`}
               >
-                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-brand-700 text-lg text-white">
-                  +
-                </span>
-                <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  Click or drop photos
-                </span>
-                <span className="mt-1 text-xs text-gray-400">
-                  JPG, PNG, or WebP · up to {MAX_IMAGES} images · 10 MB each
-                </span>
+                Drop photo or click to upload
               </button>
             ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {sources.map((item) => (
-                    <div
-                      key={item.id}
-                      className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
-                    >
-                      <div className="aspect-square bg-gray-100 dark:bg-gray-900">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.url}
-                          alt={item.file.name}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeSource(item.id)}
-                        className="absolute right-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 transition group-hover:opacity-100"
-                      >
-                        Remove
-                      </button>
-                      <p className="truncate px-2 py-1 text-[10px] text-gray-500">
-                        {item.file.name}
-                      </p>
-                    </div>
-                  ))}
-
-                  {sources.length < MAX_IMAGES ? (
+              <div className="grid grid-cols-3 gap-2">
+                {sources.map((item) => (
+                  <div key={item.id} className="group relative overflow-hidden rounded-lg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.url} alt="" className="aspect-square w-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => fileRef.current?.click()}
-                      className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-gray-400 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700"
+                      onClick={() => removeSource(item.id)}
+                      className="absolute inset-0 hidden items-center justify-center bg-black/50 text-xs text-white group-hover:flex"
                     >
-                      <span className="text-xl">+</span>
-                      <span className="mt-1 text-[10px]">Add more</span>
+                      Remove
                     </button>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {sources.length < MAX_IMAGES ? (
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                    >
-                      Add more photos
-                    </button>
-                  ) : null}
+                  </div>
+                ))}
+                {sources.length < MAX_IMAGES ? (
                   <button
                     type="button"
-                    onClick={clearSources}
-                    className="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                    onClick={() => fileRef.current?.click()}
+                    className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-gray-300 text-xl text-gray-400 dark:border-gray-700"
                   >
-                    Clear all
+                    +
                   </button>
-                </div>
+                ) : null}
               </div>
             )}
+          </div>
 
-            <label className="mb-2 mt-6 block text-sm font-medium text-gray-800 dark:text-white/90">
-              Your prompt
-            </label>
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-800 dark:text-white">What should change?</p>
             <textarea
               rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={defaultPrompts[mode]}
-              className="w-full resize-none rounded-2xl border border-gray-200 bg-transparent px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              className="w-full resize-none rounded-xl border border-gray-200 bg-transparent px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:text-white"
             />
-            <p className="mt-1.5 text-xs text-gray-400">
-              Describe what you want — style, colors, materials, layout, or mood.
-              Leave blank for a general photorealistic concept from your photos.
-            </p>
-
-            <Button
-              size="sm"
-              className="mt-4 w-full"
-              onClick={() => void generate()}
-              disabled={!sources.length || loading}
-            >
-              {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  Creating image
-                  <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        className="design-typing-dot h-1 w-1 rounded-full bg-current"
-                        style={{ animationDelay: `${i * 0.18}s` }}
-                      />
-                    ))}
-                  </span>
-                </span>
-              ) : isDesign ? (
-                "Generate Design"
-              ) : (
-                "Generate Elevation"
-              )}
-            </Button>
           </div>
 
-          <div
-            className="relative flex min-h-[420px] flex-col justify-between p-5 sm:p-7"
-            style={{
-              background:
-                "radial-gradient(800px 360px at 100% 0%, rgba(47,74,71,0.12), transparent 55%), linear-gradient(165deg, #f6f9f8 0%, #ffffff 55%)",
-            }}
+          <button
+            type="button"
+            onClick={() => void generate()}
+            disabled={!sources.length || loading}
+            className="h-11 w-full rounded-xl bg-gray-900 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-gray-900"
           >
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">
-                Result
-              </p>
-              <h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                {result
-                  ? isDesign
-                    ? "Interior concept"
-                    : "Elevation concept"
-                  : loading
-                    ? "Creating your image…"
-                    : "Ready when you are"}
-              </h3>
-            </div>
+            {loading ? "Generating…" : isDesign ? "Generate design" : "Generate elevation"}
+          </button>
+        </aside>
 
-            <div className="my-6 flex flex-1 items-center justify-center">
-              {loading ? (
-                <DesignGeneratingLoader mode={mode} />
-              ) : resultUrl ? (
-                <div className="w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700">
-                  <div className="relative aspect-[4/3] w-full bg-gray-100 dark:bg-gray-900">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={resultUrl}
-                      alt="Generated concept"
-                      className="absolute inset-0 h-full w-full object-contain"
-                    />
-                  </div>
-                  <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-800">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white/90">
-                      Concept saved to design library
-                    </p>
-                    {result?.userPrompt ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-                        Prompt: {result.userPrompt}
-                      </p>
-                    ) : null}
-                    {result?.analysis ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-                        AI read: {result.analysis}
-                      </p>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void generate()}
-                        disabled={loading}
-                      >
-                        Regenerate
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void downloadResult()}
-                        disabled={downloading}
-                      >
-                        {downloading ? "Downloading…" : "Download"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-2xl text-brand-700 shadow-sm ring-1 ring-gray-100 dark:bg-white/[0.06] dark:ring-gray-700">
-                    ✦
-                  </div>
-                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                    Your AI concept will appear here
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Reference photos → vision analysis → image generation
-                  </p>
-                </div>
-              )}
-            </div>
+        <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+            <p className="text-sm font-medium text-gray-800 dark:text-white">Preview</p>
+            {resultUrl ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void generate()}
+                  disabled={loading}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                >
+                  Regenerate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void downloadResult()}
+                  disabled={downloading}
+                  className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs text-white dark:bg-white dark:text-gray-900"
+                >
+                  {downloading ? "Downloading…" : "Download"}
+                </button>
+              </div>
+            ) : null}
           </div>
-        </div>
+          <div className="flex min-h-[420px] items-center justify-center bg-gray-50 p-4 dark:bg-black/30">
+            {loading ? (
+              <DesignGeneratingLoader mode={mode} />
+            ) : resultUrl ? (
+              <div className="w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={resultUrl} alt="Generated concept" className="mx-auto max-h-[560px] w-full object-contain" />
+                {result?.userPrompt ? (
+                  <p className="mt-3 text-center text-xs text-gray-500">{result.userPrompt}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">The generated image will show here</p>
+            )}
+          </div>
+        </section>
       </div>
 
       {history.length > 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
-          <h3 className="mb-4 text-sm font-semibold text-gray-800 dark:text-white/90">
-            Recent {isDesign ? "designs" : "elevations"}
-          </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div>
+          <p className="mb-3 text-sm font-medium text-gray-800 dark:text-white">Recent</p>
+          <div className="grid grid-cols-4 gap-3 md:grid-cols-8">
             {history.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setResult(item)}
-                className="overflow-hidden rounded-xl border border-gray-100 text-left transition hover:border-brand-300 dark:border-gray-800"
+                className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800"
               >
-                <div className="aspect-square bg-gray-100 dark:bg-gray-900">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={designAssetUrl(item.resultImageUrl)}
-                    alt={formatHistoryLabel(item)}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <p className="truncate px-2 py-1.5 text-[11px] text-gray-600 dark:text-gray-400">
-                  {formatHistoryLabel(item)}
-                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={designAssetUrl(item.resultImageUrl)} alt="" className="aspect-square w-full object-cover" />
               </button>
             ))}
           </div>
