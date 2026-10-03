@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function ProcurementAcceptancesPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-gray-500">Loading acceptance...</p>}>
+    <Suspense fallback={<p className="text-sm text-[#8a7b68]">Loading acceptance...</p>}>
       <ProcurementAcceptances />
     </Suspense>
   );

@@ -10,8 +10,9 @@ import { useAuth } from "@/context/AuthContext";
 import { designAssetUrl } from "@/lib/designAssets";
 import { rfqApi, type RfqDto, type RfqItemDto } from "@/services/crmApi";
 
-const PINK = "#E85D75";
 const UOMS = ["NOS", "PCS", "SQFT", "RFT", "CFT", "MTR", "KG", "BOX", "SET", "ROLL", "LS"];
+const fieldClass =
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-white px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
 
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
@@ -164,37 +165,37 @@ export default function RfqEditor({ id }: { id: string }) {
     }
   };
 
-  if (loading) return <p className="text-sm text-gray-500">Loading RFQ...</p>;
-  if (!row) return <p className="text-sm text-gray-500">RFQ not found</p>;
+  if (loading) return <p className="text-sm text-[#8a7b68]">Loading RFQ...</p>;
+  if (!row) return <p className="text-sm text-[#8a7b68]">RFQ not found</p>;
 
   return (
     <div className="space-y-5">
       <Link
         href="/operations/procurement/rfq"
-        className="inline-flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-white/90"
+        className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f3ece2]"
       >
-        <span className="text-2xl font-normal text-gray-400">‹</span>
-        Request <span className="font-medium text-[#E85D75]">/{isNew ? "New" : row.code}</span>
+        <span aria-hidden>←</span>
+        RFQ <span className="font-medium text-[#c4a574]">/ {isNew ? "New" : row.code}</span>
       </Link>
 
-      <div className="flex flex-row items-stretch gap-4 rounded-2xl border border-[#F4C4CC] bg-[#FFF6F7] p-4">
+      <div className="flex flex-row items-stretch gap-4 rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-4 dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="min-w-0 flex-1 space-y-4">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="h-11 w-full rounded-lg border border-[#F4C4CC] bg-white px-3 text-sm outline-none focus:border-[#E85D75]"
+            className={fieldClass}
           />
-          <div className="grid gap-4 text-sm text-gray-700 sm:grid-cols-3">
+          <div className="grid gap-4 text-sm text-[#1c1610] dark:text-[#f3ece2] sm:grid-cols-3">
             <div>
-              <span className="text-gray-500">Project Name: </span>
+              <span className="text-[#8a7b68]">Project name: </span>
               <span className="font-medium">{row.project?.name || "—"}</span>
             </div>
             <div>
-              <span className="text-gray-500">Created by: </span>
+              <span className="text-[#8a7b68]">Created by: </span>
               <span className="font-medium">{createdByLabel}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
-              <span className="text-gray-500">Expected delivery date:</span>
+              <span className="text-[#8a7b68]">Expected delivery:</span>
               <span className="font-medium">{expectedDelivery ? formatDate(expectedDelivery) : "—"}</span>
               <DatePickerField
                 id={`rfq-expected-delivery-${id}`}
@@ -204,16 +205,16 @@ export default function RfqEditor({ id }: { id: string }) {
               />
             </div>
             <div>
-              <span className="text-gray-500">Items: </span>
+              <span className="text-[#8a7b68]">Items: </span>
               <span className="font-medium">{items.length}</span>
             </div>
             <div>
-              <span className="text-gray-500">Created date: </span>
+              <span className="text-[#8a7b68]">Created date: </span>
               <span className="font-medium">{formatDate(row.createdAt)}</span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-gray-500">Attached documents :</span>
+            <span className="text-sm text-[#8a7b68]">Attached documents</span>
             <input
               ref={fileRef}
               type="file"
@@ -227,7 +228,7 @@ export default function RfqEditor({ id }: { id: string }) {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-1 rounded-full bg-[#2563EB] px-3 py-1 text-xs font-medium text-white"
+              className="inline-flex items-center gap-1 rounded-full bg-[#1c1610] px-3 py-1 text-xs font-medium text-[#e8d5b5]"
             >
               ⊕ Add New doc
             </button>
@@ -237,7 +238,7 @@ export default function RfqEditor({ id }: { id: string }) {
                 href={designAssetUrl(file.fileUrl)}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate rounded-full bg-white px-3 py-1 text-xs text-gray-600 ring-1 ring-gray-200"
+                className="truncate rounded-full bg-white px-3 py-1 text-xs text-[#6b645b] ring-1 ring-[#eadfcf] dark:bg-[#1a1714] dark:text-[#d8d0c3] dark:ring-[#3a342c]"
               >
                 {file.fileName}
               </a>
@@ -249,58 +250,56 @@ export default function RfqEditor({ id }: { id: string }) {
             type="button"
             disabled={saving}
             onClick={() => void raise()}
-            className="flex h-16 w-16 flex-col items-center justify-center rounded-full text-[10px] font-semibold leading-tight text-white disabled:opacity-50"
-            style={{ backgroundColor: PINK }}
+            className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-[#1c1610] text-[10px] font-semibold leading-tight text-[#e8d5b5] disabled:opacity-50 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
           >
             <span className="text-lg leading-none">✓</span>
             Raise
             <br />
             Request
           </button>
-          <button type="button" onClick={() => void cancel()} className="text-sm text-gray-500">
+          <button type="button" onClick={() => void cancel()} className="text-sm text-[#8a7b68]">
             Cancel
           </button>
         </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-gray-600">Add or delete items from request</p>
+        <p className="text-sm text-[#8a7b68]">Add or delete items from this RFQ</p>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setBulkOpen(true)}
-            className="inline-flex h-10 items-center rounded-lg border border-[#E85D75] px-4 text-sm font-medium text-[#E85D75]"
+            className="inline-flex h-10 items-center rounded-xl border border-[#eadfcf] px-4 text-sm font-medium text-[#9a7748] dark:border-[#3a342c]"
           >
-            ▾ Add Bulk Items
+            Add bulk items
           </button>
           <button
             type="button"
             onClick={addItem}
-            className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-white"
-            style={{ backgroundColor: PINK }}
+            className="inline-flex h-10 items-center rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
           >
             + Add Item
           </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] dark:border-[#3a342c]">
         <table className="min-w-[900px] w-full text-left text-sm">
-          <thead className="bg-gray-100 text-gray-600 dark:bg-white/5">
+          <thead className="bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:bg-[#1c1914]">
             <tr>
-              <th className="px-3 py-3 font-medium">S. no.</th>
-              <th className="px-3 py-3 font-medium">Item Name</th>
-              <th className="px-3 py-3 font-medium">Item Code</th>
-              <th className="px-3 py-3 font-medium">UOM</th>
-              <th className="px-3 py-3 font-medium">Qty</th>
-              <th className="px-3 py-3 font-medium">Remark</th>
-              <th className="px-3 py-3 font-medium">Action</th>
+              <th className="px-3 py-3.5">S. no.</th>
+              <th className="px-3 py-3.5">Item name</th>
+              <th className="px-3 py-3.5">Item code</th>
+              <th className="px-3 py-3.5">UOM</th>
+              <th className="px-3 py-3.5">Qty</th>
+              <th className="px-3 py-3.5">Remark</th>
+              <th className="px-3 py-3.5">Action</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => (
-              <tr key={item.id || index} className="border-t border-gray-100 dark:border-white/5">
-                <td className="px-3 py-2 text-gray-500">{index + 1}</td>
+              <tr key={item.id || index} className="border-t border-[#f0e8db] dark:border-[#3a342c]">
+                <td className="px-3 py-2 text-[#8a7b68]">{index + 1}</td>
                 <td className="px-3 py-2">
                   <input
                     value={item.name}
@@ -337,7 +336,7 @@ export default function RfqEditor({ id }: { id: string }) {
                     min={0}
                     value={item.qty ?? 0}
                     onChange={(e) => patchItem(index, { qty: Number(e.target.value) })}
-                    className="h-10 w-20 rounded-md bg-[#FFF6F7] px-2 text-sm outline-none"
+                    className="h-10 w-20 rounded-md bg-[#fbf8f3] px-2 text-sm outline-none dark:bg-[#1c1914]"
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -345,14 +344,14 @@ export default function RfqEditor({ id }: { id: string }) {
                     value={item.remark || ""}
                     placeholder="Add a remark"
                     onChange={(e) => patchItem(index, { remark: e.target.value })}
-                    className="h-10 w-full bg-transparent text-sm text-gray-400 outline-none"
+                    className="h-10 w-full bg-transparent text-sm text-[#8a7b68] outline-none"
                   />
                 </td>
                 <td className="px-3 py-2">
                   <button
                     type="button"
                     onClick={() => removeItem(index)}
-                    className="text-lg text-[#E85D75]"
+                    className="text-lg text-[#9a7748] hover:text-[#1c1610]"
                     aria-label="Delete item"
                   >
                     🗑
@@ -364,32 +363,45 @@ export default function RfqEditor({ id }: { id: string }) {
         </table>
       </div>
 
-      <Modal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} className="w-full max-w-lg p-6" showCloseButton={false}>
-        <h3 className="mb-2 text-lg font-semibold text-gray-800">Add Bulk Items</h3>
-        <p className="mb-3 text-xs text-gray-500">One item per line: Name, Code, UOM, Qty, Remark</p>
+      <Modal
+        isOpen={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        className="w-full max-w-lg overflow-hidden border border-[#eadfcf] bg-[#fdfbf7] p-0 dark:border-[#3a342c] dark:bg-[#161411]"
+        showCloseButton={false}
+      >
+        <div className="border-b border-[#eadfcf] bg-[#fbf8f3] px-6 py-4 dark:border-[#3a342c]">
+          <h3
+            className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            Add bulk items
+          </h3>
+          <p className="mt-1 text-xs text-[#8a7b68]">One item per line: Name, Code, UOM, Qty, Remark</p>
+        </div>
+        <div className="px-6 py-4">
         <textarea
           rows={8}
           value={bulkText}
           onChange={(e) => setBulkText(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#E85D75]"
+          className="w-full rounded-xl border border-[#eadfcf] bg-white px-3 py-2 text-sm outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
           placeholder="Plywood 18mm, PLY-18, SQFT, 120, Site A"
         />
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             onClick={() => setBulkOpen(false)}
-            className="h-10 rounded-lg border border-gray-200 px-4 text-sm"
+            className="h-10 rounded-xl border border-[#eadfcf] px-4 text-sm text-[#6b645b] dark:border-[#3a342c]"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={applyBulk}
-            className="h-10 rounded-lg px-4 text-sm font-medium text-white"
-            style={{ backgroundColor: PINK }}
+            className="h-10 rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5]"
           >
-            Add Items
+            Add items
           </button>
+        </div>
         </div>
       </Modal>
     </div>

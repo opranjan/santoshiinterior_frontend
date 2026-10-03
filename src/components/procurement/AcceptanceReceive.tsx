@@ -7,8 +7,6 @@ import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { designAssetUrl } from "@/lib/designAssets";
 import { purchaseOrdersApi, type PurchaseOrderDto, type PurchaseOrderItemDto } from "@/services/crmApi";
 
-const PINK = "#E85D75";
-
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -104,64 +102,76 @@ export default function AcceptanceReceive({ id }: { id: string }) {
     }
   };
 
-  if (loading) return <p className="text-sm text-gray-500">Loading acceptance...</p>;
-  if (!row) return <p className="text-sm text-gray-500">Order not found</p>;
+  if (loading) return <p className="text-sm text-[#8a7b68]">Loading acceptance...</p>;
+  if (!row) return <p className="text-sm text-[#8a7b68]">Order not found</p>;
 
   const photos = (row.files || []).filter((file) => file.kind === "PHOTO" || file.kind === "RECEIPT" || !file.kind);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/operations/procurement/acceptances" className="inline-flex items-center gap-2 text-xl font-semibold text-gray-800">
-          <span className="text-gray-400">‹</span> Acceptance
-        </Link>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Link
+            href="/operations/procurement/acceptances"
+            className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f3ece2]"
+          >
+            <span aria-hidden>←</span>
+            All acceptances
+          </Link>
+          <h1
+            className="font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            {row.code}
+          </h1>
+          <p className="mt-1 text-sm text-[#8a7b68]">{row.title || "Receive items"}</p>
+        </div>
         <button
           type="button"
           disabled={saving}
           onClick={() => void accept()}
-          className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-white disabled:opacity-50"
-          style={{ backgroundColor: PINK }}
+          className="inline-flex h-11 w-fit shrink-0 items-center self-start rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] disabled:opacity-50 dark:bg-[#e8d5b5] dark:text-[#1c1610] sm:self-auto"
         >
-          ✓ Accept
+          {saving ? "Saving..." : "Accept"}
         </button>
       </div>
 
-      <div className="grid gap-2 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700 sm:grid-cols-2">
+      <div className="grid gap-2 rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-4 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#161411] dark:text-[#f3ece2] sm:grid-cols-2">
         <p>
-          <span className="text-gray-500">PO Number : </span>
+          <span className="text-[#8a7b68]">Number : </span>
           <span className="font-medium">{row.code}</span>
         </p>
         <p>
-          <span className="text-gray-500">Vendor Name : </span>
+          <span className="text-[#8a7b68]">Vendor : </span>
           <span className="font-medium">{row.vendorRecord?.name || row.vendor}</span>
         </p>
         <p>
-          <span className="text-gray-500">PO Name : </span>
+          <span className="text-[#8a7b68]">Name : </span>
           <span className="font-medium">{row.title}</span>
         </p>
         <p>
-          <span className="text-gray-500">Delivery Date : </span>
+          <span className="text-[#8a7b68]">Delivery date : </span>
           {formatDate(row.expectedDate)}
         </p>
-        <p>
-          <span className="text-gray-500">Status : </span>
+        <p className="sm:col-span-2">
+          <span className="text-[#8a7b68]">Status : </span>
           {STATE_LABEL[row.orderState] || row.orderState}
         </p>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <p className="mb-2 text-sm font-medium text-gray-700">Receipts</p>
+      <div className="rounded-2xl border border-[#eadfcf] bg-white p-4 dark:border-[#3a342c] dark:bg-[#161411]">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Receipts</p>
         <div className="flex flex-wrap gap-2">
-          {photos.length === 0 ? <span className="text-sm text-gray-400">—</span> : null}
+          {photos.length === 0 ? <span className="text-sm text-[#b3a594]">—</span> : null}
           {photos.map((file) => (
             <a
               key={file.id}
               href={designAssetUrl(file.fileUrl)}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border px-2 py-1 text-xs text-[#2563EB]"
+              className="rounded-lg border border-[#eadfcf] px-2 py-1 text-xs text-[#9a7748] dark:border-[#3a342c]"
             >
-              🗎 {file.fileName}
+              {file.fileName}
             </a>
           ))}
         </div>
@@ -171,44 +181,49 @@ export default function AcceptanceReceive({ id }: { id: string }) {
         <button
           type="button"
           onClick={() => photoRef.current?.click()}
-          className="inline-flex h-9 items-center rounded-lg border border-[#E85D75] px-3 text-sm text-[#E85D75]"
+          className="inline-flex h-10 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-medium text-[#9a7748] dark:border-[#3a342c] dark:bg-[#1a1714]"
         >
-          ▦ Attach Photos
+          + Attach photos
         </button>
         <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => void attachPhotos(e.target.files)} />
-        <h3 className="text-lg font-semibold">Item List</h3>
-        <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+        <h3
+          className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]"
+          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+        >
+          Item list
+        </h3>
+        <label className="inline-flex items-center gap-2 text-sm text-[#6b645b]">
           <input type="checkbox" checked={complete} onChange={(e) => setComplete(e.target.checked)} />
-          Order Complete
+          Order complete
         </label>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
         <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-gray-50 text-gray-500">
+          <thead className="bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:bg-[#1c1914]">
             <tr>
-              <th className="px-3 py-3 font-medium">S.No</th>
-              <th className="px-3 py-3 font-medium">Description</th>
-              <th className="px-3 py-3 font-medium">Item Code</th>
-              <th className="px-3 py-3 font-medium">UOM</th>
-              <th className="px-3 py-3 font-medium">Total Qty</th>
-              <th className="px-3 py-3 font-medium">Received Qty</th>
-              <th className="px-3 py-3 font-medium">Received</th>
+              <th className="px-3 py-3.5">S. no.</th>
+              <th className="px-3 py-3.5">Description</th>
+              <th className="px-3 py-3.5">Item code</th>
+              <th className="px-3 py-3.5">UOM</th>
+              <th className="px-3 py-3.5">Total qty</th>
+              <th className="px-3 py-3.5">Received qty</th>
+              <th className="px-3 py-3.5">Received</th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-3 py-8 text-center text-[#8a7b68]">
                   No items on this order.
                 </td>
               </tr>
             ) : (
               items.map((item, index) => (
-                <tr key={item.id} className="border-t border-gray-100">
-                  <td className="px-3 py-3 text-gray-500">{index + 1}</td>
-                  <td className="px-3 py-3">{item.name}</td>
-                  <td className="px-3 py-3 text-gray-500">{item.code || ""}</td>
+                <tr key={item.id} className="border-t border-[#f0e8db] dark:border-[#3a342c]">
+                  <td className="px-3 py-3 text-[#8a7b68]">{index + 1}</td>
+                  <td className="px-3 py-3 text-[#1c1610] dark:text-[#f3ece2]">{item.name}</td>
+                  <td className="px-3 py-3 text-[#8a7b68]">{item.code || ""}</td>
                   <td className="px-3 py-3">{item.unit || ""}</td>
                   <td className="px-3 py-3">{item.qty ?? 0}</td>
                   <td className="px-3 py-3">
@@ -221,7 +236,7 @@ export default function AcceptanceReceive({ id }: { id: string }) {
                           [item.id as string]: Number(e.target.value || 0) >= Number(item.qty || 0),
                         }));
                       }}
-                      className="h-10 w-24 rounded-lg border border-[#F4C4CC] bg-[#FFF5F7] px-2 text-sm outline-none"
+                      className="h-10 w-24 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-2 text-sm outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714]"
                     />
                   </td>
                   <td className="px-3 py-3">

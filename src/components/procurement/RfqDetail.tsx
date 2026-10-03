@@ -16,9 +16,8 @@ import {
   type VendorDto,
 } from "@/services/crmApi";
 
-const PINK = "#E85D75";
 const fieldClass =
-  "h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#E85D75]";
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
 
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
@@ -170,43 +169,35 @@ export default function RfqDetail({ id }: { id: string }) {
   const existingIds = new Set(vendors.map((entry) => entry.vendorId));
   const addable = allVendors.filter((vendor) => !existingIds.has(vendor.id));
 
-  if (loading) return <p className="text-sm text-gray-500">Loading RFQ...</p>;
-  if (!row) return <p className="text-sm text-gray-500">RFQ not found</p>;
+  if (loading) return <p className="text-sm text-[#8a7b68]">Loading RFQ...</p>;
+  if (!row) return <p className="text-sm text-[#8a7b68]">RFQ not found</p>;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/operations/procurement/rfq" className="text-lg text-gray-400">
-            ‹
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <Link
+            href="/operations/procurement/rfq"
+            className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f3ece2]"
+          >
+            <span aria-hidden>←</span>
+            All RFQs
           </Link>
-          <h2 className="text-lg font-semibold text-gray-800">{row.code}</h2>
-          <button
-            type="button"
-            onClick={() => setTab("vendors")}
-            className={`inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm font-medium ${
-              tab === "vendors" ? "bg-[#EEF2FF] text-[#4F46E5]" : "text-gray-500"
-            }`}
+          <h1
+            className="font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
           >
-            ▤ Vendor List
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("compare")}
-            className={`inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm font-medium ${
-              tab === "compare" ? "text-[#E85D75]" : "text-gray-500"
-            }`}
-          >
-            ↗ Item Bidding Comparison
-          </button>
+            {row.code}
+          </h1>
+          <p className="mt-1 text-sm text-[#8a7b68]">{row.name}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="inline-flex h-9 items-center rounded-full border border-[#F4C4CC] px-3 text-sm font-medium text-[#E85D75]"
+            className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#9a7748] dark:border-[#3a342c] dark:bg-[#1a1714]"
           >
-            ⤿ Copy Form Link
+            Copy form link
           </button>
           <button
             type="button"
@@ -214,7 +205,7 @@ export default function RfqDetail({ id }: { id: string }) {
               const rect = event.currentTarget.getBoundingClientRect();
               setHeaderMenu({ top: rect.bottom + 4, left: rect.right - 180 });
             }}
-            className="rounded-md p-1 text-gray-400 hover:bg-gray-100"
+            className="rounded-lg p-1.5 text-[#8a7b68] hover:bg-[#eadfcf] hover:text-[#1c1610]"
             aria-label="RFQ more"
           >
             ⋮
@@ -222,50 +213,75 @@ export default function RfqDetail({ id }: { id: string }) {
         </div>
       </div>
 
+      <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
+        <button
+          type="button"
+          onClick={() => setTab("vendors")}
+          className={`h-11 px-4 text-xs font-semibold uppercase tracking-[0.12em] ${
+            tab === "vendors"
+              ? "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+              : "bg-[#fdfbf7] text-[#8a7b68] dark:bg-[#1a1714]"
+          }`}
+        >
+          Vendor list
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("compare")}
+          className={`h-11 px-4 text-xs font-semibold uppercase tracking-[0.12em] ${
+            tab === "compare"
+              ? "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+              : "bg-[#fdfbf7] text-[#8a7b68] dark:bg-[#1a1714]"
+          }`}
+        >
+          Bid comparison
+        </button>
+      </div>
+
       {tab === "vendors" ? (
         <>
-          <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
+          <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-4 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#161411] dark:text-[#f3ece2]">
             <div className="grid gap-2 sm:grid-cols-2">
               <p>
-                <span className="text-gray-500">Project Name : </span>
+                <span className="text-[#8a7b68]">Project name : </span>
                 <span className="font-medium">{row.project?.name || "Unknown"}</span>
               </p>
               <p>
-                <span className="text-gray-500">Request Title : </span>
+                <span className="text-[#8a7b68]">Request title : </span>
                 <span className="font-medium">{row.name}</span>
               </p>
               <p>
-                <span className="text-gray-500">Expected Delivery Date : </span>
+                <span className="text-[#8a7b68]">Expected delivery : </span>
                 {formatDate(row.expectedDelivery)}
               </p>
               <p>
-                <span className="text-gray-500">Status : </span>
-                <span className={row.status === "PENDING" ? "text-[#E85D75]" : "text-[#16A34A]"}>
+                <span className="text-[#8a7b68]">Status : </span>
+                <span className={row.status === "PENDING" ? "text-[#9a7748]" : "text-[#1c1610] dark:text-[#e8d5b5]"}>
                   {row.status === "PENDING" ? "Pending" : row.status === "ORDERED" ? "Ordered" : "Cancelled"}
                 </span>
               </p>
               <p>
-                <span className="text-gray-500">Created Date : </span>
+                <span className="text-[#8a7b68]">Created date : </span>
                 {formatDate(row.createdAt)}
               </p>
               <p>
-                <span className="text-gray-500">Created By : </span>
+                <span className="text-[#8a7b68]">Created by : </span>
                 {row.createdBy?.name || "Procurement"}
               </p>
               <p className="sm:col-span-2">
-                <span className="text-gray-500">Place of Supply : </span>
+                <span className="text-[#8a7b68]">Place of supply : </span>
                 {row.placeOfSupply || "—"}
               </p>
               <p className="sm:col-span-2">
-                <span className="text-gray-500">Remark : </span>
+                <span className="text-[#8a7b68]">Remark : </span>
                 {row.remark || row.name}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-gray-500">Attachments:</span>
+            <span className="text-[#8a7b68]">Attachments:</span>
             {(row.files || []).length === 0 ? (
-              <span className="text-gray-400">—</span>
+              <span className="text-[#b3a594]">—</span>
             ) : (
               (row.files || []).map((file) => (
                 <a
@@ -273,39 +289,39 @@ export default function RfqDetail({ id }: { id: string }) {
                   href={designAssetUrl(file.fileUrl)}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700"
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#eadfcf] bg-white px-2 py-1 text-xs text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 >
-                  🗎 {file.fileName}
+                  {file.fileName}
                 </a>
               ))
             )}
           </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
             <table className="min-w-[900px] w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500">
+              <thead className="bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:bg-[#1c1914]">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Vendor Name</th>
-                  <th className="px-4 py-3 font-medium">Delivery Date</th>
-                  <th className="px-4 py-3 font-medium">Response Status</th>
-                  <th className="px-4 py-3 font-medium">Last Response Date</th>
-                  <th className="px-4 py-3 font-medium">Total Biding</th>
-                  <th className="px-4 py-3 font-medium">Vendor Remark</th>
-                  <th className="px-4 py-3 font-medium">Action</th>
+                  <th className="px-4 py-3.5">Vendor name</th>
+                  <th className="px-4 py-3.5">Delivery date</th>
+                  <th className="px-4 py-3.5">Response</th>
+                  <th className="px-4 py-3.5">Last response</th>
+                  <th className="px-4 py-3.5">Total bidding</th>
+                  <th className="px-4 py-3.5">Vendor remark</th>
+                  <th className="px-4 py-3.5">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {vendors.map((entry) => (
-                  <tr key={entry.vendorId} className="border-t border-gray-100">
-                    <td className="px-4 py-3 font-medium text-gray-800">{entry.vendor?.name || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{entry.deliveryDate ? formatDate(entry.deliveryDate) : "-"}</td>
-                    <td className="px-4 py-3 text-gray-600">
+                  <tr key={entry.vendorId} className="border-t border-[#f0e8db] dark:border-[#3a342c]">
+                    <td className="px-4 py-3 font-medium text-[#1c1610] dark:text-[#f3ece2]">{entry.vendor?.name || "—"}</td>
+                    <td className="px-4 py-3 text-[#8a7b68]">{entry.deliveryDate ? formatDate(entry.deliveryDate) : "-"}</td>
+                    <td className="px-4 py-3 text-[#6b645b]">
                       {entry.responseStatus === "SUBMITTED" ? "Submitted" : "Pending"}(v{entry.version || 1})
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-[#8a7b68]">
                       {entry.lastResponseDate ? formatDate(entry.lastResponseDate) : "-"}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{entry.totalBidding || 0}</td>
-                    <td className="px-4 py-3 text-gray-500">{entry.vendorRemark || "-"}</td>
+                    <td className="px-4 py-3 text-[#6b645b]">{entry.totalBidding || 0}</td>
+                    <td className="px-4 py-3 text-[#8a7b68]">{entry.vendorRemark || "-"}</td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
@@ -317,7 +333,7 @@ export default function RfqDetail({ id }: { id: string }) {
                             left: rect.right - 160,
                           });
                         }}
-                        className="rounded-md p-1 text-gray-400 hover:bg-gray-100"
+                        className="rounded-lg p-1.5 text-[#8a7b68] hover:bg-[#eadfcf] hover:text-[#1c1610]"
                       >
                         ⋮
                       </button>
@@ -331,18 +347,18 @@ export default function RfqDetail({ id }: { id: string }) {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi title="Total Bidding amount" value={money(totalBid)} tone="blue" />
-            <Kpi title="Total Submissions" value={`${submissions} Response`} tone="pink" />
-            <Kpi title="Items Compared" value={`${itemsCompared} item`} tone="sky" />
-            <Kpi title="PO Raised" value="0 items" tone="green" />
+            <Kpi title="Total bidding amount" value={money(totalBid)} />
+            <Kpi title="Total submissions" value={`${submissions} response${submissions === 1 ? "" : "s"}`} accent />
+            <Kpi title="Items compared" value={`${itemsCompared} item${itemsCompared === 1 ? "" : "s"}`} />
+            <Kpi title="PO raised" value="0 items" />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">Filter vendors:</span>
+              <span className="text-[#8a7b68]">Filter vendors:</span>
               <select
                 value={selectedVendors[0] || ""}
                 onChange={(e) => setSelectedVendors(e.target.value ? [e.target.value] : vendors.map((v) => v.vendorId))}
-                className="h-9 rounded-full border border-gray-200 px-3"
+                className="h-9 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               >
                 <option value="">All</option>
                 {vendors.map((entry) => (
@@ -351,29 +367,29 @@ export default function RfqDetail({ id }: { id: string }) {
                   </option>
                 ))}
               </select>
-              <span className="inline-flex h-6 items-center rounded-full bg-[#FCE7EB] px-2 text-xs font-medium text-[#E85D75]">
+              <span className="inline-flex h-6 items-center rounded-full bg-[#f6efe4] px-2 text-xs font-medium text-[#9a7748]">
                 {compareVendors.length} selected
               </span>
             </div>
-            <p className="text-xs text-gray-500">
-              <span className="mr-3">● Lowest Bid</span>
-              <span className="text-orange-500">● Second Lowest Bid</span>
+            <p className="text-xs text-[#8a7b68]">
+              <span className="mr-3 text-[#1c1610] dark:text-[#e8d5b5]">● Lowest bid</span>
+              <span className="text-[#9a7748]">● Second lowest</span>
             </p>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
             <table className="min-w-[720px] w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500">
+              <thead className="bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:bg-[#1c1914]">
                 <tr>
-                  <th className="px-4 py-3 font-medium">S. No.</th>
-                  <th className="px-4 py-3 font-medium">Item name</th>
-                  <th className="px-4 py-3 font-medium">Qty</th>
+                  <th className="px-4 py-3.5">S. no.</th>
+                  <th className="px-4 py-3.5">Item name</th>
+                  <th className="px-4 py-3.5">Qty</th>
                   {compareVendors.map((entry) => (
-                    <th key={entry.vendorId} className="px-4 py-3 font-medium">
+                    <th key={entry.vendorId} className="px-4 py-3.5">
                       {entry.vendor?.name} (v{entry.version || 1})
                     </th>
                   ))}
                 </tr>
-                <tr className="border-t border-gray-100 text-gray-700">
+                <tr className="border-t border-[#f0e8db] text-[#1c1610] dark:border-[#3a342c] dark:text-[#f3ece2]">
                   <th colSpan={3} className="px-4 py-2 font-medium">
                     Total Bidding Amount
                   </th>
@@ -394,20 +410,20 @@ export default function RfqDetail({ id }: { id: string }) {
                   const lowest = positive[0];
                   const second = positive.find((rate) => rate > lowest);
                   return (
-                    <tr key={item.id || index} className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-gray-500">{index + 1}.</td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{item.name || "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                    <tr key={item.id || index} className="border-t border-[#f0e8db] dark:border-[#3a342c]">
+                      <td className="px-4 py-3 text-[#8a7b68]">{index + 1}.</td>
+                      <td className="px-4 py-3 font-medium text-[#1c1610] dark:text-[#f3ece2]">{item.name || "—"}</td>
+                      <td className="px-4 py-3 text-[#6b645b]">
                         {item.qty ?? 0} {item.uom || ""}
                       </td>
                       {compareVendors.map((entry, vendorIndex) => {
                         const rate = rates[vendorIndex];
                         const color =
                           rate > 0 && rate === lowest
-                            ? "text-green-600"
+                            ? "text-[#1c1610] dark:text-[#e8d5b5]"
                             : rate > 0 && rate === second
-                            ? "text-orange-500"
-                            : "text-gray-500";
+                            ? "text-[#9a7748]"
+                            : "text-[#8a7b68]";
                         return (
                           <td key={entry.vendorId} className={`px-4 py-3 ${color}`}>
                             {rate > 0 ? money(rate) : "-"}
@@ -428,9 +444,9 @@ export default function RfqDetail({ id }: { id: string }) {
             <div
               ref={headerMenuRef}
               style={{ top: headerMenu.top, left: headerMenu.left }}
-              className="fixed z-[100000] w-44 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 text-sm shadow-xl"
+              className="fixed z-[100000] w-44 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 text-sm shadow-xl dark:border-[#3a342c] dark:bg-[#161411]"
             >
-              <button type="button" onClick={() => void cancelRfq()} className="block w-full px-3 py-2 text-left hover:bg-gray-50">
+              <button type="button" onClick={() => void cancelRfq()} className="block w-full px-3 py-2 text-left text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f3ece2] dark:hover:bg-white/5">
                 Cancel RFQ
               </button>
               <button
@@ -440,7 +456,7 @@ export default function RfqDetail({ id }: { id: string }) {
                   setAddIds([]);
                   setAddOpen(true);
                 }}
-                className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                className="block w-full px-3 py-2 text-left text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f3ece2] dark:hover:bg-white/5"
               >
                 Add New Vendors
               </button>
@@ -454,12 +470,12 @@ export default function RfqDetail({ id }: { id: string }) {
             <div
               ref={vendorMenuRef}
               style={{ top: vendorMenu.top, left: vendorMenu.left }}
-              className="fixed z-[100000] w-40 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 text-sm shadow-xl"
+              className="fixed z-[100000] w-40 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 text-sm shadow-xl dark:border-[#3a342c] dark:bg-[#161411]"
             >
               <button
                 type="button"
                 onClick={() => void removeVendor(vendorMenu.vendorId)}
-                className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                className="block w-full px-3 py-2 text-left text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f3ece2] dark:hover:bg-white/5"
               >
                 Remove Vendor
               </button>
@@ -469,7 +485,7 @@ export default function RfqDetail({ id }: { id: string }) {
                   const entry = vendors.find((item) => item.vendorId === vendorMenu.vendorId);
                   if (entry) openFill(entry);
                 }}
-                className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                className="block w-full px-3 py-2 text-left text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f3ece2] dark:hover:bg-white/5"
               >
                 Fill for vendor
               </button>
@@ -478,14 +494,27 @@ export default function RfqDetail({ id }: { id: string }) {
           )
         : null}
 
-      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} className="w-full max-w-md p-6" showCloseButton={false}>
-        <h3 className="mb-3 text-lg font-semibold">Add New Vendors</h3>
-        <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 p-2">
+      <Modal
+        isOpen={addOpen}
+        onClose={() => setAddOpen(false)}
+        className="w-full max-w-md overflow-hidden border border-[#eadfcf] bg-[#fdfbf7] p-0 dark:border-[#3a342c] dark:bg-[#161411]"
+        showCloseButton={false}
+      >
+        <div className="border-b border-[#eadfcf] bg-[#fbf8f3] px-6 py-4 dark:border-[#3a342c]">
+          <h3
+            className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            Add vendors
+          </h3>
+        </div>
+        <div className="px-6 py-4">
+        <div className="max-h-56 overflow-y-auto rounded-xl border border-[#eadfcf] p-2 dark:border-[#3a342c]">
           {addable.length === 0 ? (
-            <p className="px-2 py-3 text-sm text-gray-400">No more vendors to add</p>
+            <p className="px-2 py-3 text-sm text-[#8a7b68]">No more vendors to add</p>
           ) : (
             addable.map((vendor) => (
-              <label key={vendor.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
+              <label key={vendor.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-[#fbf8f3] dark:hover:bg-white/5">
                 <input
                   type="checkbox"
                   checked={addIds.includes(vendor.id)}
@@ -499,34 +528,46 @@ export default function RfqDetail({ id }: { id: string }) {
           )}
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={() => setAddOpen(false)} className="h-10 rounded-lg border px-4 text-sm">
+          <button type="button" onClick={() => setAddOpen(false)} className="h-10 rounded-xl border border-[#eadfcf] px-4 text-sm dark:border-[#3a342c]">
             Cancel
           </button>
           <button
             type="button"
             onClick={() => void addVendors()}
-            className="h-10 rounded-lg px-4 text-sm text-white"
-            style={{ backgroundColor: PINK }}
+            className="h-10 rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5]"
           >
             Add
           </button>
         </div>
+        </div>
       </Modal>
 
-      <Modal isOpen={Boolean(fillOpen)} onClose={() => setFillOpen(null)} className="w-full max-w-lg p-6" showCloseButton={false}>
-        <h3 className="mb-3 text-lg font-semibold">Fill for {fillOpen?.vendor?.name}</h3>
-        <div className="space-y-3">
+      <Modal
+        isOpen={Boolean(fillOpen)}
+        onClose={() => setFillOpen(null)}
+        className="w-full max-w-lg overflow-hidden border border-[#eadfcf] bg-[#fdfbf7] p-0 dark:border-[#3a342c] dark:bg-[#161411]"
+        showCloseButton={false}
+      >
+        <div className="border-b border-[#eadfcf] bg-[#fbf8f3] px-6 py-4 dark:border-[#3a342c]">
+          <h3
+            className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            Fill for {fillOpen?.vendor?.name}
+          </h3>
+        </div>
+        <div className="space-y-3 px-6 py-4">
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Delivery Date</label>
+            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Delivery date</label>
             <DatePickerField id="fill-vendor-delivery" value={fillDate} onChange={setFillDate} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Vendor Remark</label>
+            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Vendor remark</label>
             <input value={fillRemark} onChange={(e) => setFillRemark(e.target.value)} className={fieldClass} />
           </div>
-          <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200">
+          <div className="max-h-56 overflow-y-auto rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500">
+              <thead className="bg-[#fbf8f3] text-[#8a7b68] dark:bg-[#1c1914]">
                 <tr>
                   <th className="px-3 py-2 text-left">Item</th>
                   <th className="px-3 py-2 text-left">Qty</th>
@@ -535,7 +576,7 @@ export default function RfqDetail({ id }: { id: string }) {
               </thead>
               <tbody>
                 {(row.items || []).map((item) => (
-                  <tr key={item.id} className="border-t border-gray-100">
+                  <tr key={item.id} className="border-t border-[#f0e8db] dark:border-[#3a342c]">
                     <td className="px-3 py-2">{item.name}</td>
                     <td className="px-3 py-2">{item.qty ?? 0}</td>
                     <td className="px-3 py-2">
@@ -544,7 +585,7 @@ export default function RfqDetail({ id }: { id: string }) {
                         min={0}
                         value={fillRates[item.id || ""] || ""}
                         onChange={(e) => setFillRates((prev) => ({ ...prev, [item.id || ""]: e.target.value }))}
-                        className="h-9 w-24 rounded border border-gray-200 px-2"
+                        className="h-9 w-24 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 dark:border-[#3a342c] dark:bg-[#1a1714]"
                       />
                     </td>
                   </tr>
@@ -552,38 +593,34 @@ export default function RfqDetail({ id }: { id: string }) {
               </tbody>
             </table>
           </div>
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={() => setFillOpen(null)} className="h-10 rounded-lg border px-4 text-sm">
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" onClick={() => setFillOpen(null)} className="h-10 rounded-xl border border-[#eadfcf] px-4 text-sm dark:border-[#3a342c]">
             Cancel
           </button>
           <button
             type="button"
             onClick={() => void saveFill()}
-            className="h-10 rounded-lg px-4 text-sm text-white"
-            style={{ backgroundColor: PINK }}
+            className="h-10 rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5]"
           >
             Save
           </button>
+        </div>
         </div>
       </Modal>
     </div>
   );
 }
 
-function Kpi({ title, value, tone }: { title: string; value: string; tone: "blue" | "pink" | "sky" | "green" }) {
-  const bg =
-    tone === "blue"
-      ? "from-[#DBEAFE] to-white"
-      : tone === "pink"
-      ? "from-[#FCE7F3] to-white"
-      : tone === "sky"
-      ? "from-[#E0F2FE] to-white"
-      : "from-[#DCFCE7] to-white";
+function Kpi({ title, value, accent }: { title: string; value: string; accent?: boolean }) {
   return (
-    <div className={`rounded-xl border border-gray-100 bg-gradient-to-b ${bg} p-4`}>
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className="mt-2 text-lg font-semibold text-gray-800">{value}</p>
+    <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-4 dark:border-[#3a342c] dark:bg-[#161411]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">{title}</p>
+      <p
+        className={`mt-2 font-serif text-lg ${accent ? "text-[#9a7748]" : "text-[#1c1610] dark:text-[#f3ece2]"}`}
+        style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+      >
+        {value}
+      </p>
     </div>
   );
 }

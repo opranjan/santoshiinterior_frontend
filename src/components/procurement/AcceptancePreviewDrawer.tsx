@@ -105,20 +105,25 @@ export default function AcceptancePreviewDrawer({
       isOpen={open}
       onClose={onClose}
       showCloseButton
-      className="w-full max-w-6xl overflow-hidden bg-white p-0 shadow-2xl"
+      className="w-full max-w-6xl overflow-hidden rounded-2xl border border-[#eadfcf] bg-white p-0 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]"
       overlayClassName="fixed inset-0 h-full w-full bg-black/40"
     >
-      <div className="flex items-center justify-between border-b px-5 py-3">
-        <h3 className="text-lg font-semibold">{row.title || row.code}</h3>
+      <div className="flex items-center justify-between border-b border-[#eadfcf] bg-[#fbf8f3] px-5 py-3 dark:border-[#3a342c] dark:bg-[#1c1914]">
+        <h3
+          className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]"
+          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+        >
+          {row.title || row.code}
+        </h3>
       </div>
       <div className="grid max-h-[80vh] min-h-[520px] lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="overflow-y-auto border-r border-gray-100 bg-gray-50 p-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-gray-500">
+        <div className="overflow-y-auto border-r border-[#eadfcf] bg-[#fbf8f3] p-4 dark:border-[#3a342c] dark:bg-[#1c1914]">
+          <div className="mb-2 flex items-center justify-between text-xs text-[#8a7b68]">
             <button
               type="button"
                   title="Download PDF"
               onClick={() => downloadPurchaseOrderDocument(row)}
-              className="rounded border bg-white px-2 py-1 hover:bg-gray-50"
+              className="rounded-lg border border-[#eadfcf] bg-white px-2 py-1 hover:bg-[#fdfbf7] dark:border-[#3a342c] dark:bg-[#161411]"
             >
               ↓
             </button>
@@ -127,7 +132,7 @@ export default function AcceptancePreviewDrawer({
                 type="button"
                 disabled={currentPage <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border bg-white px-2 py-1 disabled:opacity-40"
+                className="rounded-lg border border-[#eadfcf] bg-white px-2 py-1 disabled:opacity-40 dark:border-[#3a342c] dark:bg-[#161411]"
               >
                 ˄
               </button>
@@ -135,7 +140,7 @@ export default function AcceptancePreviewDrawer({
                 type="button"
                 disabled={currentPage >= pages}
                 onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                className="rounded border bg-white px-2 py-1 disabled:opacity-40"
+                className="rounded-lg border border-[#eadfcf] bg-white px-2 py-1 disabled:opacity-40 dark:border-[#3a342c] dark:bg-[#161411]"
               >
                 ˅
               </button>
@@ -144,7 +149,7 @@ export default function AcceptancePreviewDrawer({
               </span>
             </div>
           </div>
-          <div className="rounded-lg border bg-white shadow-sm">
+          <div className="rounded-xl border border-[#eadfcf] bg-white shadow-sm dark:border-[#3a342c]">
             <PurchaseOrderDocument
               kindLabel={row.kind === "WO" ? "Work Order" : "Purchase Order"}
               code={row.code}
@@ -167,12 +172,12 @@ export default function AcceptancePreviewDrawer({
         </div>
         <div className="flex flex-col p-4">
           <div className="mb-3 flex gap-2">
-            <label className="flex-1 text-xs text-gray-500">
-              Order State
+            <label className="flex-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+              Order state
               <select
                 value={row.orderState}
                 onChange={(e) => void patch({ orderState: e.target.value })}
-                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-2 text-sm text-gray-800"
+                className="mt-1 h-10 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-2 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               >
                 {(vendorView ? statesForVendor(row.orderState) : ORDER_STATES).map((state) => (
                   <option key={state.value} value={state.value}>
@@ -181,17 +186,17 @@ export default function AcceptancePreviewDrawer({
                 ))}
               </select>
             </label>
-            <label className="flex-1 text-xs text-gray-500">
-              Payment Status
+            <label className="flex-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+              Payment status
               {vendorView ? (
-                <p className="mt-1 flex h-10 items-center rounded-lg border border-gray-100 bg-gray-50 px-2 text-sm text-gray-700">
+                <p className="mt-1 flex h-10 items-center rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-2 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]">
                   {PAYMENT_STATES.find((state) => state.value === row.paymentState)?.label || "Not Initiated"}
                 </p>
               ) : (
                 <select
                   value={row.paymentState}
                   onChange={(e) => void patch({ paymentState: e.target.value })}
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-2 text-sm text-gray-800"
+                  className="mt-1 h-10 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-2 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 >
                   {PAYMENT_STATES.map((state) => (
                     <option key={state.value} value={state.value}>
@@ -202,18 +207,18 @@ export default function AcceptancePreviewDrawer({
               )}
             </label>
           </div>
-          <p className="mb-2 text-sm font-medium text-gray-700">Comments</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Comments</p>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             {(row.comments || []).map((entry) => (
               <div key={entry.id}>
                 <div className="flex items-baseline justify-between gap-2 text-xs">
-                  <span className="font-medium text-[#E85D75]">{entry.user?.name || "Team"}</span>
-                  <span className="text-gray-400">{formatStamp(entry.createdAt)}</span>
+                  <span className="font-medium text-[#9a7748]">{entry.user?.name || "Team"}</span>
+                  <span className="text-[#b3a594]">{formatStamp(entry.createdAt)}</span>
                 </div>
-                <p className="mt-1 text-sm text-gray-700">{entry.message}</p>
+                <p className="mt-1 text-sm text-[#1c1610] dark:text-[#f3ece2]">{entry.message}</p>
               </div>
             ))}
-            {(row.comments || []).length === 0 ? <p className="text-sm text-gray-400">No comments yet.</p> : null}
+            {(row.comments || []).length === 0 ? <p className="text-sm text-[#b3a594]">No comments yet.</p> : null}
           </div>
           <div className="mt-3 flex items-center gap-2">
             <input
@@ -223,9 +228,9 @@ export default function AcceptancePreviewDrawer({
                 if (e.key === "Enter") void sendComment();
               }}
               placeholder="Type @ to mention someone..."
-              className="h-10 flex-1 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75]"
+              className="h-10 flex-1 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714]"
             />
-            <button type="button" onClick={() => void sendComment()} className="h-10 w-10 rounded-lg bg-gray-100 text-gray-600">
+            <button type="button" onClick={() => void sendComment()} className="h-10 w-10 rounded-xl bg-[#eadfcf] text-[#1c1610] dark:bg-[#3a342c] dark:text-[#e8d5b5]">
               ➤
             </button>
           </div>
@@ -236,7 +241,7 @@ export default function AcceptancePreviewDrawer({
                 onClose();
                 router.push(`/operations/procurement/acceptances/${row.id}`);
               }}
-              className="mt-3 h-10 rounded-lg bg-[#E85D75] text-sm font-medium text-white"
+              className="mt-3 h-10 rounded-xl bg-[#1c1610] text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
             >
               Receive items
             </button>

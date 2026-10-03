@@ -13,9 +13,8 @@ import {
   type PurchaseOrderItemDto,
 } from "@/services/crmApi";
 
-const PINK = "#E85D75";
 const fieldClass =
-  "h-10 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#E85D75]";
+  "h-10 w-full rounded-xl border border-[#eadfcf] bg-white px-2 text-sm outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
 
 type DraftItem = {
   key: string;
@@ -191,11 +190,11 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-lg font-semibold">
-          <Link href="/operations/procurement/orders" className="text-gray-400">
-            ‹
+          <Link href="/operations/procurement/orders" className="text-[#8a7b68] hover:text-[#1c1610]">
+            ←
           </Link>
-          <span className="text-gray-800">{kindLabel}</span>
-          <span className="text-[#E85D75]">/ {kindLabel}</span>
+          <span className="text-[#1c1610] dark:text-[#f3ece2]">{kindLabel}</span>
+          <span className="text-[#c4a574]">/ {row.code || kindLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" className="h-9 rounded-lg border border-gray-200 px-3 text-sm text-gray-600">
@@ -212,15 +211,14 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
             type="button"
             disabled={saving}
             onClick={() => void save(true)}
-            className="h-9 rounded-lg px-4 text-sm font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: PINK }}
+            className="h-9 rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5] disabled:opacity-50"
           >
             {saving ? "Saving..." : "Create"}
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#F4C4CC] bg-[#FFF5F7] p-4 text-sm text-gray-700">
+      <div className="rounded-xl border border-[#eadfcf] bg-[#fbf8f3] p-4 text-sm text-gray-700">
         {editing ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <input value={title} onChange={(e) => setTitle(e.target.value)} className={fieldClass} />
@@ -236,7 +234,7 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
           <>
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-base font-semibold text-gray-800">{title || "—"}</h3>
-              <button type="button" onClick={() => setEditing(true)} className="text-sm text-[#E85D75]">
+              <button type="button" onClick={() => setEditing(true)} className="text-sm text-[#c4a574]">
                 ✎ Edit
               </button>
             </div>
@@ -310,21 +308,21 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
             <button
               type="button"
               onClick={() => setTab("items")}
-              className={tab === "items" ? "border-b-2 border-[#E85D75] pb-2 font-medium text-[#E85D75]" : "pb-2 text-gray-500"}
+              className={tab === "items" ? "border-b-2 border-[#c4a574] pb-2 font-medium text-[#c4a574]" : "pb-2 text-gray-500"}
             >
               Items ({summary.count})
             </button>
             <button
               type="button"
               onClick={() => setTab("payment")}
-              className={tab === "payment" ? "border-b-2 border-[#E85D75] pb-2 font-medium text-[#E85D75]" : "pb-2 text-gray-500"}
+              className={tab === "payment" ? "border-b-2 border-[#c4a574] pb-2 font-medium text-[#c4a574]" : "pb-2 text-gray-500"}
             >
               Payment Terms
             </button>
             <button
               type="button"
               onClick={() => setTab("terms")}
-              className={tab === "terms" ? "border-b-2 border-[#E85D75] pb-2 font-medium text-[#E85D75]" : "pb-2 text-gray-500"}
+              className={tab === "terms" ? "border-b-2 border-[#c4a574] pb-2 font-medium text-[#c4a574]" : "pb-2 text-gray-500"}
             >
               Terms & Conditions
             </button>
@@ -337,15 +335,14 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
               <button
                 type="button"
                 onClick={() => setItems((prev) => [...prev, emptyItem()])}
-                className="h-9 rounded-lg px-3 text-sm font-medium text-white"
-                style={{ backgroundColor: PINK }}
+                className="h-9 rounded-xl bg-[#1c1610] px-3 text-sm font-medium text-[#e8d5b5]"
               >
                 + Add Item
               </button>
               <button
                 type="button"
                 onClick={() => setItems((prev) => [...prev, emptyItem(), emptyItem(), emptyItem()])}
-                className="h-9 rounded-lg border border-[#F4C4CC] px-3 text-sm text-[#E85D75]"
+                className="h-9 rounded-lg border border-[#eadfcf] px-3 text-sm text-[#c4a574]"
               >
                 Add Bulk Items ▾
               </button>
@@ -388,7 +385,7 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
                           value={item.name}
                           onChange={(e) => setItem(item.key, { name: e.target.value })}
                           placeholder="Search Item"
-                          className={`${fieldClass} ${item.name ? "" : "border-[#F4C4CC] bg-[#FFF5F7]"}`}
+                          className={`${fieldClass} ${item.name ? "" : "border-[#eadfcf] bg-[#fbf8f3]"}`}
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -398,10 +395,10 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
                         <input value={item.hsn} onChange={(e) => setItem(item.key, { hsn: e.target.value })} placeholder="Enter HSN" className={fieldClass} />
                       </td>
                       <td className="px-3 py-2">
-                        <input value={item.qty} onChange={(e) => setItem(item.key, { qty: e.target.value })} placeholder="Enter Quantity" className={`${fieldClass} ${item.qty ? "" : "border-[#F4C4CC] bg-[#FFF5F7]"}`} />
+                        <input value={item.qty} onChange={(e) => setItem(item.key, { qty: e.target.value })} placeholder="Enter Quantity" className={`${fieldClass} ${item.qty ? "" : "border-[#eadfcf] bg-[#fbf8f3]"}`} />
                       </td>
                       <td className="px-3 py-2">
-                        <input value={item.unit} onChange={(e) => setItem(item.key, { unit: e.target.value })} placeholder="Enter UOM" className={`${fieldClass} ${item.unit ? "" : "border-[#F4C4CC] bg-[#FFF5F7]"}`} />
+                        <input value={item.unit} onChange={(e) => setItem(item.key, { unit: e.target.value })} placeholder="Enter UOM" className={`${fieldClass} ${item.unit ? "" : "border-[#eadfcf] bg-[#fbf8f3]"}`} />
                       </td>
                       <td className="px-3 py-2">
                         <input value={item.rate} onChange={(e) => setItem(item.key, { rate: e.target.value })} className={fieldClass} />

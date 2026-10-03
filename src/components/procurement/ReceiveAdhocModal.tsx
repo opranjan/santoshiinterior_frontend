@@ -11,9 +11,9 @@ import {
   type VendorDto,
 } from "@/services/crmApi";
 
-const PINK = "#E85D75";
 const fieldClass =
-  "h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#E85D75]";
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const labelClass = "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]";
 
 function todayYmd() {
   const d = new Date();
@@ -95,18 +95,31 @@ export default function ReceiveAdhocModal({
   };
 
   return (
-    <Modal isOpen={open} onClose={onClose} className="w-full max-w-lg p-6" showCloseButton>
-      <h3 className="mb-4 text-lg font-semibold">Ad-hoc Delivery</h3>
-      <div className="space-y-4">
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      className="w-full max-w-lg overflow-hidden border border-[#eadfcf] bg-[#fdfbf7] p-0 dark:border-[#3a342c] dark:bg-[#161411]"
+      showCloseButton={false}
+    >
+      <div className="border-b border-[#eadfcf] bg-[#fbf8f3] px-6 py-4 dark:border-[#3a342c] dark:bg-[#1c1914]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">Receive</p>
+        <h3
+          className="mt-1 font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+        >
+          Ad-hoc delivery
+        </h3>
+      </div>
+      <div className="space-y-4 px-6 py-5">
         <div>
-          <label className="mb-1 block text-xs text-gray-500">
-            Delivery Name<span className="text-[#E85D75]">*</span>
+          <label className={labelClass}>
+            Delivery name <span className="text-[#c4a574]">*</span>
           </label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Write here" className={fieldClass} />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-gray-500">
-            Select Project<span className="text-[#E85D75]">*</span>
+          <label className={labelClass}>
+            Select project <span className="text-[#c4a574]">*</span>
           </label>
           <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={fieldClass}>
             <option value="">Select</option>
@@ -118,7 +131,7 @@ export default function ReceiveAdhocModal({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-gray-500">Select Vendor</label>
+          <label className={labelClass}>Select vendor</label>
           <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={fieldClass}>
             <option value="">Select</option>
             {vendors.map((vendor) => (
@@ -129,28 +142,36 @@ export default function ReceiveAdhocModal({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-gray-500">
-            Delivery Date<span className="text-[#E85D75]">*</span>
+          <label className={labelClass}>
+            Delivery date <span className="text-[#c4a574]">*</span>
           </label>
           <DatePickerField id="adhoc-delivery-date" value={deliveryDate} onChange={setDeliveryDate} />
         </div>
-        <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#E85D75] text-sm font-medium text-[#E85D75]">
-          📎 Add item list for AI scanning
+        <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#c4a574]/70 bg-white text-sm font-medium text-[#9a7748] hover:bg-[#fbf8f3] dark:bg-[#1a1714]">
+          + Add item list for AI scanning
           <input
             type="file"
             className="hidden"
             onChange={(e) => setScanFile(e.target.files?.[0] || null)}
           />
         </label>
-        {scanFile ? <p className="text-xs text-gray-500">{scanFile.name}</p> : null}
+        {scanFile ? <p className="text-xs text-[#8a7b68]">{scanFile.name}</p> : null}
+      </div>
+      <div className="flex justify-end gap-2 border-t border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-11 rounded-xl border border-[#eadfcf] px-5 text-sm font-medium text-[#6b645b] dark:border-[#3a342c]"
+        >
+          Cancel
+        </button>
         <button
           type="button"
           disabled={saving}
           onClick={() => void create()}
-          className="h-11 w-full rounded-lg text-sm font-medium text-white disabled:opacity-50"
-          style={{ backgroundColor: PINK }}
+          className="h-11 rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-50 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
         >
-          {saving ? "Creating..." : "Create Delivery"}
+          {saving ? "Creating..." : "Create delivery"}
         </button>
       </div>
     </Modal>
