@@ -78,7 +78,7 @@ export default function CrmDashboardCharts({
   const baseChart: ApexOptions["chart"] = {
     fontFamily: "Times New Roman, serif",
     toolbar: { show: false },
-    animations: { enabled: true, easing: "easeinout", speed: 900 },
+    animations: { enabled: true, speed: 900 },
     background: "transparent",
     foreColor: muted,
     dropShadow: { enabled: true, color: GOLD, top: 8, left: 0, blur: 8, opacity: 0.18 },
