@@ -191,7 +191,7 @@ export default function VendorCategoryManager({ isOpen, onClose, categories, onC
                         if (event.key === "Escape") setEditingId(null);
                       }}
                       autoFocus
-                      className="h-9 w-full rounded border border-[#E85D75] px-2 text-sm outline-none"
+                      className="h-9 w-full rounded border border-[#E85D75] bg-transparent px-2 text-sm text-gray-800 outline-none dark:text-white/90"
                     />
                   ) : (
                     <button

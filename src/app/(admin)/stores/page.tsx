@@ -1,4 +1,3 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import StoresManager from "@/components/stores/StoresManager";
 import { Metadata } from "next";
 import React from "react";
@@ -10,8 +9,7 @@ export const metadata: Metadata = {
 
 export default function StoresPage() {
   return (
-    <div>
-      <PageBreadcrumb pageTitle="Stores" />
+    <div className="vendor-form">
       <StoresManager />
     </div>
   );

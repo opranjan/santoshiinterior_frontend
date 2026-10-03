@@ -3,10 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
-import Label from "@/components/form/Label";
 import {
   Table,
   TableBody,
@@ -85,15 +81,12 @@ const enumToRole = (role?: string | null): RoleLabel => {
   }
 };
 
-const statusColor: Record<MemberStatus, "success" | "light"> = {
-  Active: "success",
-  Inactive: "light",
-};
-
 const selectClass =
-  "h-9 rounded-lg border border-gray-200 bg-transparent px-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300";
+  "h-9 appearance-none rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
 const fieldClass =
-  "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-4 text-sm text-[#1c1610] outline-none placeholder:text-[#a89880] focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const labelClass =
+  "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]";
 
 function initials(name: string) {
   return name
@@ -282,111 +275,133 @@ export default function TeamSettings() {
   };
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Link
+            href="/settings"
+            className="mb-2 inline-flex text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f3ece2]"
+          >
+            ← Settings
+          </Link>
+          <h1
+            className="font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            Team settings
+          </h1>
+          <p className="mt-1 text-sm text-[#8a7b68]">
+            Manage members, roles, and store access for your CRM team.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowInvite(true)}
+            className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+          >
+            Invite member
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </div>
-      )}
-      {notice && (
-        <div className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">
+      ) : null}
+      {notice ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
           {notice}
         </div>
-      )}
+      ) : null}
       {storeFilterId ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
-          <span className="text-gray-700 dark:text-gray-300">
-            Showing team members for store:{" "}
-            <strong className="text-gray-900 dark:text-white/90">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-4 py-3 text-sm dark:border-[#3a342c] dark:bg-[#161411]">
+          <span className="text-[#8a7b68]">
+            Showing team for{" "}
+            <strong className="text-[#1c1610] dark:text-[#f3ece2]">
               {storeOptions.find((s) => s.id === storeFilterId)?.name ||
                 "Selected store"}
             </strong>
           </span>
           <Link
             href="/settings/team"
-            className="font-medium text-brand-600 hover:text-brand-700"
+            className="text-xs font-semibold uppercase tracking-[0.12em] text-[#c4a574]"
           >
             View all team
           </Link>
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Team Settings
-          </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage members, roles, and store access for your CRM team.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void load()}>
-            Refresh
-          </Button>
-          <Button size="sm" onClick={() => setShowInvite(true)}>
-            + Invite Member
-          </Button>
+      {loading ? (
+        <div className="text-sm text-[#8a7b68]">Loading team members…</div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="grid grid-cols-2 divide-x divide-y divide-[#eadfcf] md:grid-cols-4 md:divide-y-0 dark:divide-[#3a342c]">
+          {roleOptions.slice(0, 4).map((role) => {
+            const count = members.filter(
+              (m) => m.role === role && m.status !== "Inactive"
+            ).length;
+            return (
+              <div key={role} className="px-4 py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                  {role}
+                </p>
+                <p
+                  className="mt-1 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]"
+                  style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                >
+                  {count}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {loading && (
-        <div className="text-sm text-gray-500">Loading team members…</div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {roleOptions.slice(0, 4).map((role) => {
-          const count = members.filter(
-            (m) => m.role === role && m.status !== "Inactive"
-          ).length;
-          return (
-            <div
-              key={role}
-              className="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]"
-            >
-              <p className="text-xs text-gray-500">{role}</p>
-              <p className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">
-                {count}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="flex-1 sm:max-w-xs">
-          <Input
+      <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
             type="text"
             placeholder="Search name, email, phone…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            className={`${fieldClass} flex-1 sm:max-w-xs`}
           />
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as "All" | RoleLabel)}
+            className={fieldClass}
+          >
+            <option value="All">All Roles</option>
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as "All" | RoleLabel)}
-          className="h-11 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-        >
-          <option value="All">All Roles</option>
-          {roleOptions.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="max-w-full overflow-x-auto">
           <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+            <TableHeader className="border-b border-[#eadfcf] bg-[#f6efe4] dark:border-[#3a342c] dark:bg-[#1a1714]">
               <TableRow>
                 {["Member", "Role", "Store Access", "Status", "Actions"].map(
                   (h) => (
                     <TableCell
                       key={h}
                       isHeader
-                      className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
+                      className="px-4 py-3.5 text-start text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]"
                     >
                       {h}
                     </TableCell>
@@ -394,20 +409,20 @@ export default function TeamSettings() {
                 )}
               </TableRow>
             </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            <TableBody className="divide-y divide-[#eadfcf] dark:divide-[#3a342c]">
               {filtered.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="px-4 py-3 text-start">
+                <TableRow key={m.id} className="store-row">
+                  <TableCell className="px-4 py-3.5 text-start">
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#1c1610] text-[10px] font-semibold text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]">
                         {initials(m.name)}
                       </span>
                       <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                        <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                           {m.name}
                         </p>
-                        <p className="text-xs text-gray-500">{m.email}</p>
-                        <p className="text-xs text-gray-400">{m.phone}</p>
+                        <p className="text-xs text-[#8a7b68]">{m.email}</p>
+                        <p className="text-xs text-[#a89880]">{m.phone}</p>
                       </div>
                     </div>
                   </TableCell>
@@ -441,15 +456,21 @@ export default function TeamSettings() {
                     </select>
                   </TableCell>
                   <TableCell className="px-4 py-3">
-                    <Badge size="sm" color={statusColor[m.status]}>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                        m.status === "Active"
+                          ? "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+                          : "bg-[#eadfcf] text-[#8a7b68] dark:bg-[#2a251f] dark:text-[#a89880]"
+                      }`}
+                    >
                       {m.status}
-                    </Badge>
+                    </span>
                   </TableCell>
                   <TableCell className="px-4 py-3">
                     <button
                       type="button"
                       onClick={() => void toggleStatus(m.id)}
-                      className="text-sm font-medium text-brand-500 hover:text-brand-600"
+                      className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f3ece2]"
                     >
                       {m.status === "Active" ? "Deactivate" : "Activate"}
                     </button>
@@ -458,7 +479,7 @@ export default function TeamSettings() {
               ))}
               {!loading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell className="px-4 py-10 text-center text-sm text-gray-500">
+                  <TableCell className="px-4 py-10 text-center text-sm text-[#8a7b68]">
                     No team members match your search.
                   </TableCell>
                 </TableRow>
@@ -469,16 +490,19 @@ export default function TeamSettings() {
       </div>
 
       {showInvite && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+              <h3
+                className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+              >
                 Invite team member
               </h3>
               <button
                 type="button"
                 onClick={() => setShowInvite(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-[#8a7b68] hover:text-[#1c1610]"
               >
                 ✕
               </button>
@@ -486,7 +510,7 @@ export default function TeamSettings() {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="inviteName">Full Name</Label>
+                <label className={labelClass} htmlFor="inviteName">Full name</label>
                 <input
                   id="inviteName"
                   type="text"
@@ -497,7 +521,7 @@ export default function TeamSettings() {
                 />
               </div>
               <div>
-                <Label htmlFor="inviteEmail">Email</Label>
+                <label className={labelClass} htmlFor="inviteEmail">Email</label>
                 <input
                   id="inviteEmail"
                   type="email"
@@ -508,7 +532,7 @@ export default function TeamSettings() {
                 />
               </div>
               <div>
-                <Label htmlFor="invitePhone">Phone</Label>
+                <label className={labelClass} htmlFor="invitePhone">Phone</label>
                 <input
                   id="invitePhone"
                   type="tel"
@@ -519,7 +543,7 @@ export default function TeamSettings() {
                 />
               </div>
               <div>
-                <Label htmlFor="invitePassword">Temporary Password</Label>
+                <label className={labelClass} htmlFor="invitePassword">Temporary password</label>
                 <input
                   id="invitePassword"
                   type="text"
@@ -529,13 +553,13 @@ export default function TeamSettings() {
                 />
               </div>
               <div>
-                <Label>Role</Label>
+                <label className={labelClass}>Role</label>
                 <select
                   value={inviteRole}
                   onChange={(e) =>
                     setInviteRole(e.target.value as RoleLabel)
                   }
-                  className={`${fieldClass} px-3`}
+                  className={fieldClass}
                 >
                   {roleOptions.map((r) => (
                     <option key={r} value={r}>
@@ -545,11 +569,11 @@ export default function TeamSettings() {
                 </select>
               </div>
               <div>
-                <Label>Store Access</Label>
+                <label className={labelClass}>Store access</label>
                 <select
                   value={inviteStoreId}
                   onChange={(e) => setInviteStoreId(e.target.value)}
-                  className={`${fieldClass} px-3`}
+                  className={fieldClass}
                 >
                   <option value="">All Stores</option>
                   {storeOptions.map((s) => (
@@ -562,15 +586,15 @@ export default function TeamSettings() {
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
+              <button
+                type="button"
                 onClick={() => setShowInvite(false)}
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               >
                 Cancel
-              </Button>
-              <Button
-                size="sm"
+              </button>
+              <button
+                type="button"
                 onClick={() => void inviteMember()}
                 disabled={
                   saving ||
@@ -578,9 +602,10 @@ export default function TeamSettings() {
                   !inviteEmail.trim() ||
                   !invitePassword.trim()
                 }
+                className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
               >
-                {saving ? "Saving…" : "Add Member"}
-              </Button>
+                {saving ? "Saving…" : "Add member"}
+              </button>
             </div>
           </div>
         </div>

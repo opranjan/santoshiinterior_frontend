@@ -171,7 +171,7 @@ export default function VendorDashboardCharts({
     <div className="grid gap-4 xl:grid-cols-3">
       <section className="vendor-card vendor-rise vendor-rise-delay-2 p-5 xl:col-span-2">
         <p className="text-[11px] uppercase tracking-[0.18em] text-[#9a7748]">Six-month activity</p>
-        <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payouts and orders</h2>
+        <h2 className="vendor-serif mt-1 text-2xl">Payouts and orders</h2>
         <div className="mt-3">
           <Chart
             key={`activity-${theme}`}
@@ -188,7 +188,7 @@ export default function VendorDashboardCharts({
 
       <section className="vendor-card vendor-rise vendor-rise-delay-3 p-5">
         <p className="text-[11px] uppercase tracking-[0.18em] text-[#9a7748]">Order mix</p>
-        <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Delivery status</h2>
+        <h2 className="vendor-serif mt-1 text-2xl">Delivery status</h2>
         <div className="mt-2">
           <Chart key={`mix-${theme}`} options={donutOptions} series={orderMix.values} type="donut" height={280} />
         </div>
@@ -198,7 +198,7 @@ export default function VendorDashboardCharts({
         <div className="grid items-center gap-4 md:grid-cols-[220px_1fr]">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#9a7748]">Collections</p>
-            <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Paid vs pending</h2>
+            <h2 className="vendor-serif mt-1 text-2xl">Paid vs pending</h2>
             <Chart key={`radial-${theme}`} options={radialOptions} series={[paidPct]} type="radialBar" height={220} />
           </div>
           <div className="min-w-0">

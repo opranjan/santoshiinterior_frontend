@@ -73,17 +73,17 @@ export default function VendorPortalLogins({ vendorId, vendorName }: { vendorId:
           Share these credentials: <strong>{created.email}</strong> / <strong>{created.password}</strong>
         </div>
       ) : null}
-      <div className="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:grid-cols-2">
-        <input className="h-11 rounded-lg border px-3 text-sm" placeholder="Contact name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="h-11 rounded-lg border px-3 text-sm" placeholder="Login email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input className="h-11 rounded-lg border px-3 text-sm" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <div className="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:grid-cols-2 dark:border-gray-800 dark:bg-white/[0.03]">
+        <input className="h-11 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90" placeholder="Contact name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="h-11 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90" placeholder="Login email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="h-11 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <Button size="sm" disabled={saving} onClick={() => void createLogin()}>
           {saving ? "Saving…" : "+ Create vendor login"}
         </Button>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <table className="min-w-full text-sm text-gray-700 dark:text-gray-200">
+          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-white/[0.04] dark:text-gray-400">
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Email</th>

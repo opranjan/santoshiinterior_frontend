@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import type { AuthUser } from "@/lib/auth";
@@ -90,14 +89,14 @@ export default function UserFormModal({
 
   return (
     <div className="fixed inset-0 z-[100010] flex items-center justify-center bg-black/45 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-        <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="border-b border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
                 {title}
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-[#8a7b68]">
                 {title.includes("Franchisee")
                   ? "Create a franchisee login. Copy the email and password after save and share them."
                   : "Add login details and assign a role for CRM access."}
@@ -106,7 +105,7 @@ export default function UserFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full p-2 text-gray-400 hover:bg-gray-100"
+              className="rounded-full p-2 text-[#8a7b68] hover:bg-[#eadfcf] dark:hover:bg-[#2a251f]"
             >
               ✕
             </button>
@@ -164,7 +163,7 @@ export default function UserFormModal({
                   />
                   <button
                     type="button"
-                    className="shrink-0 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                    className="shrink-0 rounded-xl border border-[#eadfcf] bg-white px-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                     onClick={() =>
                       setForm((f) => ({ ...f, password: generateTempPassword() }))
                     }
@@ -206,7 +205,7 @@ export default function UserFormModal({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, managerId: e.target.value }))
                 }
-                className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                className="h-11 w-full appearance-none rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm text-[#1c1610] outline-none dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               >
                 <option value="">No manager</option>
                 {managers.map((m) => (
@@ -223,7 +222,7 @@ export default function UserFormModal({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, storeId: e.target.value }))
                 }
-                className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                className="h-11 w-full appearance-none rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm text-[#1c1610] outline-none dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               >
                 <option value="">Global — all stores</option>
                 {stores.map((s) => (
@@ -243,7 +242,7 @@ export default function UserFormModal({
                 value={roleSearch}
                 onChange={(e) => setRoleSearch(e.target.value)}
                 placeholder="Search roles"
-                className="h-8 w-40 rounded-lg border border-gray-200 px-2 text-xs dark:border-gray-700 dark:bg-gray-900"
+                className="h-8 w-40 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 text-xs text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               />
             </div>
             <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
@@ -258,8 +257,8 @@ export default function UserFormModal({
                     }
                     className={`rounded-xl border p-3 text-left transition ${
                       active
-                        ? "border-[#E85D75] bg-[#E85D75]/5 ring-1 ring-[#E85D75]/30"
-                        : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+                        ? "border-[#c4a574] bg-[#e8d5b5]/20 ring-1 ring-[#c4a574]/40"
+                        : "border-[#eadfcf] hover:border-[#c4a574] dark:border-[#3a342c]"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -275,12 +274,12 @@ export default function UserFormModal({
                       {role.description || role.baseRole}
                     </p>
                     {role.key === "FRANCHISEE" ? (
-                      <p className="mt-1 text-[11px] font-medium text-[#E85D75]">
+                      <p className="mt-1 text-[11px] font-medium text-[#9a7748]">
                         After login they see assigned projects from the CRM. They cannot add projects.
                       </p>
                     ) : null}
                     {role.key === "VENDOR" ? (
-                      <p className="mt-1 text-[11px] font-medium text-[#E85D75]">
+                      <p className="mt-1 text-[11px] font-medium text-[#9a7748]">
                         After login they see vendor dashboard, design, assigned projects, and procurement.
                       </p>
                     ) : null}
@@ -302,7 +301,7 @@ export default function UserFormModal({
                 <select
                   value={form.vendorId}
                   onChange={(e) => setForm((f) => ({ ...f, vendorId: e.target.value }))}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                  className="h-11 w-full appearance-none rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 >
                   <option value="">Select vendor</option>
                   {vendors.map((vendor) => (
@@ -316,18 +315,18 @@ export default function UserFormModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
-          <Button size="sm" variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-3 border-t border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
+          <button type="button" onClick={onClose} className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]">
             Cancel
-          </Button>
-          <Button
-            size="sm"
+          </button>
+          <button
+            type="button"
             disabled={saving || !form.accessRoleId || (selectedRole?.key === "VENDOR" && !form.vendorId)}
-            className="bg-[#E85D75] hover:bg-[#d94c65]"
+            className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
             onClick={() => void onSubmit(form)}
           >
-            {saving ? "Saving…" : "Save User"}
-          </Button>
+            {saving ? "Saving…" : "Save user"}
+          </button>
         </div>
       </div>
     </div>

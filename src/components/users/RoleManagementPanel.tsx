@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { ApiError } from "@/lib/api";
@@ -12,7 +11,7 @@ import {
 } from "@/lib/permissions";
 import { rolesApi } from "@/services/crmApi";
 
-const accent = "#E85D75";
+const accent = "#c4a574";
 
 type RoleForm = {
   label: string;
@@ -80,7 +79,7 @@ function PermissionPicker({
               <button
                 type="button"
                 onClick={() => toggleGroup(group, !allSelected)}
-                className="shrink-0 text-xs font-medium text-[#E85D75] hover:underline"
+                className="shrink-0 text-xs font-medium text-[#c4a574] hover:underline"
               >
                 {allSelected ? "Clear all" : "Select all"}
               </button>
@@ -93,7 +92,7 @@ function PermissionPicker({
                     key={perm.key}
                     className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 transition ${
                       checked
-                        ? "border-[#E85D75]/40 bg-[#E85D75]/5"
+                        ? "border-[#c4a574]/40 bg-[#c4a574]/5"
                         : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
                     }`}
                   >
@@ -101,7 +100,7 @@ function PermissionPicker({
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggle(perm.key)}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#E85D75]"
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#c4a574]"
                     />
                     <span>
                       <span className="block text-sm font-medium text-gray-800 dark:text-white/90">
@@ -150,11 +149,11 @@ function RoleEditorModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/45 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+    <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/50 p-4">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="flex items-start justify-between border-b border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
               {title}
             </h3>
             <p className="mt-1 text-sm text-gray-500">
@@ -220,7 +219,7 @@ function RoleEditorModal({
                   onChange={(e) =>
                     setForm((f) => ({ ...f, isGlobal: e.target.checked }))
                   }
-                  className="h-4 w-4 rounded border-gray-300 text-[#E85D75]"
+                  className="h-4 w-4 rounded border-gray-300 text-[#c4a574]"
                 />
                 <span>
                   <span className="block text-sm font-medium">Global access</span>
@@ -249,18 +248,18 @@ function RoleEditorModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
-          <Button size="sm" variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-3 border-t border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
+          <button type="button" onClick={onClose} className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]">
             Cancel
-          </Button>
-          <Button
-            size="sm"
+          </button>
+          <button
+            type="button"
             disabled={saving}
-            className="bg-[#E85D75] hover:bg-[#d94c65]"
+            className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
             onClick={() => void onSave(form)}
           >
-            {saving ? "Saving…" : "Save Role"}
-          </Button>
+            {saving ? "Saving…" : "Save role"}
+          </button>
         </div>
       </div>
     </div>
@@ -391,23 +390,23 @@ export default function RoleManagementPanel() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Role Management
+          <h2 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+            Role management
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[#8a7b68]">
             Create roles and control what each team can access.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="bg-[#E85D75] hover:bg-[#d94c65]"
+        <button
+          type="button"
+          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
           onClick={() => {
             setEditingRole(null);
             setEditorOpen(true);
           }}
         >
-          + Create Role
-        </Button>
+          Create role
+        </button>
       </div>
 
       {error ? (
@@ -430,7 +429,7 @@ export default function RoleManagementPanel() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search roles"
-          className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+          className="h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] pl-9 pr-3 text-sm text-[#1c1610] outline-none dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
         />
       </div>
 
@@ -441,7 +440,7 @@ export default function RoleManagementPanel() {
           {filtered.map((role) => (
             <div
               key={role.id}
-              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-[#E85D75]/30 hover:shadow-md dark:border-gray-800 dark:bg-white/[0.03]"
+              className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 transition hover:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#161411]"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -487,7 +486,7 @@ export default function RoleManagementPanel() {
                     setEditingRole(role);
                     setEditorOpen(true);
                   }}
-                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#E85D75] hover:bg-[#E85D75]/10"
+                  className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[#9a7748] hover:bg-[#eadfcf] dark:hover:bg-[#2a251f]"
                 >
                   Edit access
                 </button>

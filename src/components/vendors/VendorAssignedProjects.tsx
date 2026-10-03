@@ -43,16 +43,16 @@ export default function VendorAssignedProjects() {
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#9a7748]">
               {enumToLabel(row.status || "KICKOFF")}
             </p>
-            <h2 className="vendor-serif mt-2 text-2xl text-[#111]">{row.name}</h2>
+            <h2 className="vendor-serif mt-2 text-2xl">{row.name}</h2>
             <p className="mt-2 text-sm text-[#6b645b]">{row.address || "Location not listed"}</p>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-[#9a7748]">Customer</p>
-                <p className="mt-1 text-[#111]">{row.clientName || "—"}</p>
+                <p className="mt-1 text-[#111] dark:text-[var(--vendor-ink)]">{row.clientName || "—"}</p>
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-[#9a7748]">Budget</p>
-                <p className="mt-1 text-[#111]">{row.budget ? `₹ ${row.budget}` : "—"}</p>
+                <p className="mt-1 text-[#111] dark:text-[var(--vendor-ink)]">{row.budget ? `₹ ${row.budget}` : "—"}</p>
               </div>
             </div>
           </article>

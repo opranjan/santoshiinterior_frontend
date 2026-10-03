@@ -2,9 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
 import {
   Table,
   TableBody,
@@ -68,10 +65,11 @@ const mapStore = (dto: StoreDto): Store => {
     openedOn: toIsoDate(dto.openedOn) || "",
   };
 };
-const statusColor: Record<StoreStatus, "success" | "error" | "warning"> = {
-  Active: "success",
-  Inactive: "error",
-  "Coming Soon": "warning",
+
+const statusPill: Record<StoreStatus, string> = {
+  Active: "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]",
+  Inactive: "bg-[#eadfcf] text-[#8a7b68] dark:bg-[#2a251f] dark:text-[#a89880]",
+  "Coming Soon": "bg-[#e8d5b5] text-[#1c1610]",
 };
 
 const formatINR = (amount: number) =>
@@ -92,7 +90,11 @@ const formatDate = (value: string) => {
 };
 
 const selectClass =
-  "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+  "h-11 w-full appearance-none rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const actionLink =
+  "inline-flex h-8 items-center rounded-lg px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68] transition hover:bg-[#eadfcf] hover:text-[#1c1610] dark:hover:bg-[#2a251f] dark:hover:text-[#f3ece2]";
+const drawerBtn =
+  "inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#eadfcf] bg-white text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] transition hover:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
 
 export default function StoresManager() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -234,72 +236,53 @@ export default function StoresManager() {
   const storeLeadsHref = (id: string) => `/sales/leads?storeId=${id}`;
   const storeTeamHref = (id: string) => `/settings/team?storeId=${id}`;
 
-  const renderStoreActions = (store: Store, compact = false) => (
-    <div className={`flex flex-wrap items-center gap-1 ${compact ? "" : "gap-2"}`}>
+  const renderStoreActions = (store: Store) => (
+    <div className="flex flex-wrap items-center gap-1">
       <button
         type="button"
         onClick={() => setSelectedId(store.id)}
-        className="text-sm font-medium text-brand-500 hover:text-brand-600"
+        className="inline-flex h-8 items-center rounded-lg bg-[#1c1610] px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
       >
         View
       </button>
-      <span className="text-gray-300 dark:text-gray-600">·</span>
-      <Link
-        href={`/stores/new?edit=${store.id}`}
-        className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
-      >
+      <Link href={`/stores/new?edit=${store.id}`} className={actionLink}>
         Edit
       </Link>
-      <span className="text-gray-300 dark:text-gray-600">·</span>
-      <Link
-        href={storeLeadsHref(store.id)}
-        className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
-      >
+      <Link href={storeLeadsHref(store.id)} className={actionLink}>
         Leads
       </Link>
-      <span className="text-gray-300 dark:text-gray-600">·</span>
-      <Link
-        href={storeTeamHref(store.id)}
-        className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
-      >
+      <Link href={storeTeamHref(store.id)} className={actionLink}>
         Team
       </Link>
       {store.status !== "Inactive" ? (
-        <>
-          <span className="text-gray-300 dark:text-gray-600">·</span>
-          <button
-            type="button"
-            onClick={() =>
-              setConfirmAction({
-                type: "close",
-                storeId: store.id,
-                storeName: store.name,
-              })
-            }
-            className="text-sm font-medium text-amber-600 hover:text-amber-700"
-          >
-            Close
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() =>
+            setConfirmAction({
+              type: "close",
+              storeId: store.id,
+              storeName: store.name,
+            })
+          }
+          className={actionLink}
+        >
+          Close
+        </button>
       ) : (
-        <>
-          <span className="text-gray-300 dark:text-gray-600">·</span>
-          <button
-            type="button"
-            onClick={() =>
-              setConfirmAction({
-                type: "reopen",
-                storeId: store.id,
-                storeName: store.name,
-              })
-            }
-            className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
-          >
-            Reopen
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() =>
+            setConfirmAction({
+              type: "reopen",
+              storeId: store.id,
+              storeName: store.name,
+            })
+          }
+          className={actionLink}
+        >
+          Reopen
+        </button>
       )}
-      <span className="text-gray-300 dark:text-gray-600">·</span>
       <button
         type="button"
         onClick={() =>
@@ -309,206 +292,258 @@ export default function StoresManager() {
             storeName: store.name,
           })
         }
-        className="text-sm font-medium text-error-500 hover:text-error-600"
+        className="inline-flex h-8 items-center rounded-lg px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
       >
         Delete
       </button>
     </div>
   );
 
+  const initials = (name: string) =>
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "S";
+
   return (
-    <div className="space-y-5">
-      {notice && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+    <div className="space-y-6">
+      <div className="store-hero relative rounded-2xl px-5 py-5 text-[#e8d5b5] sm:px-7 sm:py-6">
+        <div className="relative z-[1] flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-xl">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#c4a574]">
+              Santoshi interiors · network
+            </p>
+            <h1
+              className="mt-2 font-serif text-[2rem] leading-none text-[#f3ece2] sm:text-[2.35rem]"
+              style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+            >
+              All stores
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-[#c4b49a]">
+              {loading
+                ? "Loading locations…"
+                : `${totals.stores} location${totals.stores === 1 ? "" : "s"} · ${totals.active} active · ${totals.leads} open leads`}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex overflow-hidden rounded-xl border border-[#e8d5b5]/25 bg-black/20">
+              <button
+                type="button"
+                onClick={() => setView("cards")}
+                className={`h-11 px-4 text-xs font-semibold uppercase tracking-[0.12em] ${
+                  view === "cards"
+                    ? "bg-[#e8d5b5] text-[#1c1610]"
+                    : "text-[#c4b49a] hover:text-[#e8d5b5]"
+                }`}
+              >
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("table")}
+                className={`h-11 px-4 text-xs font-semibold uppercase tracking-[0.12em] ${
+                  view === "table"
+                    ? "bg-[#e8d5b5] text-[#1c1610]"
+                    : "text-[#c4b49a] hover:text-[#e8d5b5]"
+                }`}
+              >
+                Table
+              </button>
+            </div>
+            <Link
+              href="/stores/new"
+              className="inline-flex h-11 items-center rounded-xl bg-[#e8d5b5] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] transition hover:bg-[#f3ece2]"
+            >
+              Add store
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {notice ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
           {notice}
         </div>
-      )}
-      {error && (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10">
+      ) : null}
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </div>
-      )}
-      {loading && (
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading stores...</div>
-      )}
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Stores
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Manage Santoshi Interior multi-store locations, managers & performance
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <div className="flex overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => setView("cards")}
-              className={`px-3 py-2 text-sm font-medium ${
-                view === "cards"
-                  ? "bg-brand-500 text-white"
-                  : "bg-white text-gray-600 dark:bg-transparent dark:text-gray-400"
-              }`}
-            >
-              Cards
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("table")}
-              className={`px-3 py-2 text-sm font-medium ${
-                view === "table"
-                  ? "bg-brand-500 text-white"
-                  : "bg-white text-gray-600 dark:bg-transparent dark:text-gray-400"
-              }`}
-            >
-              Table
-            </button>
-          </div>
-          <Link href="/stores/new">
-            <Button size="sm">+ Add Store</Button>
-          </Link>
-        </div>
-      </div>
+      ) : null}
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        {[
-          { label: "Total Stores", value: String(totals.stores) },
-          { label: "Active", value: String(totals.active) },
-          { label: "Open Leads", value: String(totals.leads) },
-          { label: "Active Projects", value: String(totals.projects) },
-          {
-            label: "Monthly Revenue",
-            value: formatINR(totals.revenue),
-            wide: true,
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className={`rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-white/[0.03] ${
-              kpi.wide ? "col-span-2 xl:col-span-1" : ""
-            }`}
-          >
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-              {kpi.label}
-            </p>
-            <p className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">
-              {kpi.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Input
-          type="text"
-          placeholder="Search store, city, manager, phone..."
-          defaultValue={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          value={cityFilter}
-          onChange={(e) => setCityFilter(e.target.value)}
-          className={selectClass}
-        >
-          {cities.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as "All" | StoreStatus)
-          }
-          className={selectClass}
-        >
-          <option value="All">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-          <option value="Coming Soon">Coming Soon</option>
-        </select>
-      </div>
-
-      {/* Cards view */}
-      {view === "cards" && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((store) => (
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="grid grid-cols-2 divide-x divide-y divide-[#eadfcf] xl:grid-cols-5 xl:divide-y-0 dark:divide-[#3a342c]">
+          {[
+            { label: "Total stores", value: String(totals.stores), hint: "All locations" },
+            { label: "Active", value: String(totals.active), hint: "Trading now" },
+            { label: "Open leads", value: String(totals.leads), hint: "In pipeline" },
+            { label: "Active projects", value: String(totals.projects), hint: "On site" },
+            { label: "Monthly revenue", value: formatINR(totals.revenue), hint: "This month" },
+          ].map((kpi, i) => (
             <div
-              key={store.id}
-              className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"
+              key={kpi.label}
+              className={`store-kpi px-4 py-4 sm:px-5 ${i === 4 ? "col-span-2 xl:col-span-1" : ""}`}
+              style={{ animationDelay: `${i * 70}ms` }}
             >
-              <div className="bg-gradient-to-br from-brand-800 via-brand-600 to-brand-500 px-5 py-4 text-white">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                {kpi.label}
+              </p>
+              <p
+                className="mt-1.5 font-serif text-[1.65rem] leading-none text-[#1c1610] dark:text-[#f3ece2]"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+              >
+                {kpi.value}
+              </p>
+              <p className="mt-1.5 text-xs text-[#a89880]">{kpi.hint}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
+          <input
+            type="text"
+            placeholder="Search store, city, manager, phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={selectClass}
+          />
+          <select
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            className={selectClass}
+          >
+            {cities.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as "All" | StoreStatus)
+            }
+            className={selectClass}
+          >
+            <option value="All">All status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Coming Soon">Coming Soon</option>
+          </select>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] px-5 py-14 text-center text-sm text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#161411]">
+          Loading stores...
+        </div>
+      ) : null}
+
+      {view === "cards" && !loading && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((store, i) => (
+            <article
+              key={store.id}
+              className="store-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]"
+              style={{ animationDelay: `${i * 80}ms` }}
+            >
+              <div className="px-5 pb-2 pt-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-brand-200">
-                      {store.code}
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#1c1610] text-xs font-semibold tracking-[0.08em] text-[#e8d5b5] shadow-[0_8px_18px_rgba(28,22,16,0.18)] dark:bg-[#e8d5b5] dark:text-[#1c1610]">
+                      {initials(store.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">
+                        {store.code}
+                      </p>
+                      <h3
+                        className="mt-1 truncate font-serif text-[1.35rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+                        style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                      >
+                        {store.name}
+                      </h3>
+                      <p className="mt-1 truncate text-sm text-[#8a7b68]">
+                        {store.city}
+                        {store.address ? ` · ${store.address}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${statusPill[store.status]}`}
+                  >
+                    {store.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mx-5 mt-3 grid grid-cols-3 gap-2">
+                {[
+                  ["Leads", store.openLeads],
+                  ["Projects", store.activeProjects],
+                  ["Staff", store.staffCount],
+                ].map(([label, value]) => (
+                  <div
+                    key={String(label)}
+                    className="rounded-xl border border-[#eadfcf] bg-white px-2.5 py-2.5 text-center dark:border-[#3a342c] dark:bg-[#1a1714]"
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                      {label}
                     </p>
-                    <h3 className="mt-1 text-lg font-semibold">{store.name}</h3>
-                    <p className="mt-0.5 text-sm text-white/70">
-                      {store.city} · {store.address}
+                    <p
+                      className="mt-1 font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+                      style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                    >
+                      {value}
                     </p>
                   </div>
-                  <Badge size="sm" color={statusColor[store.status]}>
-                    {store.status}
-                  </Badge>
-                </div>
+                ))}
               </div>
 
-              <div className="grid grid-cols-3 gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
-                <div>
-                  <p className="text-[11px] text-gray-400">Leads</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                    {store.openLeads}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-400">Projects</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                    {store.activeProjects}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-400">Staff</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                    {store.staffCount}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 px-4 py-3 text-sm">
+              <div className="mx-5 mt-3 space-y-2 border-t border-[#eadfcf] py-3 text-sm dark:border-[#3a342c]">
                 <div className="flex justify-between gap-2">
-                  <span className="text-gray-500 dark:text-gray-400">Manager</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
+                  <span className="text-[#8a7b68]">Manager</span>
+                  <span className="truncate font-medium text-[#1c1610] dark:text-[#f3ece2]">
                     {store.manager}
                   </span>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <span className="text-gray-500 dark:text-gray-400">Phone</span>
-                  <span className="text-gray-800 dark:text-white/90">{store.phone}</span>
+                  <span className="text-[#8a7b68]">Phone</span>
+                  <span className="text-[#1c1610] dark:text-[#f3ece2]">{store.phone}</span>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <span className="text-gray-500 dark:text-gray-400">Revenue / mo</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
+                  <span className="text-[#8a7b68]">Revenue / mo</span>
+                  <span className="font-medium text-[#1c1610] dark:text-[#f3ece2]">
                     {formatINR(store.monthlyRevenue)}
                   </span>
                 </div>
               </div>
 
-              <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-800">
+              <div className="border-t border-[#eadfcf] px-4 py-3 dark:border-[#3a342c]">
                 {renderStoreActions(store)}
               </div>
-            </div>
+            </article>
           ))}
 
           {filtered.length === 0 && (
-            <div className="col-span-full rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500 dark:border-gray-700">
-              No stores match your filters.{" "}
-              <Link href="/stores/new" className="font-medium text-brand-500">
+            <div className="col-span-full rounded-2xl border border-dashed border-[#eadfcf] bg-[#fbf8f3] px-6 py-16 text-center dark:border-[#3a342c] dark:bg-[#161411]">
+              <p
+                className="font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+              >
+                No stores match
+              </p>
+              <p className="mt-2 text-sm text-[#8a7b68]">
+                Adjust filters or add a new location.
+              </p>
+              <Link
+                href="/stores/new"
+                className="mt-5 inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+              >
                 Add a store
               </Link>
             </div>
@@ -516,13 +551,12 @@ export default function StoresManager() {
         </div>
       )}
 
-      {/* Table view */}
-      {view === "table" && (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+      {view === "table" && !loading && (
+        <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
           <div className="max-w-full overflow-x-auto">
             <div className="min-w-[1100px]">
               <Table>
-                <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+                <TableHeader className="border-b border-[#eadfcf] bg-[#f6efe4] dark:border-[#3a342c] dark:bg-[#1a1714]">
                   <TableRow>
                     {[
                       "Store",
@@ -537,54 +571,63 @@ export default function StoresManager() {
                       <TableCell
                         key={h}
                         isHeader
-                        className="px-4 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                        className="px-4 py-3.5 text-start text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]"
                       >
                         {h}
                       </TableCell>
                     ))}
                   </TableRow>
                 </TableHeader>
-                <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                <TableBody className="divide-y divide-[#eadfcf] dark:divide-[#3a342c]">
                   {filtered.map((store) => (
-                    <TableRow key={store.id}>
-                      <TableCell className="px-4 py-3 text-start">
-                        <span className="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                          {store.name}
-                        </span>
-                        <span className="block text-theme-xs text-gray-500">
-                          {store.code} · {store.id}
-                        </span>
+                    <TableRow key={store.id} className="store-row">
+                      <TableCell className="px-4 py-3.5 text-start">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1c1610] text-[10px] font-semibold text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]">
+                            {initials(store.name)}
+                          </div>
+                          <div>
+                            <span className="block font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                              {store.name}
+                            </span>
+                            <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#c4a574]">
+                              {store.code}
+                            </span>
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-start">
-                        <span className="block text-gray-800 text-theme-sm dark:text-white/90">
+                        <span className="block text-sm text-[#1c1610] dark:text-[#f3ece2]">
                           {store.city}
                         </span>
-                        <span className="block text-theme-xs text-gray-500">
+                        <span className="block text-xs text-[#8a7b68]">
                           {store.address}
                         </span>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-start">
-                        <span className="block text-gray-800 text-theme-sm dark:text-white/90">
+                        <span className="block text-sm text-[#1c1610] dark:text-[#f3ece2]">
                           {store.manager}
                         </span>
-                        <span className="block text-theme-xs text-gray-500">
+                        <span className="block text-xs text-[#8a7b68]">
                           {store.phone}
                         </span>
                       </TableCell>
-                      <TableCell className="px-4 py-3 text-gray-700 text-theme-sm dark:text-gray-300">
+                      <TableCell className="px-4 py-3 text-sm text-[#1c1610] dark:text-[#f3ece2]">
                         {store.openLeads}
                       </TableCell>
-                      <TableCell className="px-4 py-3 text-gray-700 text-theme-sm dark:text-gray-300">
+                      <TableCell className="px-4 py-3 text-sm text-[#1c1610] dark:text-[#f3ece2]">
                         {store.activeProjects}
                       </TableCell>
-                      <TableCell className="px-4 py-3 font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                      <TableCell className="px-4 py-3 text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                         {formatINR(store.monthlyRevenue)}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-start">
                         <div className="flex flex-col gap-2">
-                          <Badge size="sm" color={statusColor[store.status]}>
+                          <span
+                            className={`w-fit rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${statusPill[store.status]}`}
+                          >
                             {store.status}
-                          </Badge>
+                          </span>
                           <select
                             value={store.status}
                             onChange={(e) =>
@@ -593,7 +636,7 @@ export default function StoresManager() {
                                 e.target.value as StoreStatus
                               )
                             }
-                            className="h-9 rounded-lg border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                            className="h-9 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 text-xs text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                           >
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
@@ -602,13 +645,13 @@ export default function StoresManager() {
                         </div>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-start">
-                        {renderStoreActions(store, true)}
+                        {renderStoreActions(store)}
                       </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell className="px-4 py-10 text-center text-gray-500">
+                      <TableCell className="px-4 py-10 text-center text-sm text-[#8a7b68]">
                         No stores found.
                       </TableCell>
                     </TableRow>
@@ -620,80 +663,101 @@ export default function StoresManager() {
         </div>
       )}
 
-      {/* Detail drawer */}
       {selected && (
-        <div className="fixed inset-0 z-[99999] flex justify-end bg-black/40">
-          <div className="h-full w-full max-w-md overflow-y-auto border-l border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <div className="mb-6 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand-600 dark:text-brand-300">
-                  {selected.code}
-                </p>
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-                  {selected.name}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selected.city}
-                </p>
+        <div
+          className="fixed inset-0 z-[99999] flex justify-end bg-black/40"
+          onClick={() => setSelectedId(null)}
+        >
+          <div
+            className="h-full w-full max-w-md overflow-y-auto border-l border-[#eadfcf] bg-[#fbf8f3] shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="store-hero px-6 py-6">
+              <div className="relative z-[1] mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">
+                    {selected.code}
+                  </p>
+                  <h3
+                    className="mt-1 font-serif text-[1.7rem] leading-tight text-[#f3ece2]"
+                    style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                  >
+                    {selected.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-[#c4b49a]">{selected.city}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[#e8d5b5]/25 text-[#c4b49a] hover:bg-white/10 hover:text-[#e8d5b5]"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedId(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              <span
+                className={`relative z-[1] inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${statusPill[selected.status]}`}
               >
-                ✕
-              </button>
-            </div>
-
-            <div className="mb-5">
-              <Badge size="sm" color={statusColor[selected.status]}>
                 {selected.status}
-              </Badge>
+              </span>
             </div>
 
-            <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div className="p-6">
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              {[
+                ["Leads", selected.openLeads],
+                ["Projects", selected.activeProjects],
+                ["Staff", selected.staffCount],
+                ["Quotes", selected.quotationCount],
+              ].map(([label, value]) => (
+                <div
+                  key={String(label)}
+                  className="rounded-xl border border-[#eadfcf] bg-white px-3 py-3 dark:border-[#3a342c] dark:bg-[#1a1714]"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    {label}
+                  </p>
+                  <p
+                    className="mt-1 font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+                    style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                  >
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-4 rounded-xl border border-[#eadfcf] bg-white p-4 dark:border-[#3a342c] dark:bg-[#1a1714]">
               {[
                 ["Address", selected.address],
                 ["Manager", selected.manager],
                 ["Phone", selected.phone],
                 ["Email", selected.email],
-                ["Staff", String(selected.staffCount)],
-                ["Open Leads", String(selected.openLeads)],
-                ["Active Projects", String(selected.activeProjects)],
-                ["Quotations", String(selected.quotationCount)],
                 ["Monthly Revenue", formatINR(selected.monthlyRevenue)],
                 ["Opened On", formatDate(selected.openedOn)],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-3 text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">{label}</span>
-                  <span className="text-right font-medium text-gray-800 dark:text-white/90">
-                    {value}
+                  <span className="text-[#8a7b68]">{label}</span>
+                  <span className="text-right font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                    {value || "—"}
                   </span>
                 </div>
               ))}
             </div>
 
             <div className="mt-6 flex flex-col gap-2">
-              <Link href={`/stores/new?edit=${selected.id}`}>
-                <Button size="sm" className="w-full">
-                  Edit Store
-                </Button>
+              <Link href={`/stores/new?edit=${selected.id}`} className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#1c1610] text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]">
+                Edit store
               </Link>
-              <Link href={storeLeadsHref(selected.id)}>
-                <Button size="sm" variant="outline" className="w-full">
-                  View Store Leads ({selected.openLeads})
-                </Button>
+              <Link href={storeLeadsHref(selected.id)} className={drawerBtn}>
+                View store leads ({selected.openLeads})
               </Link>
-              <Link href={storeTeamHref(selected.id)}>
-                <Button size="sm" variant="outline" className="w-full">
-                  Manage Team ({selected.staffCount})
-                </Button>
+              <Link href={storeTeamHref(selected.id)} className={drawerBtn}>
+                Manage team ({selected.staffCount})
               </Link>
               {selected.status !== "Inactive" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-amber-700"
+                <button
+                  type="button"
+                  className={drawerBtn}
                   onClick={() =>
                     setConfirmAction({
                       type: "close",
@@ -702,13 +766,12 @@ export default function StoresManager() {
                     })
                   }
                 >
-                  Close Store
-                </Button>
+                  Close store
+                </button>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-emerald-700"
+                <button
+                  type="button"
+                  className={drawerBtn}
                   onClick={() =>
                     setConfirmAction({
                       type: "reopen",
@@ -717,13 +780,12 @@ export default function StoresManager() {
                     })
                   }
                 >
-                  Reopen Store
-                </Button>
+                  Reopen store
+                </button>
               )}
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-error-500"
+              <button
+                type="button"
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-red-200 text-xs font-semibold uppercase tracking-[0.12em] text-red-700 dark:border-red-500/30 dark:text-red-400"
                 onClick={() =>
                   setConfirmAction({
                     type: "delete",
@@ -732,47 +794,50 @@ export default function StoresManager() {
                   })
                 }
               >
-                Delete Store
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
+                Delete store
+              </button>
+              <button
+                type="button"
+                className={drawerBtn}
                 onClick={() => setSelectedId(null)}
               >
                 Dismiss
-              </Button>
+              </button>
+            </div>
             </div>
           </div>
         </div>
       )}
 
       {confirmAction ? (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white/90">
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3
+              className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+              style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+            >
               {confirmAction.type === "delete"
                 ? "Delete store?"
                 : confirmAction.type === "close"
                   ? "Close store?"
                   : "Reopen store?"}
             </h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-2 text-sm text-[#8a7b68]">
               {confirmAction.type === "delete" ? (
                 <>
-                  Permanently delete <strong>{confirmAction.storeName}</strong>?
+                  Permanently delete <strong className="text-[#1c1610] dark:text-[#f3ece2]">{confirmAction.storeName}</strong>?
                   This only works if the store has no leads, projects,
                   quotations, or team members.
                 </>
               ) : confirmAction.type === "close" ? (
                 <>
-                  Close <strong>{confirmAction.storeName}</strong>? It will be
+                  Close <strong className="text-[#1c1610] dark:text-[#f3ece2]">{confirmAction.storeName}</strong>? It will be
                   marked inactive and hidden from active operations. You can
                   reopen it later.
                 </>
               ) : (
                 <>
-                  Reopen <strong>{confirmAction.storeName}</strong> and mark it
+                  Reopen <strong className="text-[#1c1610] dark:text-[#f3ece2]">{confirmAction.storeName}</strong> and mark it
                   active again?
                 </>
               )}
@@ -782,7 +847,7 @@ export default function StoresManager() {
                 type="button"
                 disabled={actionBusy}
                 onClick={() => setConfirmAction(null)}
-                className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-white/5"
+                className="inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium text-[#8a7b68] hover:bg-[#eadfcf]/50 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -790,12 +855,12 @@ export default function StoresManager() {
                 type="button"
                 disabled={actionBusy}
                 onClick={() => void runConfirmAction()}
-                className={`inline-flex h-10 items-center rounded-lg px-4 text-sm font-medium text-white disabled:opacity-50 ${
+                className={`inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50 ${
                   confirmAction.type === "delete"
-                    ? "bg-error-500 hover:bg-error-600"
+                    ? "bg-red-600 hover:bg-red-700"
                     : confirmAction.type === "close"
-                      ? "bg-amber-600 hover:bg-amber-700"
-                      : "bg-emerald-600 hover:bg-emerald-700"
+                      ? "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+                      : "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
                 }`}
               >
                 {actionBusy

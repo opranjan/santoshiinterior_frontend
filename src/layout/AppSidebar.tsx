@@ -41,40 +41,40 @@ type NavItem = NavPermissionGroup & {
 };
 
 const ICONS: Record<string, React.ReactNode> = {
-  Dashboard: <GridIcon />,
-  Projects: <TaskIcon />,
-  "DLP Payment": <DollarLineIcon />,
-  "Chat Box": <ChatIcon />,
-  "Customer Issue": <CheckCircleIcon />,
-  Documents: <DocsIcon />,
-  "Profile Settings": <UserCircleIcon />,
-  Stores: <BoxCubeIcon />,
-  Sales: <DollarLineIcon />,
-  Quotations: <FileIcon />,
-  "Web & App": <GroupIcon />,
-  Customer: <GroupIcon />,
-  Design: <PencilIcon />,
-  Operations: <BoxCubeIcon />,
-  Procurement: <FileIcon />,
-  Vendors: <GroupIcon />,
-  "Work Order": <DocsIcon />,
-  "Purchase Order": <FileIcon />,
-  Payments: <BoxIconLine />,
-  "Pay Franchisee": <DollarLineIcon />,
-  "Pay Vendor": <DollarLineIcon />,
-  "Warranty Desk": <CheckCircleIcon />,
-  HR: <UserIcon />,
-  Calendar: <CalenderIcon />,
-  Admin: <UserCircleIcon />,
-  Franchisees: <GroupIcon />,
-  Integrations: <PlugInIcon />,
-  Communication: <ChatIcon />,
+  Dashboard: <GridIcon className="size-5 shrink-0" />,
+  Projects: <TaskIcon className="size-5 shrink-0" />,
+  "DLP Payment": <DollarLineIcon className="size-5 shrink-0" />,
+  "Chat Box": <ChatIcon className="size-5 shrink-0" />,
+  "Customer Issue": <CheckCircleIcon className="size-5 shrink-0" />,
+  Documents: <DocsIcon className="size-5 shrink-0" />,
+  "Profile Settings": <UserCircleIcon className="size-5 shrink-0" />,
+  Stores: <BoxCubeIcon className="size-5 shrink-0" />,
+  Sales: <DollarLineIcon className="size-5 shrink-0" />,
+  Quotations: <FileIcon className="size-5 shrink-0" />,
+  "Web & App": <GroupIcon className="size-5 shrink-0" />,
+  Customer: <GroupIcon className="size-5 shrink-0" />,
+  Design: <PencilIcon className="size-5 shrink-0" />,
+  Operations: <BoxCubeIcon className="size-5 shrink-0" />,
+  Procurement: <FileIcon className="size-5 shrink-0" />,
+  Vendors: <GroupIcon className="size-5 shrink-0" />,
+  "Work Order": <DocsIcon className="size-5 shrink-0" />,
+  "Purchase Order": <FileIcon className="size-5 shrink-0" />,
+  Payments: <BoxIconLine className="size-5 shrink-0" />,
+  "Pay Franchisee": <DollarLineIcon className="size-5 shrink-0" />,
+  "Pay Vendor": <DollarLineIcon className="size-5 shrink-0" />,
+  "Warranty Desk": <CheckCircleIcon className="size-5 shrink-0" />,
+  HR: <UserIcon className="size-5 shrink-0" />,
+  Calendar: <CalenderIcon className="size-5 shrink-0" />,
+  Admin: <UserCircleIcon className="size-5 shrink-0" />,
+  Franchisees: <GroupIcon className="size-5 shrink-0" />,
+  Integrations: <PlugInIcon className="size-5 shrink-0" />,
+  Communication: <ChatIcon className="size-5 shrink-0" />,
 };
 
 const withIcons = (items: NavPermissionGroup[]): NavItem[] =>
   items.map((item) => ({
     ...item,
-    icon: ICONS[item.name] ?? <GridIcon />,
+                icon: ICONS[item.name] ?? <GridIcon className="size-5 shrink-0" />,
   }));
 
 const AppSidebar: React.FC = () => {
@@ -140,6 +140,7 @@ const AppSidebar: React.FC = () => {
                 : "menu-dropdown-item-inactive"
             }`}
           >
+            <span className="sidebar-dot" />
             {subItem.name}
           </Link>
         </li>
@@ -147,7 +148,7 @@ const AppSidebar: React.FC = () => {
     };
 
     return (
-    <ul className="flex flex-col gap-4">
+    <ul className="flex flex-col gap-1">
       {items.map((nav, index) => (
         <li key={nav.name}>
           {nav.subItems ? (
@@ -165,7 +166,7 @@ const AppSidebar: React.FC = () => {
               }`}
             >
               <span
-                className={` ${
+                className={`sidebar-icon ${
                     openSubmenu?.type === menuType &&
                     openSubmenu?.index === index + indexOffset
                       ? "menu-item-icon-active"
@@ -182,8 +183,8 @@ const AppSidebar: React.FC = () => {
                   className={`ml-auto w-5 h-5 transition-transform duration-200  ${
                     openSubmenu?.type === menuType &&
                     openSubmenu?.index === index + indexOffset
-                      ? "rotate-180 text-brand-500"
-                      : ""
+                    ? "rotate-180 sidebar-chevron-open"
+                    : "sidebar-chevron"
                   }`}
                 />
               )}
@@ -195,10 +196,14 @@ const AppSidebar: React.FC = () => {
                 onClick={closeMobileSidebar}
                 className={`menu-item group ${
                   isActive(nav.path) ? "menu-item-active" : "menu-item-inactive"
+                } ${
+                  !isExpanded && !isHovered
+                    ? "lg:justify-center"
+                    : "lg:justify-start"
                 }`}
               >
                 <span
-                  className={`${
+                  className={`sidebar-icon ${
                     isActive(nav.path)
                       ? "menu-item-icon-active"
                       : "menu-item-icon-inactive"
@@ -226,7 +231,7 @@ const AppSidebar: React.FC = () => {
                     : "0px",
               }}
             >
-              <ul className="mt-2 space-y-1 ml-9">
+              <ul className="sidebar-submenu mt-1 ml-4 space-y-0.5 border-l border-[#eadfcf] pl-4 dark:border-gray-800">
                 {nav.subItems.map((subItem) =>
                   renderSubNav(subItem)
                 )}
@@ -319,7 +324,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`no-print fixed inset-y-0 left-0 top-16 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-white px-5 text-gray-900 transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 lg:top-0 lg:h-screen lg:z-[60]
-        ${vendor || franchisee ? "vendor-sidebar" : ""}
+        ${vendor || franchisee ? "vendor-sidebar" : "crm-sidebar"}
         ${
           isExpanded || isMobileOpen
             ? "w-[290px]"
@@ -333,58 +338,47 @@ const AppSidebar: React.FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-8 flex  ${
+        className={`sidebar-brand flex ${
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link href="/" onClick={closeMobileSidebar}>
-          {vendor || franchisee ? (
-            isExpanded || isHovered || isMobileOpen ? (
-              <span className="flex items-center gap-3">
+        <Link href="/" onClick={closeMobileSidebar} className="min-w-0">
+          {isExpanded || isHovered || isMobileOpen ? (
+            <span className="flex items-center gap-3">
+              <span className="sidebar-logo-frame">
                 <img
                   src="/images/logo/santoshi-interiors.jpg"
                   alt="Santoshi Interiors"
-                  className="h-12 w-12 rounded-lg object-contain"
+                  className="h-full w-full object-contain"
                 />
-                <span className="flex flex-col">
-                  <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
-                    {vendor ? "Vendor Panel" : "Franchisee Panel"}
-                  </span>
-                  <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
-                    Santoshi Interiors
-                  </span>
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="sidebar-brand-title">
+                  {vendor ? "Vendor Panel" : franchisee ? "Franchisee Panel" : "Santoshi Interiors"}
                 </span>
-              </span>
-            ) : (
-              <img
-                src="/images/logo/santoshi-interiors.jpg"
-                alt="Santoshi Interiors"
-                className="h-10 w-10 rounded-lg object-contain"
-              />
-            )
-          ) : isExpanded || isHovered || isMobileOpen ? (
-            <span className="flex flex-col">
-              <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                Santoshi Interior
-              </span>
-              <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
-                CRM
+                <span className="sidebar-brand-kicker">
+                  {vendor || franchisee ? "Santoshi Interiors" : "CRM"}
+                </span>
               </span>
             </span>
           ) : (
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">
-              SI
+            <span className="sidebar-logo-frame sidebar-logo-frame-sm">
+              <img
+                src="/images/logo/santoshi-interiors.jpg"
+                alt="Santoshi Interiors"
+                className="h-full w-full object-contain"
+              />
             </span>
           )}
         </Link>
       </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
-          <div className="flex flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
+        <nav className="mb-4">
+          <div className="flex flex-col gap-6">
             {navItems.length > 0 ? (
               <div>
                 <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                  className={`sidebar-kicker mb-3 flex items-center ${
                     !isExpanded && !isHovered
                       ? "lg:justify-center"
                       : "justify-start"
@@ -403,7 +397,7 @@ const AppSidebar: React.FC = () => {
             {operationsItems.length > 0 ? (
               <div>
                 <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                  className={`sidebar-kicker mb-3 flex items-center ${
                     !isExpanded && !isHovered
                       ? "lg:justify-center"
                       : "justify-start"
@@ -426,7 +420,7 @@ const AppSidebar: React.FC = () => {
             {othersItems.length > 0 ? (
               <div className="">
                 <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                  className={`sidebar-kicker mb-3 flex items-center ${
                     !isExpanded && !isHovered
                       ? "lg:justify-center"
                       : "justify-start"
@@ -444,6 +438,29 @@ const AppSidebar: React.FC = () => {
           </div>
         </nav>
       </div>
+      {(isExpanded || isHovered || isMobileOpen) && user ? (
+        <div className="sidebar-foot">
+          <span className="sidebar-foot-avatar">
+            {String(user.name || "S")
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((p) => p[0])
+              .join("")
+              .toUpperCase()}
+          </span>
+          <span className="min-w-0">
+            <span className="sidebar-foot-name">{user.name}</span>
+            <span className="sidebar-foot-role">
+              {vendor
+                ? "Vendor workspace"
+                : franchisee
+                  ? "Franchisee workspace"
+                  : user.accessRole?.label || user.roleLabel || "CRM workspace"}
+            </span>
+          </span>
+        </div>
+      ) : null}
     </aside>
   );
 };

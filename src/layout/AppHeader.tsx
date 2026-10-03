@@ -46,7 +46,7 @@ const AppHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className={`no-print sticky top-0 z-[80] flex w-full min-w-0 shrink-0 bg-white border-gray-200 dark:border-gray-800 dark:bg-gray-900 lg:border-b ${partner ? "vendor-header" : ""}`}>
+    <header className={`no-print sticky top-0 z-[80] flex w-full min-w-0 shrink-0 bg-white border-gray-200 dark:border-gray-800 dark:bg-gray-900 lg:border-b ${partner ? "vendor-header" : "crm-header"}`}>
       <div className="flex flex-col items-center justify-between grow min-w-0 lg:flex-row lg:px-6">
         <div className="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4">
           <button
@@ -89,22 +89,16 @@ const AppHeader: React.FC = () => {
           </button>
 
           <Link href="/" className="lg:hidden">
-            {partner ? (
-              <span className="flex items-center gap-2">
-                <img
-                  src="/images/logo/santoshi-interiors.jpg"
-                  alt="Santoshi Interiors"
-                  className="h-8 w-8 rounded-md object-contain"
-                />
-                <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
-                  {vendor ? "Vendor Panel" : "Franchisee Panel"}
-                </span>
-              </span>
-            ) : (
+            <span className="flex items-center gap-2">
+              <img
+                src="/images/logo/santoshi-interiors.jpg"
+                alt="Santoshi Interiors"
+                className="h-8 w-8 rounded-md object-contain"
+              />
               <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
-                Santoshi Interior
+                {vendor ? "Vendor Panel" : franchisee ? "Franchisee Panel" : "Santoshi Interiors"}
               </span>
-            )}
+            </span>
           </Link>
 
           <button

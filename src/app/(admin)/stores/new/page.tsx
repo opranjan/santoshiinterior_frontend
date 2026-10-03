@@ -1,4 +1,3 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import StoreForm from "@/components/stores/StoreForm";
 import { Metadata } from "next";
 import React, { Suspense } from "react";
@@ -10,11 +9,14 @@ export const metadata: Metadata = {
 
 export default function AddStorePage() {
   return (
-    <div>
-      <PageBreadcrumb pageTitle="Add / Edit Store" />
-      <Suspense fallback={<div className="text-sm text-gray-500">Loading...</div>}>
-        <StoreForm />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] px-5 py-10 text-center text-sm text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#161411]">
+          Loading...
+        </div>
+      }
+    >
+      <StoreForm />
+    </Suspense>
   );
 }

@@ -20,9 +20,14 @@ export default function AuthLayout({
               {/* <!-- ===== Common Grid Shape Start ===== --> */}
               <GridShape />
               <div className="flex flex-col items-center max-w-xs">
-                <Link href="/" className="block mb-4 text-center">
+                <Link href="/" className="mb-4 flex flex-col items-center text-center">
+                  <img
+                    src="/images/logo/santoshi-interiors.jpg"
+                    alt="Santoshi Interiors"
+                    className="mb-4 h-24 w-24 rounded-2xl object-contain"
+                  />
                   <span className="block text-3xl font-semibold tracking-tight text-white">
-                    Santoshi Interior
+                    Santoshi Interiors
                   </span>
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">

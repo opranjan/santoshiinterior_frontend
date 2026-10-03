@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import Button from "@/components/ui/button/Button";
 import { ApiError } from "@/lib/api";
 import type { AuthUser } from "@/lib/auth";
 import type { AccessRoleDto } from "@/lib/permissions";
@@ -88,7 +87,7 @@ function RowMenu({
         ref={buttonRef}
         type="button"
         onClick={toggleMenu}
-        className="dropdown-toggle inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+        className="dropdown-toggle inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8a7b68] hover:bg-[#eadfcf] dark:hover:bg-[#2a251f]"
         aria-label="Actions"
         aria-expanded={open}
       >
@@ -104,12 +103,12 @@ function RowMenu({
                 aria-label="Close menu"
               />
               <div
-                className="fixed z-[201] min-w-[168px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                className="fixed z-[201] min-w-[168px] rounded-xl border border-[#eadfcf] bg-[#fbf8f3] py-1 shadow-lg dark:border-[#3a342c] dark:bg-[#161411]"
                 style={{ top: menuStyle.top, left: menuStyle.left }}
               >
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
+                  className="block w-full px-3 py-2 text-left text-sm text-[#1c1610] hover:bg-[#eadfcf]/60 dark:text-[#f3ece2] dark:hover:bg-[#2a251f]"
                   onClick={() => {
                     setOpen(false);
                     onEdit();
@@ -119,7 +118,7 @@ function RowMenu({
                 </button>
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
+                  className="block w-full px-3 py-2 text-left text-sm text-[#1c1610] hover:bg-[#eadfcf]/60 dark:text-[#f3ece2] dark:hover:bg-[#2a251f]"
                   onClick={() => {
                     setOpen(false);
                     onToggleActive();
@@ -332,20 +331,25 @@ export default function UsersManager() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-            User Management
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#c4a574]">
+            Access
+          </p>
+          <h1
+            className="mt-1 font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            Users
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-[#8a7b68]">
             Manage who can log in and what they can access.
           </p>
         </div>
         {(tab === "active" || tab === "deactivated") && canManageUsers && (
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
+            <button
+              type="button"
               onClick={() => {
                 if (!franchiseeRoleId) {
                   setError("Franchisee role is not ready yet. Restart the API, then try again.");
@@ -355,120 +359,128 @@ export default function UsersManager() {
                 setPrefillFranchisee(true);
                 setFormOpen(true);
               }}
+              className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
             >
-              + Add Franchisee
-            </Button>
-            <Button
-              size="sm"
-              className="bg-[#E85D75] hover:bg-[#d94c65]"
+              Add franchisee
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setEditingUser(null);
                 setPrefillFranchisee(false);
                 setFormOpen(true);
               }}
+              className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
             >
-              + Add User
-            </Button>
+              Add user
+            </button>
           </div>
         )}
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
           {notice}
         </div>
       ) : null}
 
-      <div className="border-b border-gray-200 dark:border-gray-800">
-        <div className="flex flex-wrap gap-6">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setTab(item.key)}
-              className={`border-b-2 pb-3 text-sm font-medium transition ${
-                tab === item.key
-                  ? "border-[#E85D75] text-[#E85D75]"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+      <div className="inline-flex flex-wrap overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
+        {tabs.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            className={`h-11 px-4 text-xs font-semibold uppercase tracking-[0.12em] ${
+              tab === item.key
+                ? "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+                : "bg-[#fdfbf7] text-[#8a7b68] dark:bg-[#1a1714]"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {tab === "roles" ? <RoleManagementPanel /> : null}
 
       {(tab === "active" || tab === "deactivated") && (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-              <p className="text-xs uppercase text-gray-500">
-                {tab === "active" ? "Active users" : "Deactivated"}
-              </p>
-              <p className="mt-1 text-2xl font-semibold">{users.length}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-              <p className="text-xs uppercase text-gray-500">Global access</p>
-              <p className="mt-1 text-2xl font-semibold">{stats.global}</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-              <p className="text-xs uppercase text-gray-500">Roles available</p>
-              <p className="mt-1 text-2xl font-semibold">{roles.length}</p>
+          <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
+            <div className="grid grid-cols-1 divide-y divide-[#eadfcf] sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-[#3a342c]">
+              <div className="px-4 py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                  {tab === "active" ? "Active users" : "Deactivated"}
+                </p>
+                <p className="mt-1 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                  {users.length}
+                </p>
+              </div>
+              <div className="px-4 py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                  Global access
+                </p>
+                <p className="mt-1 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                  {stats.global}
+                </p>
+              </div>
+              <div className="px-4 py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                  Roles available
+                </p>
+                <p className="mt-1 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                  {roles.length}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setShowFilters((v) => !v)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#E85D75]/40 text-[#E85D75]"
-              title="Filters"
-            >
-              ☰
-            </button>
-            <div className="relative min-w-[260px]">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                🔍
-              </span>
+          <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, email, phone"
-                className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                className="h-11 flex-1 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               />
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+              >
+                {showFilters ? "Hide filters" : "Filters"}
+              </button>
             </div>
+            {showFilters ? (
+              <div className="mt-3">
+                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                  Filter by role
+                </label>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="h-11 w-full max-w-xs appearance-none rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+                >
+                  <option value="all">All roles</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
 
-          {showFilters ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800">
-              <label className="text-sm text-gray-500">Filter by role</label>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="mt-2 h-10 w-full max-w-xs rounded-lg border border-gray-200 px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-              >
-                <option value="all">All roles</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="overflow-x-auto">
               <Table className="min-w-[1100px]">
-                <TableHeader className="border-b border-gray-100 bg-gray-50">
+                <TableHeader className="border-b border-[#eadfcf] bg-[#f6efe4] dark:border-[#3a342c] dark:bg-[#1a1714]">
                   <TableRow>
                     {[
                       "User Name",
@@ -482,64 +494,66 @@ export default function UsersManager() {
                       <TableCell
                         key={h}
                         isHeader
-                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
+                        className="px-4 py-3.5 text-start text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]"
                       >
                         {h}
                       </TableCell>
                     ))}
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="divide-y divide-[#eadfcf] dark:divide-[#3a342c]">
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="px-4 py-12 text-center text-sm text-gray-500">
+                      <TableCell colSpan={7} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
                         Loading users…
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="px-4 py-12 text-center">
-                        <p className="text-sm font-medium text-gray-700">No users found</p>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                          No users found
+                        </p>
+                        <p className="mt-1 text-sm text-[#8a7b68]">
                           Add a user and assign a role to grant CRM access.
                         </p>
                       </TableCell>
                     </TableRow>
                   ) : (
                     users.map((user) => (
-                      <TableRow key={user.id} className="border-b border-gray-100">
+                      <TableRow key={user.id} className="store-row">
                         <TableCell className="px-4 py-4">
-                          <p className="font-semibold text-gray-900">{user.name}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
+                          <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{user.name}</p>
+                          <p className="text-xs text-[#8a7b68]">{user.email}</p>
                         </TableCell>
-                        <TableCell className="px-4 py-4 text-sm text-gray-600">
+                        <TableCell className="px-4 py-4 text-sm text-[#8a7b68]">
                           {formatDob(user.dateOfBirth)}
                         </TableCell>
-                        <TableCell className="px-4 py-4 text-sm text-gray-600">
+                        <TableCell className="px-4 py-4 text-sm text-[#8a7b68]">
                           {user.phone || "—"}
                         </TableCell>
                         <TableCell className="px-4 py-4">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium">
+                            <span className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                               {user.accessRole?.label || user.roleLabel || user.role}
                             </span>
                             {user.accessRole?.isGlobal ? (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                                🌐 Global
+                              <span className="rounded-full bg-[#eadfcf] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68] dark:bg-[#2a251f]">
+                                Global
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-0.5 text-[11px] text-gray-400">
+                          <p className="mt-0.5 text-[11px] text-[#a89880]">
                             {user.accessRole?.permissions?.length ?? 0} permissions
                           </p>
                         </TableCell>
-                        <TableCell className="px-4 py-4 text-sm text-gray-600">
+                        <TableCell className="px-4 py-4 text-sm text-[#8a7b68]">
                           <p>Last Login {formatActivityDate(user.lastLoginAt)}</p>
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-[#a89880]">
                             Last Active {formatActivityDate(user.lastActiveAt)}
                           </p>
                         </TableCell>
-                        <TableCell className="px-4 py-4 text-sm text-gray-600">
+                        <TableCell className="px-4 py-4 text-sm text-[#8a7b68]">
                           {user.manager?.name || "N/A"}
                         </TableCell>
                         <TableCell className="px-4 py-4">
@@ -564,22 +578,24 @@ export default function UsersManager() {
 
       {tab === "groups" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800">
-            <p className="text-sm text-gray-500">Unassigned users</p>
-            <p className="mt-2 text-2xl font-semibold">
+          <div className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 dark:border-[#3a342c] dark:bg-[#161411]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+              Unassigned users
+            </p>
+            <p className="mt-2 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
               {groups?.unassignedActiveUsers ?? 0}
             </p>
           </div>
           {(groups?.stores || []).map((store) => (
             <div
               key={store.id}
-              className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800"
+              className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 dark:border-[#3a342c] dark:bg-[#161411]"
             >
-              <p className="font-medium">{store.name}</p>
-              <p className="text-xs text-gray-500">{store.code}</p>
-              <p className="mt-3 text-sm text-gray-600">
-                {store._count.users} users
+              <p className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                {store.name}
               </p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#c4a574]">{store.code}</p>
+              <p className="mt-3 text-sm text-[#8a7b68]">{store._count.users} users</p>
             </div>
           ))}
         </div>
@@ -609,32 +625,32 @@ export default function UsersManager() {
       />
 
       {credentials ? (
-        <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
               Share login details
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-[#8a7b68]">
               {credentials.franchisee
                 ? "Give these to the franchisee. They sign in to the same CRM and will see their dashboard and assigned projects."
                 : "Give these to the user for first login."}
             </p>
-            <dl className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5">
+            <dl className="mt-4 space-y-2 rounded-xl border border-[#eadfcf] bg-white p-4 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
               <div>
-                <dt className="text-xs text-gray-500">Name</dt>
-                <dd className="font-medium">{credentials.name}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Name</dt>
+                <dd className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{credentials.name}</dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-500">Email</dt>
-                <dd className="font-medium">{credentials.email}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Email</dt>
+                <dd className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{credentials.email}</dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-500">Password</dt>
-                <dd className="font-mono font-medium">{credentials.password}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Password</dt>
+                <dd className="font-mono font-medium text-[#1c1610] dark:text-[#f3ece2]">{credentials.password}</dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-500">Login URL</dt>
-                <dd className="break-all font-medium">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Login URL</dt>
+                <dd className="break-all font-medium text-[#1c1610] dark:text-[#f3ece2]">
                   {typeof window !== "undefined"
                     ? `${window.location.origin}/signin`
                     : "/signin"}
@@ -642,9 +658,9 @@ export default function UsersManager() {
               </div>
             </dl>
             <div className="mt-4 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
+              <button
+                type="button"
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 onClick={async () => {
                   const origin =
                     typeof window !== "undefined" ? window.location.origin : "";
@@ -669,14 +685,14 @@ export default function UsersManager() {
                 }}
               >
                 Copy details
-              </Button>
-              <Button
-                size="sm"
-                className="bg-[#E85D75] hover:bg-[#d94c65]"
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
                 onClick={() => setCredentials(null)}
               >
                 Done
-              </Button>
+              </button>
             </div>
           </div>
         </div>

@@ -101,12 +101,10 @@ const salesTeam = [
 const followUpTypes: FollowUpType[] = ["Call", "WhatsApp", "Site Visit"];
 
 const avatarColors = [
-  "bg-error-500 text-white",
-  "bg-pink-500 text-white",
-  "bg-brand-500 text-white",
-  "bg-warning-500 text-white",
-  "bg-success-500 text-white",
-  "bg-blue-light-500 text-white",
+  "bg-[#1c1610] text-[#e8d5b5]",
+  "bg-[#9a7748] text-white",
+  "bg-[#c4a574] text-[#1c1610]",
+  "bg-[#efe4d2] text-[#1c1610] dark:bg-[#c4a574]/20 dark:text-[#e8d5b5]",
 ];
 
 const statusColor: Record<
@@ -152,7 +150,7 @@ const sortOptions = [
 ];
 
 const selectClass =
-  "h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+  "h-10 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm text-[#1c1610] focus:border-[#c4a574] focus:outline-hidden focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]";
 
 function getInitials(name: string) {
   if (!name || name === "Unassigned") return "?";
@@ -683,57 +681,44 @@ export default function LeadsTable() {
     : null;
 
   return (
-    <div>
+    <div className="space-y-5">
       {error && (
-        <div className="mb-4 rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
-      {loading && (
-        <div className="mb-4 text-sm text-gray-500">Loading leads...</div>
-      )}
       {storeFilterId && storeFilterName ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
-          <span className="text-gray-700 dark:text-gray-300">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] px-4 py-3 text-sm dark:border-[#3a342c] dark:bg-[#161411]">
+          <span className="text-[#6f6254] dark:text-[#b5aa9c]">
             Showing leads for store:{" "}
-            <strong className="text-gray-900 dark:text-white/90">
+            <strong className="text-[#1c1610] dark:text-[#f4efe6]">
               {storeFilterName}
             </strong>
           </span>
           <Link
             href="/sales/leads"
-            className="font-medium text-brand-600 hover:text-brand-700"
+            className="font-medium text-[#9a7748] hover:underline"
           >
             View all leads
           </Link>
         </div>
       ) : null}
-    <div className="space-y-4">
-      {/* Stats + actions */}
-      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-6">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-              Leads Count
-            </p>
-            <p className="text-xl font-semibold text-brand-500 dark:text-brand-400">
-              {filteredLeads.length}
-            </p>
-          </div>
-          <div className="h-8 w-px bg-gray-200 dark:bg-gray-700" />
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-              Leads Value
-            </p>
-            <p className="text-xl font-semibold text-brand-500 dark:text-brand-400">
-              {leadsValueLabel}
-            </p>
-          </div>
-        </div>
 
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+            Sales
+          </p>
+          <h1 className="font-serif text-3xl text-[#1c1610] dark:text-[#f4efe6]">Leads</h1>
+          <p className="mt-1 text-sm text-[#8a7b68]">
+            {loading
+              ? "Loading pipeline…"
+              : `${filteredLeads.length} lead${filteredLeads.length === 1 ? "" : "s"} · ${leadsValueLabel}`}
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#b3a594]">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"
@@ -752,31 +737,33 @@ export default function LeadsTable() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
-              className="h-10 w-full rounded-lg border border-gray-200 bg-transparent pl-9 pr-9 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              placeholder="Search client, phone or store"
+              className="h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] pl-10 pr-9 text-sm text-[#1c1610] placeholder:text-[#b3a594] focus:border-[#c4a574] focus:outline-hidden focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a7b68] hover:text-[#1c1610]"
                 aria-label="Clear search"
               >
                 ×
               </button>
             )}
           </div>
-          <Link href="/sales/leads/new">
-            <Button size="sm">+ New Lead</Button>
+          <Link
+            href="/sales/leads/new"
+            className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] hover:bg-black"
+          >
+            + New lead
           </Link>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-white/[0.05] dark:bg-white/[0.03] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-gray-400">
+            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
               Lead Status
             </label>
             <select
@@ -797,7 +784,7 @@ export default function LeadsTable() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-gray-400">
+            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
               Filter By
             </label>
             <select
@@ -816,7 +803,7 @@ export default function LeadsTable() {
             type="button"
             onClick={resetFilters}
             title="Reset filters"
-            className="mt-5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/[0.03]"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#eadfcf] text-[#8a7b68] hover:bg-white dark:border-[#3a342c] dark:hover:bg-white/5"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path
@@ -831,7 +818,7 @@ export default function LeadsTable() {
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-gray-400">
+          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
             Sort by
           </label>
           <select
@@ -849,14 +836,14 @@ export default function LeadsTable() {
       </div>
 
       {selected.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#E85D75]/30 bg-[#E85D75]/5 px-4 py-3 dark:border-[#E85D75]/20 dark:bg-[#E85D75]/10">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#c4a574] bg-[#f6efe4] px-4 py-3 dark:border-[#c4a574]/40 dark:bg-[#c4a574]/10">
+          <span className="text-sm font-medium text-[#1c1610] dark:text-[#f4efe6]">
             Selected {selected.length}
           </span>
           <button
             type="button"
             onClick={() => setBulkOpen(true)}
-            className="inline-flex h-9 items-center rounded-lg border border-[#E85D75] px-4 text-sm font-medium text-[#E85D75] transition hover:bg-[#E85D75]/10"
+            className="inline-flex h-9 items-center rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5]"
           >
             Action
           </button>
@@ -865,7 +852,7 @@ export default function LeadsTable() {
               type="button"
               onClick={() => setBulkDeleteOpen(true)}
               disabled={deleteBusy}
-              className="inline-flex h-9 items-center rounded-lg border border-error-300 bg-error-50 px-4 text-sm font-medium text-error-600 transition hover:bg-error-100 disabled:opacity-50 dark:border-error-500/40 dark:bg-error-500/10 dark:text-error-400"
+              className="inline-flex h-9 items-center rounded-xl border border-rose-300 bg-rose-50 px-4 text-sm font-medium text-rose-600 disabled:opacity-50 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300"
             >
               Delete selected
             </button>
@@ -873,7 +860,7 @@ export default function LeadsTable() {
           <button
             type="button"
             onClick={() => setSelected([])}
-            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            className="text-sm text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f4efe6]"
           >
             Clear selection
           </button>
@@ -887,21 +874,21 @@ export default function LeadsTable() {
           onClearFilters={resetFilters}
         />
       ) : (
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div className="vendor-form-card overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="max-w-full overflow-x-auto">
           <div className="min-w-[2200px]">
             <Table>
-              <TableHeader className="border-b border-gray-100 bg-gray-50 dark:border-white/[0.05] dark:bg-white/[0.02]">
+              <TableHeader className="border-b border-[#f0e8db] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#1c1914]">
                 <TableRow>
                   <TableCell
                     isHeader
-                    className="w-12 px-3 py-3 text-start"
+                    className="w-12 px-3 py-3.5 text-start"
                   >
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
                       onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="h-4 w-4 rounded border-[#eadfcf] accent-[#1c1610]"
                       aria-label="Select all"
                     />
                   </TableCell>
@@ -909,7 +896,7 @@ export default function LeadsTable() {
                     <TableCell
                       key={heading}
                       isHeader
-                      className="px-3 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 whitespace-nowrap"
+                      className="whitespace-nowrap px-3 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]"
                     >
                       {heading}
                       {heading === "Latest Remark" ? " ✎" : ""}
@@ -918,7 +905,7 @@ export default function LeadsTable() {
                 </TableRow>
               </TableHeader>
 
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+              <TableBody className="divide-y divide-[#f0e8db] dark:divide-[#3a342c]">
                 {filteredLeads.map((lead) => {
                   const nextFu = lead.followUps[lead.followUps.length - 1];
                   const overdue = nextFu ? isOverdue(nextFu.nextDate) : false;
@@ -929,8 +916,8 @@ export default function LeadsTable() {
                       key={lead.id}
                       className={
                         overdue || isSelected
-                          ? "bg-error-50/60 dark:bg-error-500/5"
-                          : "hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                          ? "bg-[#f6efe4] dark:bg-[#c4a574]/10"
+                          : "hover:bg-[#fbf8f3] dark:hover:bg-white/[0.03]"
                       }
                     >
                       <TableCell className="px-3 py-3">
@@ -945,7 +932,7 @@ export default function LeadsTable() {
 
                       <TableCell className="px-3 py-3 text-start whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-error-50 text-error-500 dark:bg-error-500/10">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1c1610] text-[#e8d5b5]">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                               <path
                                 d="M21 12c0 4.4-4 8-9 8-1.1 0-2.1-.2-3.1-.5L3 21l1.7-4.2C3.6 15.5 3 13.8 3 12c0-4.4 4-8 9-8s9 3.6 9 8Z"
@@ -958,7 +945,7 @@ export default function LeadsTable() {
                           <button
                             type="button"
                             onClick={() => setExplorerLead(lead)}
-                            className="font-medium text-gray-800 text-theme-sm hover:text-[#E85D75] dark:text-white/90"
+                            className="font-semibold text-[#1c1610] text-theme-sm hover:text-[#9a7748] dark:text-[#f4efe6]"
                           >
                             {lead.clientName}
                           </button>
@@ -967,7 +954,7 @@ export default function LeadsTable() {
 
                       <TableCell className="px-3 py-3 text-start whitespace-nowrap">
                         <div className="flex flex-col gap-1">
-                          <div className="inline-flex w-fit items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 dark:border-success-500/30 dark:bg-success-500/10">
+                          <div className="inline-flex w-fit items-center gap-1 rounded-full border border-[#eadfcf] bg-[#f6efe4] px-2 py-0.5 dark:border-[#c4a574]/30 dark:bg-[#c4a574]/15">
                             <select
                               value={lead.status}
                               disabled={statusSavingId === lead.id}
@@ -977,7 +964,7 @@ export default function LeadsTable() {
                                   e.target.value as LeadStatus
                                 )
                               }
-                              className="bg-transparent text-xs font-medium text-success-700 focus:outline-hidden disabled:opacity-60 dark:text-success-400"
+                              className="bg-transparent text-xs font-semibold text-[#9a7748] focus:outline-hidden disabled:opacity-60 dark:text-[#e8d5b5]"
                             >
                               {(
                                 [
@@ -1020,7 +1007,7 @@ export default function LeadsTable() {
                             <button
                               type="button"
                               onClick={() => setHistoryLeadId(lead.id)}
-                              className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
+                              className="inline-flex items-center gap-1 rounded-full bg-[#f6efe4] px-2.5 py-1 text-xs font-medium text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]"
                             >
                               {lead.followUps.length}{" "}
                               {nextFu.type.toLowerCase()}
@@ -1043,7 +1030,7 @@ export default function LeadsTable() {
                           <button
                             type="button"
                             onClick={() => openFollowUpModal(lead.id)}
-                            className="rounded-lg border border-dashed border-brand-300 px-2.5 py-1.5 text-xs font-medium text-brand-500 hover:bg-brand-50 dark:border-brand-500/40 dark:hover:bg-brand-500/10"
+                            className="rounded-lg border border-dashed border-[#c4a574] px-2.5 py-1.5 text-xs font-medium text-[#9a7748] hover:bg-[#f6efe4] dark:hover:bg-[#c4a574]/10"
                           >
                             + Add follow-up
                           </button>
@@ -1058,7 +1045,7 @@ export default function LeadsTable() {
                             </Badge>
                             <Link
                               href="/projects"
-                              className="text-sm font-medium text-gray-800 hover:text-brand-600 dark:text-white/90"
+                              className="text-sm font-medium text-gray-800 hover:text-[#9a7748] dark:text-white/90"
                               title="Open in Projects"
                             >
                               {lead.convertedProjectName || lead.projectName}
@@ -1072,7 +1059,7 @@ export default function LeadsTable() {
                             <button
                               type="button"
                               onClick={() => openConvertModal(lead)}
-                              className="text-left text-xs font-medium text-brand-600 hover:text-brand-700"
+                              className="text-left text-xs font-medium text-[#9a7748] hover:underline"
                             >
                               Assign project →
                             </button>
@@ -1173,7 +1160,7 @@ export default function LeadsTable() {
                           <button
                             type="button"
                             onClick={() => openFollowUpModal(lead.id)}
-                            className="text-sm font-medium text-brand-500 hover:text-brand-600"
+                            className="text-sm font-medium text-[#9a7748] hover:underline"
                           >
                             Follow Up
                           </button>
@@ -1210,7 +1197,7 @@ export default function LeadsTable() {
                             <button
                               type="button"
                               onClick={() => openConvertModal(lead)}
-                              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                              className="text-sm font-medium text-[#9a7748] hover:underline"
                             >
                               Assign Project
                             </button>
@@ -1267,7 +1254,7 @@ export default function LeadsTable() {
                       onClick={() => setFuType(type)}
                       className={`rounded-lg border px-3 py-2 text-sm transition ${
                         fuType === type
-                          ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
+                          ? "border-[#c4a574] bg-[#f6efe4] text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]"
                           : "border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
                       }`}
                     >
@@ -1386,7 +1373,7 @@ export default function LeadsTable() {
                 setHistoryLeadId(null);
                 openFollowUpModal(historyLead.id);
               }}
-              className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-brand-300 py-2.5 text-sm font-medium text-brand-500 transition hover:bg-brand-50 dark:border-brand-500/40 dark:hover:bg-brand-500/10"
+              className="mb-6 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c4a574] py-2.5 text-sm font-medium text-[#9a7748] transition hover:bg-[#f6efe4] dark:hover:bg-[#c4a574]/10"
             >
               + Add Follow-up
             </button>
@@ -1549,7 +1536,6 @@ export default function LeadsTable() {
           </div>
         </div>
       ) : null}
-    </div>
     </div>
   );
 }

@@ -8,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <QuotationCatalogs />;
+  return (
+    <div className="vendor-form">
+      <QuotationCatalogs />
+    </div>
+  );
 }

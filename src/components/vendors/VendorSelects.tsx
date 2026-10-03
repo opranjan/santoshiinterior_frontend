@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Option = { value: string; label: string };
 
@@ -8,7 +9,7 @@ function CheckBox({ checked }: { checked: boolean }) {
   return (
     <span
       className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border ${
-        checked ? "border-[#E85D75] bg-[#E85D75] text-white" : "border-[#E85D75] bg-white"
+        checked ? "border-[#c4a574] bg-[#1c1610] text-[#e8d5b5]" : "border-[#c4a574] bg-white dark:bg-[#161411]"
       }`}
     >
       {checked ? (
@@ -24,6 +25,53 @@ function CheckBox({ checked }: { checked: boolean }) {
   );
 }
 
+function useMenuPosition(open: boolean, anchorRef: React.RefObject<HTMLElement | null>) {
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const update = () => {
+      const node =
+        (anchorRef.current?.querySelector("button") as HTMLElement | null) || anchorRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const viewportPad = 12;
+      const spaceBelow = window.innerHeight - rect.bottom - viewportPad;
+      const spaceAbove = rect.top - viewportPad;
+      const openUp = spaceBelow < 140 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(140, Math.min(280, openUp ? spaceAbove : Math.max(spaceBelow, 160)));
+      const width = rect.width;
+      const left = Math.max(
+        viewportPad,
+        Math.min(rect.left, window.innerWidth - width - viewportPad)
+      );
+      const rawTop = openUp ? rect.top - maxHeight - 4 : rect.bottom + 4;
+      const top = Math.max(
+        viewportPad,
+        Math.min(rawTop, window.innerHeight - maxHeight - viewportPad)
+      );
+      setPos({ top, left, width, maxHeight });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, anchorRef]);
+
+  return pos;
+}
+
 export function VendorStatusSelect({
   value,
   onChange,
@@ -35,26 +83,38 @@ export function VendorStatusSelect({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const pos = useMenuPosition(open, rootRef);
 
   useEffect(() => {
+    if (!open) return;
     const onClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, []);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3.5 text-left text-sm dark:border-gray-700 dark:bg-gray-900"
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-left text-sm dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]"
       >
-        <span className={value ? "text-gray-800 dark:text-white/90" : "text-gray-400"}>
+        <span className={value ? "text-[#1c1610] dark:text-white/90" : "text-[#b3a594]"}>
           {value || "Select status"}
         </span>
-        <svg className={`h-4 w-4 text-[#E85D75] ${open ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+        <svg className={`h-4 w-4 text-[#c4a574] ${open ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
           <path
             fillRule="evenodd"
             d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
@@ -62,25 +122,32 @@ export function VendorStatusSelect({
           />
         </svg>
       </button>
-      {open ? (
-        <div className="absolute left-0 z-30 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
-          {options.map((item, index) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                onChange(item);
-                setOpen(false);
-              }}
-              className={`flex w-full px-3.5 py-2.5 text-left text-sm ${
-                index % 2 ? "bg-white" : "bg-gray-50"
-              } ${value === item ? "font-medium text-[#E85D75]" : "text-gray-800 dark:text-white/80"}`}
+      {open && pos && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+              className="vendor-dropdown fixed z-[200] overflow-y-auto rounded-xl border border-[#eadfcf] bg-white shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]"
             >
-              {item}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              {options.map((item, index) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    onChange(item);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full px-3.5 py-2.5 text-left text-sm ${
+                    index % 2 ? "bg-white dark:bg-transparent" : "bg-[#fbf8f3] dark:bg-white/[0.04]"
+                  } ${value === item ? "font-medium text-[#9a7748]" : "text-[#1c1610] dark:text-[#f4efe6]"}`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
@@ -97,14 +164,26 @@ export function VendorTypeSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const pos = useMenuPosition(open, rootRef);
 
   useEffect(() => {
+    if (!open) return;
     const onClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, []);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -127,9 +206,9 @@ export function VendorTypeSelect({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-11 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3.5 text-left text-sm dark:border-gray-700 dark:bg-gray-900"
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-left text-sm dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]"
       >
-        <span className={`truncate ${selected.length ? "text-gray-800 dark:text-white/90" : "text-gray-400"}`}>
+        <span className={`truncate ${selected.length ? "text-[#1c1610] dark:text-white/90" : "text-[#b3a594]"}`}>
           {label}
         </span>
         <svg className={`h-4 w-4 text-gray-400 ${open ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
@@ -140,36 +219,43 @@ export function VendorTypeSelect({
           />
         </svg>
       </button>
-      {open ? (
-        <div className="absolute left-0 z-30 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
-            className="h-10 w-full border-b border-gray-100 px-3.5 text-sm outline-none placeholder:text-gray-300 dark:border-gray-800"
-          />
-          <div className="max-h-64 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-gray-400">No vendor types yet</p>
-            ) : (
-              filtered.map((item) => {
-                const checked = selected.includes(item.value);
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => toggle(item.value)}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 dark:text-white/80"
-                  >
-                    <CheckBox checked={checked} />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      ) : null}
+      {open && pos && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 240) }}
+              className="vendor-dropdown fixed z-[200] overflow-hidden rounded-xl border border-[#eadfcf] bg-white shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]"
+            >
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search"
+                className="h-10 w-full border-b border-[#f0e8db] bg-transparent px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] dark:border-[#3a342c] dark:text-[#f4efe6] dark:placeholder:text-[#8a8175]"
+              />
+              <div className="overflow-y-auto py-1" style={{ maxHeight: pos.maxHeight }}>
+                {filtered.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-sm text-[#8a7b68]">No vendor types yet</p>
+                ) : (
+                  filtered.map((item) => {
+                    const checked = selected.includes(item.value);
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => toggle(item.value)}
+                        className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f4efe6] dark:hover:bg-white/[0.06]"
+                      >
+                        <CheckBox checked={checked} />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

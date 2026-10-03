@@ -1,4 +1,3 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import TeamSettings from "@/components/settings/TeamSettings";
 import { Metadata } from "next";
 import React from "react";
@@ -10,8 +9,7 @@ export const metadata: Metadata = {
 
 export default function TeamSettingsPage() {
   return (
-    <div>
-      <PageBreadcrumb pageTitle="Team Settings" />
+    <div className="vendor-form">
       <TeamSettings />
     </div>
   );

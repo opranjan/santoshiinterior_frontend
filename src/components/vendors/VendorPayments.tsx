@@ -57,7 +57,7 @@ export default function VendorPayments() {
         ].map((item, index) => (
           <div key={item.label} className={`vendor-card vendor-rise p-5 vendor-rise-delay-${index + 1}`}>
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#9a7748]">{item.label}</p>
-            <p className="vendor-serif mt-2 text-3xl text-[#111]">{item.value}</p>
+            <p className="vendor-serif mt-2 text-3xl">{item.value}</p>
           </div>
         ))}
       </div>

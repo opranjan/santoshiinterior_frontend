@@ -3,25 +3,29 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { vendorsApi, type VendorDto } from "@/services/crmApi";
 import VendorFilterMenu from "./VendorFilterMenu";
 
-function statusColor(status: string): "success" | "info" | "light" | "error" | "warning" {
-  if (status === "Verified" || status === "Onboarded") return "success";
-  if (status === "Blacklisted") return "error";
-  if (status === "Deactivated" || status === "Inactive") return "light";
-  if (status === "Created") return "warning";
-  return "info";
+function statusClass(status: string) {
+  if (status === "Verified" || status === "Onboarded") {
+    return "bg-[#1c1610] text-[#e8d5b5]";
+  }
+  if (status === "Blacklisted") {
+    return "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200";
+  }
+  if (status === "Deactivated" || status === "Inactive") {
+    return "bg-[#efe8dc] text-[#8a7b68] dark:bg-white/10 dark:text-[#b5aa9c]";
+  }
+  return "bg-[#f6efe4] text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]";
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 export default function VendorsTable() {
@@ -153,55 +157,59 @@ export default function VendorsTable() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      {error ? (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
-          {error}
-        </div>
-      ) : null}
+  const pageButtons = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
+    (n) => n === 1 || n === totalPages || Math.abs(n - page) <= 1
+  );
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Vendors
-          </h2>
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
           <Link
-            href="/operations/vendors/new"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-brand-500"
+            href="/"
+            className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f4efe6]"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v14l-7-3-7 3V6a2 2 0 012-2z" />
-            </svg>
-            Vendor Form
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
+            <span aria-hidden>←</span>
+            Home
           </Link>
+          <h1 className="font-serif text-3xl text-[#1c1610] dark:text-[#f4efe6]">My vendors</h1>
+          <p className="mt-1 text-sm text-[#8a7b68]">
+            {loading ? "Loading directory…" : `${total} vendor${total === 1 ? "" : "s"} in your directory`}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <div className="relative min-w-[240px] flex-1">
+            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#b3a594]">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
               </svg>
             </span>
-            <Input
-              type="text"
-              placeholder="Search"
+            <input
+              type="search"
+              placeholder="Search name, phone or city"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] pl-10 pr-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:bg-white focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6] dark:focus:bg-[#161411]"
             />
           </div>
-          <Button size="sm" onClick={openAdd} className="bg-[#E85D75] hover:bg-[#d64c66]">
-            + New Vendor
-          </Button>
+          <button
+            type="button"
+            onClick={openAdd}
+            className="h-11 rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] hover:bg-black"
+          >
+            + New vendor
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#F4D0D6] bg-[#fff7f8] px-3 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
-        <span className="mr-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#E85D75] shadow-theme-xs">
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] px-3 py-3 dark:border-[#3a342c] dark:bg-[#161411]">
+        <span className="mr-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#9a7748] dark:bg-[#1c1914]">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M6 12h12M10 20h4" />
           </svg>
@@ -255,128 +263,144 @@ export default function VendorsTable() {
           <button
             type="button"
             onClick={resetFilters}
-            className="inline-flex h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-[#E85D75] hover:bg-white"
+            className="inline-flex h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-[#9a7748] hover:bg-white dark:hover:bg-white/10"
           >
             Reset · {activeFilterCount}
           </button>
         ) : (
-          <span className="text-xs text-gray-400">Options come from vendor records</span>
+          <span className="text-xs text-[#8a7b68]">Filter by records already in the directory</span>
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="max-w-full overflow-x-auto">
-          <Table>
-            <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
-              <TableRow>
-                {[
-                  "Vendor Name",
-                  "Phone no.",
-                  "City",
-                  "Category",
-                  "Working Model",
-                  "Status",
-                  "Action",
-                ].map((heading) => (
-                  <TableCell
-                    key={heading}
-                    isHeader
-                    className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
+      <div className="vendor-form-card overflow-visible rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="max-w-full overflow-x-auto rounded-2xl">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-[#f0e8db] bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914]">
+                {["Vendor", "Phone", "City", "Category", "Working model", "Status", ""].map((heading) => (
+                  <th key={heading || "actions"} className="whitespace-nowrap px-4 py-3.5">
                     {heading}
-                  </TableCell>
+                  </th>
                 ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+              </tr>
+            </thead>
+            <tbody>
               {loading ? (
-                <TableRow>
-                  <TableCell className="px-4 py-8 text-sm text-gray-500">
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
                     Loading vendors...
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ) : items.length === 0 ? (
-                <TableRow>
-                  <TableCell className="px-4 py-8 text-sm text-gray-500">
-                    No vendors yet. Add one with New Vendor.
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={7} className="px-4 py-14 text-center">
+                    <p className="font-serif text-xl text-[#1c1610] dark:text-[#f4efe6]">No vendors yet</p>
+                    <p className="mt-1 text-sm text-[#8a7b68]">Add a vendor to start procurement and payouts.</p>
+                    <button
+                      type="button"
+                      onClick={openAdd}
+                      className="mt-4 h-10 rounded-xl bg-[#1c1610] px-4 text-sm font-semibold text-[#e8d5b5]"
+                    >
+                      + New vendor
+                    </button>
+                  </td>
+                </tr>
               ) : (
                 items.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => openVendor(row)}
-                        className="text-left text-sm font-medium uppercase tracking-wide text-gray-800 hover:text-brand-500 dark:text-white/90"
-                      >
-                        {row.name}
+                  <tr
+                    key={row.id}
+                    className="border-b border-[#f0e8db] last:border-0 hover:bg-[#fbf8f3] dark:border-[#3a342c] dark:hover:bg-white/[0.03]"
+                  >
+                    <td className="min-w-[240px] px-4 py-3.5">
+                      <button type="button" onClick={() => openVendor(row)} className="flex min-w-0 items-center gap-3 text-left">
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1c1610] text-[11px] font-semibold text-[#e8d5b5]">
+                          {initials(row.name || "V")}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-[#1c1610] dark:text-[#f4efe6]">
+                            {row.name}
+                          </span>
+                          <span className="block truncate text-xs text-[#8a7b68]">
+                            {row.contactPerson || row.email || "Open profile"}
+                          </span>
+                        </span>
                       </button>
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-600">
-                      {row.phone || "â€”"}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-600">
-                      {row.city || "â€”"}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-600">
-                      {row.category || "â€”"}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-gray-600">
-                      {row.workingModel || "â€”"}
-                    </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <Badge size="sm" color={statusColor(row.status)}>
-                        {row.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="relative px-4 py-3">
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-[#6f6254] dark:text-[#b5aa9c]">
+                      {row.phone || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-[#6f6254] dark:text-[#b5aa9c]">
+                      {row.city || "—"}
+                    </td>
+                    <td className="max-w-[220px] px-4 py-3.5">
+                      <span className="line-clamp-2 text-[#6f6254] dark:text-[#b5aa9c]">
+                        {row.category || "—"}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-[#6f6254] dark:text-[#b5aa9c]">
+                      {row.workingModel || "—"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${statusClass(row.status)}`}
+                      >
+                        {row.status || "Created"}
+                      </span>
+                    </td>
+                    <td className="relative px-4 py-3.5 text-right">
                       <button
                         type="button"
                         onClick={() => setMenuId(menuId === row.id ? null : row.id)}
-                        className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#8a7b68] hover:bg-[#f6efe4] hover:text-[#1c1610] dark:hover:bg-white/10 dark:hover:text-[#f4efe6]"
                         aria-label="Vendor actions"
                       >
-                        â‹®
+                        ⋮
                       </button>
                       {menuId === row.id ? (
                         <div
                           ref={menuRef}
-                          className="absolute right-4 z-20 mt-1 w-32 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                          className="absolute right-4 z-30 mt-1 w-36 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 shadow-xl dark:border-[#3a342c] dark:bg-[#161411]"
                         >
                           <button
                             type="button"
+                            onClick={() => openVendor(row)}
+                            className="block w-full px-3 py-2 text-left text-sm text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f4efe6] dark:hover:bg-white/5"
+                          >
+                            Open
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => openEdit(row)}
-                            className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200"
+                            className="block w-full px-3 py-2 text-left text-sm text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f4efe6] dark:hover:bg-white/5"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => void remove(row)}
-                            className="block w-full px-3 py-2 text-left text-sm text-error-500 hover:bg-error-50"
+                            className="block w-full px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
                           >
                             Delete
                           </button>
                         </div>
                       ) : null}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
-        <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-3 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between dark:border-white/[0.05]">
+        <div className="flex flex-col gap-3 border-t border-[#f0e8db] px-4 py-3 text-sm text-[#8a7b68] sm:flex-row sm:items-center sm:justify-between dark:border-[#3a342c]">
           <div className="flex items-center gap-2">
-            <span>Items per page:</span>
+            <span>Rows</span>
             <select
               value={limit}
               onChange={(e) => {
                 setLimit(Number(e.target.value));
                 setPage(1);
               }}
-              className="h-8 rounded-md border border-gray-200 bg-transparent px-2 text-sm dark:border-gray-700"
+              className="h-9 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]"
             >
               {[10, 25, 50].map((size) => (
                 <option key={size} value={size}>
@@ -385,41 +409,44 @@ export default function VendorsTable() {
               ))}
             </select>
             <span>
-              {from} â€“ {to} of {total}
+              {from} – {to} of {total}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <button
               type="button"
               disabled={page <= 1}
-              onClick={() => setPage(1)}
-              className="rounded-md px-2 py-1 disabled:opacity-40"
-            >
-              Â«
-            </button>
-            <button
-              type="button"
-              disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-md px-2 py-1 disabled:opacity-40"
+              className="h-9 rounded-lg px-3 disabled:opacity-40 hover:bg-[#fbf8f3] dark:hover:bg-white/5"
             >
-              â€¹
+              Prev
             </button>
+            {pageButtons.map((n, index) => {
+              const prev = pageButtons[index - 1];
+              return (
+                <React.Fragment key={n}>
+                  {prev && n - prev > 1 ? <span className="px-1">…</span> : null}
+                  <button
+                    type="button"
+                    onClick={() => setPage(n)}
+                    className={`h-9 min-w-9 rounded-lg px-2 ${
+                      n === page
+                        ? "bg-[#1c1610] text-[#e8d5b5]"
+                        : "hover:bg-[#fbf8f3] dark:hover:bg-white/5"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                </React.Fragment>
+              );
+            })}
             <button
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-md px-2 py-1 disabled:opacity-40"
+              className="h-9 rounded-lg px-3 disabled:opacity-40 hover:bg-[#fbf8f3] dark:hover:bg-white/5"
             >
-              â€º
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage(totalPages)}
-              className="rounded-md px-2 py-1 disabled:opacity-40"
-            >
-              Â»
+              Next
             </button>
           </div>
         </div>

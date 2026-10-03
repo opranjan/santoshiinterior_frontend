@@ -1,4 +1,3 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import VendorsTable from "@/components/vendors/VendorsTable";
 import { Metadata } from "next";
 import React from "react";
@@ -10,8 +9,7 @@ export const metadata: Metadata = {
 
 export default function MyVendorsPage() {
   return (
-    <div>
-      <PageBreadcrumb pageTitle="My Vendors" />
+    <div className="vendor-form">
       <VendorsTable />
     </div>
   );

@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Button from "@/components/ui/button/Button";
-import Label from "@/components/form/Label";
+import Link from "next/link";
 import { ApiError } from "@/lib/api";
 import { settingsApi } from "@/services/crmApi";
 
@@ -109,7 +108,11 @@ const defaults: ProjectValue = {
 };
 
 const selectClass =
-  "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+  "h-11 w-full appearance-none rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const labelClass =
+  "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]";
+const toggleRow =
+  "flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-[#eadfcf] bg-white px-4 py-3 dark:border-[#3a342c] dark:bg-[#1a1714]";
 
 function mergeLists(saved?: OptionList[]): OptionList[] {
   if (!Array.isArray(saved) || !saved.length) return defaultLists;
@@ -223,139 +226,98 @@ export default function ProjectSettings() {
   };
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
-          {error}
-        </div>
-      )}
-      {loading && (
-        <div className="text-sm text-gray-500">Loading settings…</div>
-      )}
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Project Settings
-          </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Master options for leads, projects, quotations, and design — keep
-            forms consistent across the CRM.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {saved && (
-            <span className="text-sm font-medium text-success-600">Saved</span>
-          )}
-          <Button size="sm" onClick={handleSave} disabled={loading || saving}>
-            {saving ? "Saving…" : "Save Settings"}
-          </Button>
-        </div>
+    <div className="space-y-5 pb-24">
+      <div>
+        <Link
+          href="/settings"
+          className="mb-2 inline-flex text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68] hover:text-[#1c1610] dark:hover:text-[#f3ece2]"
+        >
+          ← Settings
+        </Link>
+        <h1
+          className="font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+        >
+          Project settings
+        </h1>
+        <p className="mt-1 text-sm text-[#8a7b68]">
+          Master options for leads, projects, quotations, and design — keep
+          forms consistent across the CRM.
+        </p>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6">
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-          Defaults for new projects
-        </h3>
-        <p className="mt-1 text-xs text-gray-500">
-          Applied when creating a lead or project
-        </p>
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          {error}
+        </div>
+      ) : null}
+      {loading ? (
+        <div className="text-sm text-[#8a7b68]">Loading settings…</div>
+      ) : null}
 
+      <section className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 dark:border-[#3a342c] dark:bg-[#161411] sm:p-6">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">Defaults</p>
+        <h2 className="mt-1 font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+          New projects
+        </h2>
+        <p className="mt-1 text-xs text-[#8a7b68]">Applied when creating a lead or project</p>
         <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Default Status</Label>
-            <select
-              value={defaultStatus}
-              onChange={(e) => setDefaultStatus(e.target.value)}
-              className={selectClass}
-            >
-              {(lists.find((l) => l.id === "statuses")?.items || []).map(
-                (s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                )
-              )}
+            <label className={labelClass}>Default status</label>
+            <select value={defaultStatus} onChange={(e) => setDefaultStatus(e.target.value)} className={selectClass}>
+              {(lists.find((l) => l.id === "statuses")?.items || []).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </div>
           <div>
-            <Label>Default Financial Year</Label>
-            <select
-              value={defaultFy}
-              onChange={(e) => setDefaultFy(e.target.value)}
-              className={selectClass}
-            >
-              {(
-                lists.find((l) => l.id === "financial-years")?.items || []
-              ).map((fy) => (
-                <option key={fy} value={fy}>
-                  {fy}
-                </option>
+            <label className={labelClass}>Default financial year</label>
+            <select value={defaultFy} onChange={(e) => setDefaultFy(e.target.value)} className={selectClass}>
+              {(lists.find((l) => l.id === "financial-years")?.items || []).map((fy) => (
+                <option key={fy} value={fy}>{fy}</option>
               ))}
             </select>
           </div>
         </div>
-
         <div className="mt-5 space-y-3">
-          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-800">
+          <label className={toggleRow}>
             <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Auto-assign creator as owner
-              </p>
-              <p className="text-xs text-gray-500">
-                New projects get the logged-in user as Sales Owner / Assigned To
-              </p>
+              <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">Auto-assign creator as owner</p>
+              <p className="text-xs text-[#8a7b68]">New projects get the logged-in user as Sales Owner / Assigned To</p>
             </div>
-            <input
-              type="checkbox"
-              checked={autoAssignOwner}
-              onChange={(e) => setAutoAssignOwner(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
+            <input type="checkbox" checked={autoAssignOwner} onChange={(e) => setAutoAssignOwner(e.target.checked)} className="h-4 w-4 accent-[#1c1610]" />
           </label>
-          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-800">
+          <label className={toggleRow}>
             <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Require site / project address
-              </p>
-              <p className="text-xs text-gray-500">
-                Block save when project address is empty
-              </p>
+              <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">Require site / project address</p>
+              <p className="text-xs text-[#8a7b68]">Block save when project address is empty</p>
             </div>
-            <input
-              type="checkbox"
-              checked={requireSiteAddress}
-              onChange={(e) => setRequireSiteAddress(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
+            <input type="checkbox" checked={requireSiteAddress} onChange={(e) => setRequireSiteAddress(e.target.checked)} className="h-4 w-4 accent-[#1c1610]" />
           </label>
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {lists.map((list) => (
           <div
             key={list.id}
-            className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] sm:p-6"
+            className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 dark:border-[#3a342c] dark:bg-[#161411] sm:p-6"
           >
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                {list.title}
-              </h3>
-              <p className="mt-0.5 text-xs text-gray-500">{list.hint}</p>
-            </div>
-
-            <div className="mb-3 flex flex-wrap gap-2">
+            <h3 className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+              {list.title}
+            </h3>
+            <p className="mt-0.5 text-xs text-[#8a7b68]">{list.hint}</p>
+            <div className="mb-3 mt-4 flex flex-wrap gap-2">
               {list.items.map((item) => (
                 <span
                   key={item}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 dark:bg-white/[0.06] dark:text-gray-300"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#eadfcf] bg-white px-3 py-1.5 text-xs font-medium text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 >
                   {item}
                   <button
                     type="button"
                     onClick={() => removeItem(list.id, item)}
-                    className="text-gray-400 hover:text-error-500"
+                    className="text-[#8a7b68] hover:text-red-600"
                     aria-label={`Remove ${item}`}
                   >
                     ×
@@ -363,10 +325,9 @@ export default function ProjectSettings() {
                 </span>
               ))}
               {list.items.length === 0 && (
-                <span className="text-xs text-gray-400">No options yet</span>
+                <span className="text-xs text-[#a89880]">No options yet</span>
               )}
             </div>
-
             <div className="flex gap-2">
               <input
                 type="text"
@@ -384,18 +345,30 @@ export default function ProjectSettings() {
                   }
                 }}
                 placeholder={`Add ${list.title.toLowerCase().slice(0, -1)}…`}
-                className="h-11 flex-1 rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                className="h-11 flex-1 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-4 text-sm text-[#1c1610] outline-none placeholder:text-[#a89880] focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               />
-              <Button
-                size="sm"
-                variant="outline"
+              <button
+                type="button"
                 onClick={() => addItem(list.id)}
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
               >
                 Add
-              </Button>
+              </button>
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="sticky bottom-0 z-20 -mx-1 flex items-center justify-end gap-3 border-t border-[#eadfcf] bg-[#fbf8f3]/95 px-1 py-3 backdrop-blur-sm dark:border-[#3a342c] dark:bg-[#161411]/95">
+        {saved ? <span className="mr-auto text-sm font-medium text-emerald-700 dark:text-emerald-300">Saved</span> : null}
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={loading || saving}
+          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-6 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+        >
+          {saving ? "Saving…" : "Save settings"}
+        </button>
       </div>
     </div>
   );

@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
 import { ApiError } from "@/lib/api";
 import type { AuthUser } from "@/lib/auth";
 import { formatActivityDate } from "@/lib/userRoles";
@@ -19,10 +17,11 @@ const CATEGORIES = [
 ];
 
 const fieldClass =
-  "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
-
-const card =
-  "rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]";
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-4 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const labelClass =
+  "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]";
+const actionBtn =
+  "inline-flex h-8 items-center rounded-lg px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68] hover:bg-[#eadfcf] hover:text-[#1c1610] dark:hover:bg-[#2a251f] dark:hover:text-[#f3ece2]";
 
 type AssigneeUser = {
   id: string;
@@ -261,124 +260,132 @@ export default function AdminFranchiseeManager() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800 dark:text-white/90">
-            Franchisee Management
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#c4a574]">
+            Network
+          </p>
+          <h1
+            className="mt-1 font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            Franchisees
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Create franchisee logins, set work category, and assign projects to franchisees.
-            This is separate from a project’s Assigned To person in CRM. One project can go to several franchisees.
+          <p className="mt-1 max-w-2xl text-sm text-[#8a7b68]">
+            Create franchisee logins, set work category, and assign projects.
+            This is separate from a project’s Assigned To person in CRM. One
+            project can go to several franchisees.
           </p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          + Add Franchisee
-        </Button>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+        >
+          Add franchisee
+        </button>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
           {notice}
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <div className={card}>
-          <p className="text-xs text-gray-500">Total Franchisees</p>
-          <p className="mt-2 text-2xl font-semibold text-brand-600">{totals.total}</p>
-        </div>
-        <div className={card}>
-          <p className="text-xs text-gray-500">Active</p>
-          <p className="mt-2 text-2xl font-semibold text-success-600">{totals.active}</p>
-        </div>
-        <div className={card}>
-          <p className="text-xs text-gray-500">Inactive</p>
-          <p className="mt-2 text-2xl font-semibold text-error-500">{totals.inactive}</p>
-        </div>
-        <div className={card}>
-          <p className="text-xs text-gray-500">Assigned Projects</p>
-          <p className="mt-2 text-2xl font-semibold text-warning-600">{totals.projects}</p>
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="grid grid-cols-2 divide-x divide-y divide-[#eadfcf] xl:grid-cols-4 xl:divide-y-0 dark:divide-[#3a342c]">
+          {[
+            { label: "Total franchisees", value: totals.total },
+            { label: "Active", value: totals.active },
+            { label: "Inactive", value: totals.inactive },
+            { label: "Assigned projects", value: totals.projects },
+          ].map((kpi) => (
+            <div key={kpi.label} className="px-4 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                {kpi.label}
+              </p>
+              <p
+                className="mt-1.5 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+              >
+                {kpi.value}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, email, category…"
-          className="h-10 min-w-[240px] rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as "active" | "inactive" | "all")}
-          className="h-10 rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-        >
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="all">All</option>
-        </select>
+      <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, email, category…"
+            className={`${fieldClass} min-w-[240px] flex-1`}
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "active" | "inactive" | "all")}
+            className={fieldClass}
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All</option>
+          </select>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
+            <thead className="bg-[#f6efe4] text-left dark:bg-[#1a1714]">
               <tr>
-                <th className="px-4 py-2">Franchisee</th>
-                <th className="px-4 py-2">Phone</th>
-                <th className="px-4 py-2">Category</th>
-                <th className="px-4 py-2">Store</th>
-                <th className="px-4 py-2">Projects</th>
-                <th className="px-4 py-2">Last login</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Actions</th>
+                {["Franchisee", "Phone", "Category", "Store", "Projects", "Last login", "Status", "Actions"].map((h) => (
+                  <th key={h} className="px-4 py-3.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[#eadfcf] dark:divide-[#3a342c]">
               {filtered.map((user) => (
-                <tr key={user.id} className="border-t border-gray-100 dark:border-gray-800">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-800 dark:text-white/90">{user.name}</p>
-                    <p className="text-xs text-gray-400">{user.email}</p>
+                <tr key={user.id} className="store-row">
+                  <td className="px-4 py-3.5">
+                    <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{user.name}</p>
+                    <p className="text-xs text-[#8a7b68]">{user.email}</p>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{user.phone || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{categoryOf(user)}</td>
-                  <td className="px-4 py-3 text-gray-600">{user.store?.name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3.5 text-[#8a7b68]">{user.phone || "—"}</td>
+                  <td className="px-4 py-3.5 text-[#8a7b68]">{categoryOf(user)}</td>
+                  <td className="px-4 py-3.5 text-[#8a7b68]">{user.store?.name || "—"}</td>
+                  <td className="px-4 py-3.5 text-[#1c1610] dark:text-[#f3ece2]">
                     {user._count?.assignedProjects ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3.5 text-[#8a7b68]">
                     {formatActivityDate(user.lastLoginAt)}
                   </td>
-                  <td className="px-4 py-3">
-                    <Badge size="sm" color={user.isActive === false ? "error" : "success"}>
+                  <td className="px-4 py-3.5">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                        user.isActive === false
+                          ? "bg-[#eadfcf] text-[#8a7b68] dark:bg-[#2a251f] dark:text-[#a89880]"
+                          : "bg-[#1c1610] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+                      }`}
+                    >
                       {user.isActive === false ? "Inactive" : "Active"}
-                    </Badge>
+                    </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="text-sm font-medium text-brand-600"
-                        onClick={() => openEdit(user)}
-                      >
+                  <td className="px-4 py-3.5">
+                    <div className="flex flex-wrap gap-1">
+                      <button type="button" className={actionBtn} onClick={() => openEdit(user)}>
                         Edit
                       </button>
-                      <button
-                        type="button"
-                        className="text-sm font-medium text-brand-600"
-                        onClick={() => openAssign(user)}
-                      >
+                      <button type="button" className={actionBtn} onClick={() => openAssign(user)}>
                         Projects
                       </button>
-                      <button
-                        type="button"
-                        className="text-sm font-medium text-gray-500"
-                        onClick={() => void toggleActive(user)}
-                      >
+                      <button type="button" className={actionBtn} onClick={() => void toggleActive(user)}>
                         {user.isActive === false ? "Activate" : "Deactivate"}
                       </button>
                     </div>
@@ -387,14 +394,14 @@ export default function AdminFranchiseeManager() {
               ))}
               {!loading && !filtered.length ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-10 text-center text-[#8a7b68]">
                     No franchisees yet. Add one and share the login.
                   </td>
                 </tr>
               ) : null}
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-10 text-center text-[#8a7b68]">
                     Loading…
                   </td>
                 </tr>
@@ -405,19 +412,19 @@ export default function AdminFranchiseeManager() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 shadow-xl dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                {editing ? "Edit Franchisee" : "Add Franchisee"}
+              <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                {editing ? "Edit franchisee" : "Add franchisee"}
               </h3>
-              <button type="button" onClick={() => setFormOpen(false)} className="text-gray-400">
+              <button type="button" onClick={() => setFormOpen(false)} className="text-[#8a7b68]">
                 ✕
               </button>
             </div>
             <div className="space-y-3">
               <div>
-                <p className="mb-1 text-sm text-gray-600">Full name</p>
+                <p className={labelClass}>Full name</p>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -425,7 +432,7 @@ export default function AdminFranchiseeManager() {
                 />
               </div>
               <div>
-                <p className="mb-1 text-sm text-gray-600">Email (login)</p>
+                <p className={labelClass}>Email (login)</p>
                 <input
                   type="email"
                   value={form.email}
@@ -434,7 +441,7 @@ export default function AdminFranchiseeManager() {
                 />
               </div>
               <div>
-                <p className="mb-1 text-sm text-gray-600">Phone</p>
+                <p className={labelClass}>Phone</p>
                 <input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
@@ -442,7 +449,7 @@ export default function AdminFranchiseeManager() {
                 />
               </div>
               <div>
-                <p className="mb-1 text-sm text-gray-600">Work category</p>
+                <p className={labelClass}>Work category</p>
                 <select
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
@@ -456,7 +463,7 @@ export default function AdminFranchiseeManager() {
                 </select>
               </div>
               <div>
-                <p className="mb-1 text-sm text-gray-600">Store</p>
+                <p className={labelClass}>Store</p>
                 <select
                   value={form.storeId}
                   onChange={(e) => setForm((f) => ({ ...f, storeId: e.target.value }))}
@@ -471,7 +478,7 @@ export default function AdminFranchiseeManager() {
                 </select>
               </div>
               <div>
-                <p className="mb-1 text-sm text-gray-600">
+                <p className={labelClass}>
                   {editing ? "New password (optional)" : "Temporary password"}
                 </p>
                 <div className="flex gap-2">
@@ -481,44 +488,44 @@ export default function AdminFranchiseeManager() {
                     className={fieldClass}
                     placeholder={editing ? "Leave blank to keep current" : ""}
                   />
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
+                    type="button"
+                    className="inline-flex h-11 shrink-0 items-center rounded-xl border border-[#eadfcf] bg-white px-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                     onClick={() =>
                       setForm((f) => ({ ...f, password: generateTempPassword() }))
                     }
                   >
                     Generate
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <Button size="sm" variant="outline" onClick={() => setFormOpen(false)}>
+              <button type="button" onClick={() => setFormOpen(false)} className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]">
                 Cancel
-              </Button>
-              <Button size="sm" onClick={() => void save()} disabled={saving}>
+              </button>
+              <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]">
                 {saving ? "Saving…" : "Save"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       ) : null}
 
       {assigning ? (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 shadow-xl dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
                   Assign to franchisee
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[#8a7b68]">
                   {assigning.name} will see these projects. CRM Assigned To is unchanged. Other
                   franchisees on the same project stay assigned.
                 </p>
               </div>
-              <button type="button" onClick={() => setAssigning(null)} className="text-gray-400">
+              <button type="button" onClick={() => setAssigning(null)} className="text-[#8a7b68]">
                 ✕
               </button>
             </div>
@@ -535,11 +542,11 @@ export default function AdminFranchiseeManager() {
                 return (
                   <label
                     key={project.id}
-                    className="flex items-start gap-3 rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800"
+                    className="flex items-start gap-3 rounded-xl border border-[#eadfcf] bg-white px-3 py-2 dark:border-[#3a342c] dark:bg-[#1a1714]"
                   >
                     <input
                       type="checkbox"
-                      className="mt-1"
+                      className="mt-1 accent-[#1c1610]"
                       checked={checked}
                       onChange={(e) => {
                         setSelectedProjectIds((ids) =>
@@ -550,10 +557,10 @@ export default function AdminFranchiseeManager() {
                       }}
                     />
                     <span>
-                      <span className="block text-sm font-medium text-gray-800 dark:text-white/90">
+                      <span className="block text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                         {project.name}
                       </span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-[#8a7b68]">
                         {project.clientName || "—"}
                         {crmOwner ? ` · CRM Assigned To: ${crmOwner}` : ""}
                         {others.length
@@ -565,48 +572,48 @@ export default function AdminFranchiseeManager() {
                 );
               })}
               {!projects.length ? (
-                <p className="py-8 text-center text-sm text-gray-400">No projects in CRM yet.</p>
+                <p className="py-8 text-center text-sm text-[#8a7b68]">No projects in CRM yet.</p>
               ) : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <Button size="sm" variant="outline" onClick={() => setAssigning(null)}>
+              <button type="button" onClick={() => setAssigning(null)} className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]">
                 Cancel
-              </Button>
-              <Button size="sm" onClick={() => void saveAssign()} disabled={saving}>
+              </button>
+              <button type="button" onClick={() => void saveAssign()} disabled={saving} className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]">
                 {saving ? "Saving…" : "Save assignments"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
       ) : null}
 
       {credentials ? (
-        <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 z-[100020] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
               Share login details
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-[#8a7b68]">
               Give these to the franchisee. They sign in at the same CRM login page.
             </p>
-            <dl className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5">
+            <dl className="mt-4 space-y-2 rounded-xl border border-[#eadfcf] bg-white p-4 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
               <div>
-                <dt className="text-xs text-gray-500">Name</dt>
-                <dd className="font-medium">{credentials.name}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Name</dt>
+                <dd className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{credentials.name}</dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-500">Email</dt>
-                <dd className="font-medium">{credentials.email}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Email</dt>
+                <dd className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{credentials.email}</dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-500">Password</dt>
-                <dd className="font-mono font-medium">{credentials.password}</dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">Password</dt>
+                <dd className="font-mono font-medium text-[#1c1610] dark:text-[#f3ece2]">{credentials.password}</dd>
               </div>
             </dl>
             <div className="mt-4 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
+              <button
+                type="button"
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 onClick={async () => {
                   const origin = typeof window !== "undefined" ? window.location.origin : "";
                   const text = [
@@ -624,10 +631,10 @@ export default function AdminFranchiseeManager() {
                 }}
               >
                 Copy details
-              </Button>
-              <Button size="sm" onClick={() => setCredentials(null)}>
+              </button>
+              <button type="button" onClick={() => setCredentials(null)} className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]">
                 Done
-              </Button>
+              </button>
             </div>
           </div>
         </div>

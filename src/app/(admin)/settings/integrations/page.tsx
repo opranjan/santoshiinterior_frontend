@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function IntegrationsPage() {
   return (
-    <div>
+    <div className="vendor-form">
       <IntegrationsSettings />
     </div>
   );

@@ -205,7 +205,7 @@ export default function FranchiseeDashboardHome() {
               <Link
                 key={kpi.label}
                 href={kpi.href}
-                className={`vendor-card vendor-rise vendor-rise-delay-${index + 1} p-4`}
+                className={`vendor-card dash-kpi vendor-rise vendor-rise-delay-${index + 1} p-5`}
               >
                 <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">{kpi.label}</p>
                 <p className={`vendor-serif mt-2 text-3xl ${kpi.tone}`}>{kpi.value}</p>
@@ -267,7 +267,7 @@ export default function FranchiseeDashboardHome() {
                 <Link
                   key={action.label}
                   href={action.href}
-                  className="rounded-xl border border-[#eee6d8] bg-[#fbf8f2] px-3 py-3 text-center transition hover:-translate-y-0.5 hover:border-[#c4a574] dark:border-[var(--vendor-line)] dark:bg-black/20"
+                  className="dash-chip rounded-xl border border-[#eee6d8] bg-[#fbf8f2] px-3 py-3 text-center dark:border-[var(--vendor-line)] dark:bg-black/20"
                 >
                   <span className="text-lg">{action.icon}</span>
                   <p className="mt-1 text-sm font-medium text-[#111]">{action.label}</p>

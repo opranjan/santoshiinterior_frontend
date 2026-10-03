@@ -37,7 +37,7 @@ const ORDER_LABEL: Record<string, string> = {
 function orderTone(state?: string) {
   if (state === "FULLY_DELIVERED") return "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200";
   if (state === "ORDER_REJECTED") return "bg-rose-50 text-rose-800 dark:bg-rose-500/15 dark:text-rose-200";
-  if (state === "PARTIALLY_DELIVERED" || state === "ORDER_ACCEPTED") return "bg-[#f4efe6] text-[#9a7748]";
+  if (state === "PARTIALLY_DELIVERED" || state === "ORDER_ACCEPTED") return "bg-[#f4efe6] text-[#9a7748] dark:bg-white/10 dark:text-[#c4a574]";
   return "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300";
 }
 

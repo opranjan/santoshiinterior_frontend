@@ -192,15 +192,15 @@ export default function AdminPayVendor() {
       {notice ? <div className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">{notice}</div> : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-4"><p className="text-xs text-gray-500">Records</p><p className="mt-2 text-2xl font-semibold">{loading ? "—" : totals.count}</p></div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4"><p className="text-xs text-gray-500">Total</p><p className="mt-2 text-2xl font-semibold">{formatINR(totals.amount)}</p></div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4"><p className="text-xs text-gray-500">Paid</p><p className="mt-2 text-2xl font-semibold text-success-600">{formatINR(totals.paid)}</p></div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4"><p className="text-xs text-gray-500">Pending</p><p className="mt-2 text-2xl font-semibold text-[#E85D75]">{formatINR(totals.pending)}</p></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="text-xs text-gray-500 dark:text-gray-400">Records</p><p className="mt-2 text-2xl font-semibold text-gray-800 dark:text-white/90">{loading ? "—" : totals.count}</p></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="text-xs text-gray-500 dark:text-gray-400">Total</p><p className="mt-2 text-2xl font-semibold text-gray-800 dark:text-white/90">{formatINR(totals.amount)}</p></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="text-xs text-gray-500 dark:text-gray-400">Paid</p><p className="mt-2 text-2xl font-semibold text-success-600">{formatINR(totals.paid)}</p></div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"><p className="text-xs text-gray-500 dark:text-gray-400">Pending</p><p className="mt-2 text-2xl font-semibold text-[#E85D75]">{formatINR(totals.pending)}</p></div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <table className="min-w-full text-sm text-gray-700 dark:text-gray-200">
+          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-white/[0.04] dark:text-gray-400">
             <tr>
               <th className="px-4 py-2">Invoice</th>
               <th className="px-4 py-2">Vendor</th>
@@ -212,7 +212,7 @@ export default function AdminPayVendor() {
           </thead>
           <tbody>
             {payments.map((row) => (
-              <tr key={row.id} className="border-t border-gray-100">
+              <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
                 <td className="px-4 py-2.5">{row.invoiceNo}</td>
                 <td className="px-4 py-2.5">{row.payee?.name || "—"}</td>
                 <td className="px-4 py-2.5">{row.project?.name || "—"}</td>
@@ -236,7 +236,7 @@ export default function AdminPayVendor() {
 
       {formOpen ? (
         <div className="fixed inset-0 z-[100010] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 text-gray-800 shadow-2xl dark:bg-gray-900 dark:text-white/90">
             <h3 className="text-lg font-semibold">Pay vendor</h3>
             <div className="mt-4 space-y-3">
               <label className="block text-sm">
