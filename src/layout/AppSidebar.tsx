@@ -6,9 +6,7 @@ import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
 import {
   filterNavItems,
-  FRANCHISEE_NAV_ITEMS,
-  isFranchiseeUser,
-  isVendorUser,
+  isVendorPanelUser,
   NAV_ITEMS,
   OPERATIONS_NAV_ITEMS,
   OTHER_NAV_ITEMS,
@@ -57,16 +55,13 @@ const ICONS: Record<string, React.ReactNode> = {
   Operations: <BoxCubeIcon className="size-5 shrink-0" />,
   Procurement: <FileIcon className="size-5 shrink-0" />,
   Vendors: <GroupIcon className="size-5 shrink-0" />,
-  "Work Order": <DocsIcon className="size-5 shrink-0" />,
-  "Purchase Order": <FileIcon className="size-5 shrink-0" />,
   Payments: <BoxIconLine className="size-5 shrink-0" />,
-  "Pay Franchisee": <DollarLineIcon className="size-5 shrink-0" />,
-  "Pay Vendor": <DollarLineIcon className="size-5 shrink-0" />,
+  "Vendor Payment": <DollarLineIcon className="size-5 shrink-0" />,
   "Warranty Desk": <CheckCircleIcon className="size-5 shrink-0" />,
   HR: <UserIcon className="size-5 shrink-0" />,
   Calendar: <CalenderIcon className="size-5 shrink-0" />,
   Admin: <UserCircleIcon className="size-5 shrink-0" />,
-  Franchisees: <GroupIcon className="size-5 shrink-0" />,
+  "Vendor Panel": <GroupIcon className="size-5 shrink-0" />,
   Integrations: <PlugInIcon className="size-5 shrink-0" />,
   Communication: <ChatIcon className="size-5 shrink-0" />,
 };
@@ -81,29 +76,22 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered, closeMobileSidebar } = useSidebar();
   const { user } = useAuth();
   const pathname = usePathname();
-  const franchisee = isFranchiseeUser(user);
-  const vendor = isVendorUser(user);
+  const vendorPanel = isVendorPanelUser(user);
 
   const navItems = useMemo(
     () =>
-      withIcons(
-        franchisee
-          ? FRANCHISEE_NAV_ITEMS
-          : vendor
-            ? VENDOR_NAV_ITEMS
-            : filterNavItems(NAV_ITEMS, user)
-      ),
-    [user, franchisee, vendor]
+      withIcons(vendorPanel ? VENDOR_NAV_ITEMS : filterNavItems(NAV_ITEMS, user)),
+    [user, vendorPanel]
   );
   const othersItems = useMemo(
     () =>
-      franchisee || vendor ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
-    [user, franchisee, vendor]
+      vendorPanel ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
+    [user, vendorPanel]
   );
   const operationsItems = useMemo(
     () =>
-      franchisee || vendor ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
-    [user, franchisee, vendor]
+      vendorPanel ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
+    [user, vendorPanel]
   );
   const adminIndex = navItems.findIndex((item) => item.name === "Admin");
   const menuBeforeAdmin =
@@ -324,7 +312,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`no-print fixed inset-y-0 left-0 top-16 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-white px-5 text-gray-900 transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 lg:top-0 lg:h-screen lg:z-[60]
-        ${vendor || franchisee ? "vendor-sidebar" : "crm-sidebar"}
+        ${vendorPanel ? "vendor-sidebar" : "crm-sidebar"}
         ${
           isExpanded || isMobileOpen
             ? "w-[290px]"
@@ -354,10 +342,10 @@ const AppSidebar: React.FC = () => {
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="sidebar-brand-title">
-                  {vendor ? "Vendor Panel" : franchisee ? "Franchisee Panel" : "Santoshi Interiors"}
+                  {vendorPanel ? "Vendor Panel" : "Santoshi Interiors"}
                 </span>
                 <span className="sidebar-brand-kicker">
-                  {vendor || franchisee ? "Santoshi Interiors" : "CRM"}
+                  {vendorPanel ? "Santoshi Interiors" : "CRM"}
                 </span>
               </span>
             </span>
@@ -452,11 +440,9 @@ const AppSidebar: React.FC = () => {
           <span className="min-w-0">
             <span className="sidebar-foot-name">{user.name}</span>
             <span className="sidebar-foot-role">
-              {vendor
+              {vendorPanel
                 ? "Vendor workspace"
-                : franchisee
-                  ? "Franchisee workspace"
-                  : user.accessRole?.label || user.roleLabel || "CRM workspace"}
+                : user.accessRole?.label || user.roleLabel || "CRM workspace"}
             </span>
           </span>
         </div>

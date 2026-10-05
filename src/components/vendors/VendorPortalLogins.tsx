@@ -63,9 +63,9 @@ export default function VendorPortalLogins({ vendorId, vendorName }: { vendorId:
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-gray-800">Vendor portal login</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Vendor panel login</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Create a login for this vendor. After they sign in they see only their dashboard, design, assigned projects, procurement, and payouts.
+          Create a login for this supplier company. They sign in on the same page as everyone else and see the Vendor panel (projects, design, procurement, payments).
         </p>
       </div>
       {created ? (

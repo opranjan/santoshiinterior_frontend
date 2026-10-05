@@ -138,6 +138,7 @@ function RowMenu({
 export default function UsersManager() {
   const { user: currentUser } = useAuth();
   const canManageUsers = hasAnyPermission(currentUser, ["users.manage"]);
+  const canManageRoles = hasAnyPermission(currentUser, ["users.manage", "roles.manage"]);
 
   const [tab, setTab] = useState<TabKey>("active");
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -262,7 +263,7 @@ export default function UsersManager() {
         dateOfBirth: form.dateOfBirth || null,
         managerId: form.managerId || null,
         storeId: form.storeId || null,
-        vendorId: selectedIsVendor ? form.vendorId || null : null,
+        vendorId: selectedIsVendor || selectedIsFranchisee ? form.vendorId || null : null,
       };
 
       if (editingUser) {
@@ -324,7 +325,7 @@ export default function UsersManager() {
 
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "active", label: "Active" },
-    ...(canManageUsers ? [{ key: "roles" as TabKey, label: "Role Management" }] : []),
+    ...(canManageRoles ? [{ key: "roles" as TabKey, label: "Role Management" }] : []),
     { key: "groups", label: "Groups" },
     ...(canManageUsers ? [{ key: "deactivated" as TabKey, label: "Deactivated" }] : []),
   ];
@@ -352,7 +353,7 @@ export default function UsersManager() {
               type="button"
               onClick={() => {
                 if (!franchiseeRoleId) {
-                  setError("Franchisee role is not ready yet. Restart the API, then try again.");
+                  setError("Vendor panel role is not ready yet. Restart the API, then try again.");
                   return;
                 }
                 setEditingUser(null);
@@ -361,7 +362,7 @@ export default function UsersManager() {
               }}
               className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
             >
-              Add franchisee
+              Add vendor
             </button>
             <button
               type="button"
@@ -606,12 +607,12 @@ export default function UsersManager() {
         title={
           editingUser
             ? "Edit User"
-            : prefillFranchisee
-              ? "Add Franchisee"
+              : prefillFranchisee
+              ? "Add Vendor"
               : "Add User"
         }
         initial={formInitial}
-        roles={roles}
+        roles={roles.filter((role) => role.key !== "VENDOR")}
         managers={managerOptions}
         stores={stores}
         vendors={vendors}
@@ -632,7 +633,7 @@ export default function UsersManager() {
             </h3>
             <p className="mt-1 text-sm text-[#8a7b68]">
               {credentials.franchisee
-                ? "Give these to the franchisee. They sign in to the same CRM and will see their dashboard and assigned projects."
+                ? "Give these to the vendor. They sign in to the same CRM and will see the Vendor panel."
                 : "Give these to the user for first login."}
             </p>
             <dl className="mt-4 space-y-2 rounded-xl border border-[#eadfcf] bg-white p-4 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
@@ -670,7 +671,7 @@ export default function UsersManager() {
                     `Password: ${credentials.password}`,
                     `Login: ${origin}/signin`,
                     credentials.franchisee
-                      ? "After login they see Dashboard and assigned Projects"
+                      ? "After login they see the Vendor panel"
                       : "",
                   ]
                     .filter(Boolean)

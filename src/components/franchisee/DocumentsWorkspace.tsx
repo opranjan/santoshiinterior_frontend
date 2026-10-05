@@ -6,7 +6,7 @@ import Button from "@/components/ui/button/Button";
 import { projectsApi } from "@/services/crmApi";
 import { formatDate } from "@/lib/mappers";
 import { designAssetUrl } from "@/lib/designAssets";
-import { isFranchiseeUser } from "@/lib/permissions";
+import { isVendorPanelUser } from "@/lib/permissions";
 import { useAuth } from "@/context/AuthContext";
 
 type ProjectRow = {
@@ -50,7 +50,7 @@ function previewKind(name?: string | null, kind?: string | null): "image" | "vid
 
 export default function DocumentsWorkspace() {
   const { user } = useAuth();
-  const franchisee = isFranchiseeUser(user);
+  const franchisee = isVendorPanelUser(user);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);

@@ -3,8 +3,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Franchisee Management",
-  description: "Create and manage franchisee logins, category, and assigned projects",
+  title: "Vendor Panel",
+  description: "Create and manage vendor panel logins, category, and assigned projects",
 };
 
 export default function FranchiseesPage() {

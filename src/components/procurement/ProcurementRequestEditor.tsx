@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import DatePickerField from "@/components/form/DatePickerField";
 import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
 import { useAuth } from "@/context/AuthContext";
+import { isVendorPanelUser } from "@/lib/permissions";
 import { designAssetUrl } from "@/lib/designAssets";
 import {
   procurementRequestsApi,
@@ -38,6 +39,7 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const vendorPanel = isVendorPanelUser(user);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [row, setRow] = useState<ProcurementRequestDto | null>(null);
   const [title, setTitle] = useState("");
@@ -71,7 +73,7 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
   }, [id]);
 
   const isDraft = Boolean(row?.isDraft);
-  const editing = isDraft || searchParams.get("edit") === "1";
+  const editing = !vendorPanel && (isDraft || searchParams.get("edit") === "1");
   const createdByYou = Boolean(user?.id && row?.createdBy?.id === user.id);
   const createdByLabel = createdByYou ? "You" : row?.createdBy?.name || "Procurement";
 
@@ -249,6 +251,7 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
               <span className="text-gray-700">{row.notes || "—"}</span>
             </p>
           </div>
+          {vendorPanel ? null : (
           <div className="flex shrink-0 flex-col items-center justify-center px-3">
             <button
               type="button"
@@ -262,8 +265,10 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
               Request
             </button>
           </div>
+          )}
         </div>
 
+        {vendorPanel ? null : (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-1.5 font-medium text-[#16A34A]">
@@ -280,6 +285,7 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
               Assign vendors
             </span>
           </div>
+          {vendorPanel ? null : (
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -315,7 +321,9 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
               Create order
             </button>
           </div>
+          )}
         </div>
+        )}
 
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
           <table className="min-w-[900px] w-full text-left text-sm">

@@ -48,17 +48,31 @@ const IMPLIES: Record<string, string[]> = {
     "messages.view.all",
     "calls.make",
     "calls.view",
+    "chat.box",
+    "calendar.view",
   ],
-  "finance.full": ["finance.manage", "payments.manage", "purchaseorders.manage"],
+  "finance.full": [
+    "finance.manage",
+    "payments.manage",
+    "purchaseorders.manage",
+    "vendor.payments",
+    "procurement.manage",
+  ],
   "reports.full": ["reports.store"],
-  "sales.manage": ["sales.view", "customers.manage"],
+  "sales.manage": ["sales.view", "customers.manage", "chat.box"],
   "leads.manage": ["customers.view"],
   "customers.manage": ["customers.view"],
   "projects.manage": ["projects.view"],
   "quotations.manage": ["quotations.create", "quotations.approve"],
-  "settings.manage": ["settings.view"],
-  "users.manage": ["users.view"],
-  "workorders.manage": ["workorders.update"],
+  "settings.manage": ["settings.view", "website.manage", "integrations.manage"],
+  "users.manage": ["users.view", "roles.manage"],
+  "workorders.manage": ["workorders.update", "warranty.manage", "issues.manage"],
+  "purchaseorders.manage": ["procurement.manage", "vendors.manage"],
+  "documents.manage": ["documents.view"],
+  "design.manage": ["design.view"],
+  "hr.manage": ["hr.view"],
+  "stores.manage": ["stores.view"],
+  "vendor.chat.all": ["chat.box"],
 };
 
 const expandOne = (key: string, acc: Set<string>) => {
@@ -115,15 +129,16 @@ export const canAccessAllStores = (user: AuthUser | null | undefined): boolean =
 /** Route prefix → any one of these permissions grants access */
 export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
   { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full"] },
-  { prefix: "/stores", permissions: ["stores.manage", "sales.full", "reports.full", "reports.store", "users.manage"] },
+  { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
-  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view"] },
+  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view", "users.manage", "chat.box"] },
+  { prefix: "/chat-box", permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"] },
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
-  { prefix: "/design", permissions: ["design.manage", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage", "vendor.portal"] },
-  { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal"] },
+  { prefix: "/design", permissions: ["design.manage", "design.view", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage", "vendor.portal", "franchisee.portal"] },
+  { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal", "vendor.portal"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
-  { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage"] },
+  { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage", "procurement.manage"] },
   {
     prefix: "/operations",
     permissions: [
@@ -134,19 +149,22 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
       "projects.manage",
       "site.manage",
       "vendor.portal",
+      "franchisee.portal",
+      "procurement.manage",
+      "vendors.manage",
     ],
   },
   { prefix: "/payments", permissions: ["payments.manage", "finance.full", "finance.manage"] },
-  { prefix: "/franchisee-payments", permissions: ["payments.manage", "finance.full", "finance.manage"] },
-  { prefix: "/vendor-payments", permissions: ["payments.manage", "finance.full", "finance.manage"] },
-  { prefix: "/warranty-desk", permissions: ["projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
-  { prefix: "/customer-issues", permissions: ["projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
-  { prefix: "/documents", permissions: ["projects.view", "documents.manage", "workorders.manage", "sales.view", "sales.manage", "sales.full"] },
-  { prefix: "/hr", permissions: ["hr.manage", "users.view", "users.manage"] },
-  { prefix: "/calendar", permissions: ["sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
-  { prefix: "/users", permissions: ["users.manage", "users.view"] },
+  { prefix: "/franchisee-payments", permissions: ["payments.manage", "finance.full", "finance.manage", "vendor.payments"] },
+  { prefix: "/vendor-payments", permissions: ["payments.manage", "finance.full", "finance.manage", "vendor.payments"] },
+  { prefix: "/warranty-desk", permissions: ["warranty.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
+  { prefix: "/customer-issues", permissions: ["issues.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
+  { prefix: "/documents", permissions: ["documents.view", "documents.manage", "projects.view", "workorders.manage", "sales.view", "sales.manage", "sales.full"] },
+  { prefix: "/hr", permissions: ["hr.manage", "hr.view", "users.view", "users.manage"] },
+  { prefix: "/calendar", permissions: ["calendar.view", "sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
+  { prefix: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
   { prefix: "/franchisees", permissions: ["users.manage", "users.view"] },
-  { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create"] },
+  { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "website.manage", "integrations.manage"] },
 ];
 
 export const canAccessRoute = (
@@ -156,11 +174,8 @@ export const canAccessRoute = (
   if (!user) return false;
   const path = pathname.split("?")[0] || "/";
   if (path === "/forbidden" || path === "/profile") return true;
-  const franchiseeOnly = [
-    "/dlp-payment",
-    "/chat",
-  ];
-  const franchiseeOk =
+  const vendorPanelOnly = ["/dlp-payment", "/chat"];
+  const vendorPanelOk =
     path === "/" ||
     path === "/projects" ||
     (path.startsWith("/projects/") && path !== "/projects/new") ||
@@ -170,21 +185,11 @@ export const canAccessRoute = (
     path.startsWith("/customer-issues/") ||
     path === "/documents" ||
     path.startsWith("/documents/") ||
-    franchiseeOnly.some((p) => path === p || path.startsWith(`${p}/`));
-  if (isFranchiseeUser(user)) return franchiseeOk;
-  const vendorOk =
-    path === "/" ||
-    path === "/projects" ||
-    (path.startsWith("/projects/") && path !== "/projects/new") ||
-    path === "/payments" ||
-    path === "/profile" ||
     path.startsWith("/design") ||
-    path === "/operations/procurement/orders" ||
-    path.startsWith("/operations/procurement/orders/") ||
-    path === "/operations/procurement/rfq" ||
-    path.startsWith("/operations/procurement/rfq/");
-  if (isVendorUser(user)) return vendorOk;
-  if (franchiseeOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
+    path.startsWith("/operations/procurement") ||
+    vendorPanelOnly.some((p) => path === p || path.startsWith(`${p}/`));
+  if (isVendorPanelUser(user)) return vendorPanelOk;
+  if (vendorPanelOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
     return false;
   }
   if (path === "/franchisee" || path.startsWith("/franchisee/")) return false;
@@ -223,6 +228,8 @@ const OPERATIONS_PERMISSIONS = [
   "projects.view",
   "projects.manage",
   "site.manage",
+  "procurement.manage",
+  "vendors.manage",
 ];
 
 export const NAV_ITEMS: NavPermissionGroup[] = [
@@ -233,9 +240,9 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Stores",
-    permissions: ["stores.manage", "sales.full", "reports.full", "reports.store", "users.manage"],
+    permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"],
     subItems: [
-      { name: "All Stores", path: "/stores", permissions: ["stores.manage", "sales.full", "reports.full", "reports.store", "users.manage"] },
+      { name: "All Stores", path: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
       { name: "Add Store", path: "/stores/new", permissions: ["stores.manage"] },
     ],
   },
@@ -251,7 +258,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Communication",
-    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view"],
+    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view", "users.manage", "chat.box"],
     subItems: [
       {
         name: "WhatsApp",
@@ -266,16 +273,21 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     ],
   },
   {
+    name: "Chat Box",
+    path: "/chat-box",
+    permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"],
+  },
+  {
     name: "Quotations",
     path: "/quotations",
     permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"],
   },
   {
     name: "Design",
-    permissions: ["design.manage", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"],
+    permissions: ["design.manage", "design.view", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"],
     subItems: [
-      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
-      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
+      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "design.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
+      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "design.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
     ],
   },
   {
@@ -284,61 +296,46 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view"],
   },
   {
-    name: "Work Order",
-    path: "/work-orders",
-    permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"],
-  },
-  {
-    name: "Purchase Order",
-    path: "/purchase-orders",
-    permissions: ["purchaseorders.manage", "finance.full", "finance.manage"],
-  },
-  {
     name: "Payments",
     path: "/payments",
     permissions: ["payments.manage", "finance.full", "finance.manage"],
   },
   {
-    name: "Pay Franchisee",
-    path: "/franchisee-payments",
-    permissions: ["payments.manage", "finance.full", "finance.manage"],
-  },
-  {
-    name: "Pay Vendor",
+    name: "Vendor Payment",
     path: "/vendor-payments",
-    permissions: ["payments.manage", "finance.full", "finance.manage"],
+    permissions: ["vendor.payments", "payments.manage", "finance.full", "finance.manage"],
   },
   {
     name: "Warranty Desk",
     path: "/warranty-desk",
-    permissions: ["projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"],
+    permissions: ["warranty.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"],
   },
   {
     name: "Customer Issue",
     path: "/customer-issues",
-    permissions: ["projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"],
+    permissions: ["issues.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"],
   },
   {
     name: "Documents",
     path: "/documents",
-    permissions: ["projects.view", "documents.manage", "workorders.manage", "sales.view", "sales.manage", "sales.full"],
+    permissions: ["documents.view", "documents.manage", "projects.view", "workorders.manage", "sales.view", "sales.manage", "sales.full"],
   },
   {
     name: "HR",
     path: "/hr",
-    permissions: ["hr.manage", "users.view", "users.manage"],
+    permissions: ["hr.manage", "hr.view", "users.view", "users.manage"],
   },
   {
     name: "Calendar",
     path: "/calendar",
-    permissions: ["sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"],
+    permissions: ["calendar.view", "sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"],
   },
   {
     name: "Admin",
-    permissions: ["users.manage", "users.view", "settings.manage", "settings.view"],
+    permissions: ["users.manage", "users.view", "settings.manage", "settings.view", "roles.manage"],
     subItems: [
-      { name: "Users", path: "/users", permissions: ["users.manage", "users.view"] },
-      { name: "Franchisees", path: "/franchisees", permissions: ["users.manage", "users.view"] },
+      { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
+      { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
     ],
   },
@@ -354,6 +351,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       "quotations.create",
       "settings.manage",
       "settings.view",
+      "website.manage",
     ],
     subItems: [
       {
@@ -369,12 +367,12 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       {
         name: "Home Banner",
         path: "/settings/website/hero",
-        permissions: ["settings.manage", "settings.view", "quotations.manage"],
+        permissions: ["settings.manage", "settings.view", "quotations.manage", "website.manage"],
       },
       {
         name: "Testimonials",
         path: "/settings/website/testimonials",
-        permissions: ["settings.manage", "settings.view", "quotations.manage"],
+        permissions: ["settings.manage", "settings.view", "quotations.manage", "website.manage"],
       },
     ],
   },
@@ -424,22 +422,47 @@ export const OTHER_NAV_ITEMS: NavPermissionGroup[] = [
   {
     name: "Integrations",
     path: "/settings/integrations",
-    permissions: ["settings.manage", "settings.view"],
+    permissions: ["settings.manage", "settings.view", "integrations.manage"],
   },
 ];
 
-const FRANCHISEE_NAV_PERMS = ["franchisee.portal", "projects.view", "projects.manage"];
-
-export const FRANCHISEE_NAV_ITEMS: NavPermissionGroup[] = [
-  { name: "Dashboard", path: "/", permissions: FRANCHISEE_NAV_PERMS },
-  { name: "Projects", path: "/projects", permissions: FRANCHISEE_NAV_PERMS },
-  { name: "Payments", path: "/payments", permissions: ["payments.manage", "franchisee.portal"] },
-  { name: "DLP Payment", path: "/dlp-payment", permissions: FRANCHISEE_NAV_PERMS },
-  { name: "Chat Box", path: "/chat", permissions: FRANCHISEE_NAV_PERMS },
-  { name: "Customer Issue", path: "/customer-issues", permissions: FRANCHISEE_NAV_PERMS },
-  { name: "Documents", path: "/documents", permissions: ["documents.manage", "franchisee.portal"] },
-  { name: "Profile Settings", path: "/profile", permissions: FRANCHISEE_NAV_PERMS },
+const VENDOR_PANEL_PERMS = [
+  "franchisee.portal",
+  "vendor.portal",
+  "projects.view",
+  "projects.manage",
+  "design.manage",
+  "purchaseorders.manage",
 ];
+
+export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
+  { name: "Dashboard", path: "/", permissions: VENDOR_PANEL_PERMS },
+  {
+    name: "Design",
+    permissions: VENDOR_PANEL_PERMS,
+    subItems: [
+      { name: "Designing", path: "/design/designing", permissions: VENDOR_PANEL_PERMS },
+      { name: "Elevation", path: "/design/elevation", permissions: VENDOR_PANEL_PERMS },
+    ],
+  },
+  { name: "Projects", path: "/projects", permissions: VENDOR_PANEL_PERMS },
+  {
+    name: "Procurement",
+    permissions: VENDOR_PANEL_PERMS,
+    subItems: [
+      { name: "Requests", path: "/operations/procurement/requests", permissions: VENDOR_PANEL_PERMS },
+      { name: "Orders", path: "/operations/procurement/orders", permissions: VENDOR_PANEL_PERMS },
+    ],
+  },
+  { name: "Payments", path: "/payments", permissions: ["payments.manage", "franchisee.portal", "vendor.portal"] },
+  { name: "DLP Payment", path: "/dlp-payment", permissions: VENDOR_PANEL_PERMS },
+  { name: "Chat Box", path: "/chat", permissions: VENDOR_PANEL_PERMS },
+  { name: "Customer Issue", path: "/customer-issues", permissions: VENDOR_PANEL_PERMS },
+  { name: "Documents", path: "/documents", permissions: ["documents.manage", "franchisee.portal", "vendor.portal"] },
+  { name: "Profile Settings", path: "/profile", permissions: VENDOR_PANEL_PERMS },
+];
+
+export const FRANCHISEE_NAV_ITEMS = VENDOR_NAV_ITEMS;
 
 const filterNavNode = (
   item: NavPermissionItem,
@@ -467,33 +490,9 @@ export const filterNavItems = (
     .filter(Boolean) as NavPermissionGroup[];
 };
 
-const VENDOR_NAV_PERMS = ["vendor.portal", "projects.view", "purchaseorders.manage", "design.manage"];
-
-export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
-  { name: "Dashboard", path: "/", permissions: VENDOR_NAV_PERMS },
-  {
-    name: "Design",
-    permissions: VENDOR_NAV_PERMS,
-    subItems: [
-      { name: "Designing", path: "/design/designing", permissions: VENDOR_NAV_PERMS },
-      { name: "Elevation", path: "/design/elevation", permissions: VENDOR_NAV_PERMS },
-    ],
-  },
-  { name: "Projects", path: "/projects", permissions: VENDOR_NAV_PERMS },
-  {
-    name: "Procurement",
-    permissions: VENDOR_NAV_PERMS,
-    subItems: [
-      { name: "RFQ", path: "/operations/procurement/rfq", permissions: VENDOR_NAV_PERMS },
-      { name: "Orders", path: "/operations/procurement/orders", permissions: VENDOR_NAV_PERMS },
-    ],
-  },
-  { name: "Payments", path: "/payments", permissions: VENDOR_NAV_PERMS },
-  { name: "Profile Settings", path: "/profile", permissions: VENDOR_NAV_PERMS },
-];
-
 export const isFranchiseeUser = (user: AuthUser | null | undefined) => {
   if (!user) return false;
+  if (user.accessRole?.key === "VENDOR") return false;
   if (user.accessRole?.key === "FRANCHISEE") return true;
   if (/franchisee/i.test(String(user.roleLabel || ""))) return true;
   return (
@@ -512,4 +511,7 @@ export const isVendorUser = (user: AuthUser | null | undefined) => {
     !hasAnyPermission(user, ["sales.full", "sales.manage", "users.manage"])
   );
 };
+
+export const isVendorPanelUser = (user: AuthUser | null | undefined) =>
+  isFranchiseeUser(user) || isVendorUser(user);
 

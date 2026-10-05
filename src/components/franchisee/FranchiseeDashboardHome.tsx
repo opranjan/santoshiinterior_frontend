@@ -4,6 +4,16 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
+import {
+  AlertIcon,
+  BoxCubeIcon,
+  ChatIcon,
+  DollarLineIcon,
+  DocsIcon,
+  FileIcon,
+  FolderIcon,
+  PencilIcon,
+} from "@/icons";
 import { paymentsApi, projectsApi, warrantyApi } from "@/services/crmApi";
 import { formatDate } from "@/lib/mappers";
 import { useAuth } from "@/context/AuthContext";
@@ -72,12 +82,14 @@ function issueLabel(status?: string | null) {
 }
 
 const QUICK_ACTIONS = [
-  { label: "Projects", hint: "View Projects", href: "/projects", icon: "📁" },
-  { label: "Payments", hint: "View Payments", href: "/payments", icon: "₹" },
-  { label: "Chat Box", hint: "Start Chat", href: "/chat", icon: "💬" },
-  { label: "DLP Payment", hint: "Make Payment", href: "/dlp-payment", icon: "🧾" },
-  { label: "Customer Issue", hint: "Raise Issue", href: "/customer-issues", icon: "⚠" },
-  { label: "Documents", hint: "View Documents", href: "/documents", icon: "📄" },
+  { label: "Projects", hint: "Assigned sites & progress", href: "/projects", Icon: FolderIcon },
+  { label: "Design", hint: "Open design studio", href: "/design/designing", Icon: PencilIcon },
+  { label: "Procurement", hint: "Requests and orders", href: "/operations/procurement/requests", Icon: BoxCubeIcon },
+  { label: "Payments", hint: "Vendor payouts", href: "/payments", Icon: DollarLineIcon },
+  { label: "Chat Box", hint: "Message the company", href: "/chat", Icon: ChatIcon },
+  { label: "DLP Payment", hint: "View holding balance", href: "/dlp-payment", Icon: DocsIcon },
+  { label: "Customer Issue", hint: "Raise a site issue", href: "/customer-issues", Icon: AlertIcon },
+  { label: "Documents", hint: "Drawings and files", href: "/documents", Icon: FileIcon },
 ];
 
 export default function FranchiseeDashboardHome() {
@@ -95,7 +107,7 @@ export default function FranchiseeDashboardHome() {
       try {
         const [projectRes, paymentRes, dlpRes, issueRes, fileRes] = await Promise.all([
           projectsApi.list({ limit: 8 }),
-          paymentsApi.list({ limit: 50, type: "FRANCHISEE_PAYOUT" }).catch(() => ({ items: [] })),
+          paymentsApi.list({ limit: 50 }).catch(() => ({ items: [] })),
           paymentsApi.list({ limit: 50, type: "DLP" }).catch(() => ({ items: [] })),
           warrantyApi.list({ limit: 8 }).catch(() => ({ items: [] })),
           projectsApi.listFiles({ limit: 8 }).catch(() => ({ items: [] })),
@@ -187,7 +199,7 @@ export default function FranchiseeDashboardHome() {
             />
           </div>
           <div className="flex flex-1 flex-col justify-center border-t border-white/10 px-6 py-4 lg:border-l lg:border-t-0 lg:px-8 lg:py-0">
-            <p className="text-[11px] uppercase tracking-[0.32em] text-[#c4a574]">Franchisee panel · {today}</p>
+            <p className="text-[11px] uppercase tracking-[0.32em] text-[#c4a574]">Vendor panel · {today}</p>
             <h1 className="mt-1 font-serif text-3xl tracking-tight text-[#f7f3ea] md:text-4xl">
               Welcome back, {firstName(user?.name)}!
             </h1>
@@ -259,21 +271,32 @@ export default function FranchiseeDashboardHome() {
             </div>
           </div>
 
-          <div className="vendor-card vendor-rise p-5">
+          <div className="vendor-card vendor-rise px-5 py-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Quick Actions</p>
-            <div className="vendor-gold-rule mb-4 mt-2" />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {QUICK_ACTIONS.map((action) => (
-                <Link
-                  key={action.label}
-                  href={action.href}
-                  className="dash-chip rounded-xl border border-[#eee6d8] bg-[#fbf8f2] px-3 py-3 text-center dark:border-[var(--vendor-line)] dark:bg-black/20"
-                >
-                  <span className="text-lg">{action.icon}</span>
-                  <p className="mt-1 text-sm font-medium text-[#111]">{action.label}</p>
-                  <p className="text-[11px] text-[#8a8175]">{action.hint}</p>
-                </Link>
-              ))}
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {QUICK_ACTIONS.map((action) => {
+                const Icon = action.Icon;
+                return (
+                  <Link
+                    key={action.label}
+                    href={action.href}
+                    title={action.hint}
+                    className="group flex items-center gap-2.5 rounded-xl border border-[#eee6d8] bg-[#fbf8f2] px-2.5 py-2 transition hover:border-[#c4a574] hover:bg-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#111] text-[#c4a574] group-hover:bg-[#c4a574] group-hover:text-[#111]">
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0 text-left">
+                      <span className="block truncate text-[13px] font-semibold leading-tight text-[#111] group-hover:text-[#f7f3ea]">
+                        {action.label}
+                      </span>
+                      <span className="mt-0.5 hidden truncate text-[10px] text-[#8a8175] group-hover:text-[#d4c8b8] sm:block">
+                        {action.hint}
+                      </span>
+                    </span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
 
@@ -399,7 +422,7 @@ export default function FranchiseeDashboardHome() {
               </Link>
             </div>
             <p className="text-sm leading-relaxed text-[#6b645b]">
-              Chat with the Santoshi Interior team, project managers, and support from here.
+              Message the Santoshi Interior CRM team. Replies show here in Chat Box.
             </p>
             <Link href="/chat" className="mt-4 inline-flex w-full">
               <Button size="sm" className="w-full">
@@ -435,7 +458,7 @@ export default function FranchiseeDashboardHome() {
           <div className="vendor-card vendor-rise p-5">
             <h2 className="vendor-serif text-2xl text-[#111]">DLP Payment</h2>
             <p className="mt-2 text-sm text-[#6b645b]">
-              Delay-in-payments the company settles with you will show here.
+              DLP is holding from your project value. Example: 100 with 20% holding → ₹20 here, remaining in Payments.
             </p>
             <p className="vendor-serif mt-3 text-2xl text-error-500">{loading ? "—" : formatINR(dlpPending)}</p>
             <Link href="/dlp-payment" className="mt-3 inline-flex w-full">

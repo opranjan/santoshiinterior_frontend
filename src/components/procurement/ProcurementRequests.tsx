@@ -12,6 +12,8 @@ import {
   projectsApi,
   type ProcurementRequestDto,
 } from "@/services/crmApi";
+import { useAuth } from "@/context/AuthContext";
+import { isVendorPanelUser } from "@/lib/permissions";
 
 const GOLD = "#c4a574";
 const fieldClass =
@@ -61,6 +63,8 @@ const emptyForm: FormState = {
 
 export default function ProcurementRequests() {
   const router = useRouter();
+  const { user } = useAuth();
+  const vendorPanel = isVendorPanelUser(user);
   const [tab, setTab] = useState<"all" | "review">("all");
   const [items, setItems] = useState<ProcurementRequestDto[]>([]);
   const [pendingReview, setPendingReview] = useState(0);
@@ -250,9 +254,10 @@ export default function ProcurementRequests() {
             Requests
           </h1>
           <p className="mt-1 text-sm text-[#8a7b68]">
-            Raise material and service needs, then send them to RFQ or order.
+            {vendorPanel ? "Requests for your assigned projects." : "Raise material and service needs, then send them to RFQ or order."}
           </p>
         </div>
+        {vendorPanel ? null : (
         <button
           type="button"
           onClick={openCreate}
@@ -260,6 +265,7 @@ export default function ProcurementRequests() {
         >
           + Raise request
         </button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
@@ -267,10 +273,15 @@ export default function ProcurementRequests() {
           <StatTile label="On this list" value={loading ? "—" : String(items.length)} />
           <StatTile label="Pending" value={loading ? "—" : String(stats.pending)} />
           <StatTile label="Approved" value={loading ? "—" : String(stats.approved)} />
-          <StatTile label="Need review" value={loading ? "—" : String(pendingReview)} accent />
+          {vendorPanel ? (
+            <StatTile label="Ordered" value={loading ? "—" : String(stats.ordered)} />
+          ) : (
+            <StatTile label="Need review" value={loading ? "—" : String(pendingReview)} accent />
+          )}
         </div>
       </div>
 
+      {vendorPanel ? null : (
       <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
         <button
           type="button"
@@ -306,6 +317,7 @@ export default function ProcurementRequests() {
           ) : null}
         </button>
       </div>
+      )}
 
       <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -394,9 +406,11 @@ export default function ProcurementRequests() {
                     <p className="mt-1 text-sm text-[#8a7b68]">
                       {tab === "review"
                         ? "New requests that need approval will show up here."
-                        : "Raise a request to start procurement for a project."}
+                        : vendorPanel
+                          ? "No requests are assigned to your projects yet."
+                          : "Raise a request to start procurement for a project."}
                     </p>
-                    {tab === "all" ? (
+                    {tab === "all" && !vendorPanel ? (
                       <button
                         type="button"
                         onClick={openCreate}
@@ -473,6 +487,7 @@ export default function ProcurementRequests() {
                         className="relative px-4 py-3.5"
                         onClick={(event) => event.stopPropagation()}
                       >
+                        {vendorPanel ? null : (
                         <button
                           type="button"
                           data-request-actions
@@ -496,6 +511,7 @@ export default function ProcurementRequests() {
                         >
                           ⋮
                         </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -540,6 +556,7 @@ export default function ProcurementRequests() {
                   >
                     Request order
                   </MenuItem>
+                  {vendorPanel ? null : (
                   <MenuItem
                     onClick={() => {
                       setMenu(null);
@@ -548,6 +565,7 @@ export default function ProcurementRequests() {
                   >
                     Raise RFQ
                   </MenuItem>
+                  )}
                   {menuRow.stage !== "CANCELLED" ? (
                     <MenuItem onClick={() => void setStage(menuRow, "CANCELLED")}>Cancel request</MenuItem>
                   ) : null}

@@ -1,12 +1,8 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
-import Label from "@/components/form/Label";
 import {
   Table,
   TableBody,
@@ -45,6 +41,7 @@ type Project = {
   projectType: string;
   scope: string;
   budget: string;
+  dlpHoldingPercent: number;
   status: ProjectStatus;
   progress: number;
   salesOwner: string;
@@ -93,16 +90,6 @@ const scopes = [
   "Other",
 ];
 
-const budgets = [
-  "Under ₹5 Lakh",
-  "₹5 – 10 Lakh",
-  "₹10 – 25 Lakh",
-  "₹25 – 50 Lakh",
-  "Above ₹50 Lakh",
-];
-
-const stores = ["All Stores", "Main Branch", "North Store", "South Store"];
-
 type StaffOption = { id: string; name: string };
 
 function isFranchiseeAccount(user: {
@@ -110,7 +97,7 @@ function isFranchiseeAccount(user: {
 }) {
   const key = user.accessRole?.key || "";
   const label = String(user.accessRole?.label || "");
-  return key === "FRANCHISEE" || /franchisee/i.test(label);
+  return key === "FRANCHISEE" || /franchisee/i.test(label) || /vendor panel/i.test(label);
 }
 
 function franchiseesFromDto(dto: Record<string, unknown>) {
@@ -141,17 +128,14 @@ const team = [
   "Vikram Singh",
 ];
 
-const statusColor: Record<
-  ProjectStatus,
-  "primary" | "info" | "warning" | "success" | "error" | "light"
-> = {
-  Kickoff: "info",
-  Design: "primary",
-  Material: "warning",
-  Execution: "warning",
-  Handover: "success",
-  "On Hold": "error",
-  Completed: "success",
+const statusChip: Record<ProjectStatus, string> = {
+  Kickoff: "bg-[#eadfcf] text-[#5c472c]",
+  Design: "bg-[#1c1610] text-[#e8d5b5]",
+  Material: "bg-[#f3e6c8] text-[#7d6139]",
+  Execution: "bg-[#f3e6c8] text-[#7d6139]",
+  Handover: "bg-[#e8efe4] text-[#3d5a3a]",
+  "On Hold": "bg-rose-50 text-rose-700",
+  Completed: "bg-[#e8efe4] text-[#3d5a3a]",
 };
 
 const initialProjects = [
@@ -163,7 +147,7 @@ const initialProjects = [
     store: "Main Branch",
     projectType: "Residential",
     scope: "Full Home Interiors",
-    budget: "₹10 – 25 Lakh",
+    budget: "Rs. 10 - 25 Lakh",
     status: "Execution",
     progress: 78,
     salesOwner: "Vikram Singh",
@@ -173,7 +157,7 @@ const initialProjects = [
     endDate: "2026-09-15",
     address: "Scheme 54, Indore",
     description: "Full home interiors with modular kitchen and false ceiling",
-    latestRemark: "Carpentry 80% done · painting starts next week",
+    latestRemark: "Carpentry 80% done Â· painting starts next week",
     taskCount: 0,
     updatedAt: "2026-07-28T15:20:00",
   },
@@ -185,7 +169,7 @@ const initialProjects = [
     store: "Main Branch",
     projectType: "Office",
     scope: "Office Fit-out",
-    budget: "Above ₹50 Lakh",
+    budget: "Above Rs. 50 Lakh",
     status: "Design",
     progress: 42,
     salesOwner: "Rahul Sharma",
@@ -195,7 +179,7 @@ const initialProjects = [
     endDate: "2026-10-30",
     address: "Vijay Nagar, Indore",
     description: "50-seater office with cabin partition + reception",
-    latestRemark: "Layout approved · material list in progress",
+    latestRemark: "Layout approved Â· material list in progress",
     taskCount: 0,
     updatedAt: "2026-07-29T11:00:00",
   },
@@ -207,7 +191,7 @@ const initialProjects = [
     store: "North Store",
     projectType: "Residential",
     scope: "Full Home Interiors",
-    budget: "₹25 – 50 Lakh",
+    budget: "Rs. 25 - 50 Lakh",
     status: "Kickoff",
     progress: 15,
     salesOwner: "Priya Mehta",
@@ -229,7 +213,7 @@ const initialProjects = [
     store: "South Store",
     projectType: "Renovation",
     scope: "Living Room",
-    budget: "₹5 – 10 Lakh",
+    budget: "Rs. 5 - 10 Lakh",
     status: "Material",
     progress: 55,
     salesOwner: "Amit Verma",
@@ -239,7 +223,7 @@ const initialProjects = [
     endDate: "2026-08-20",
     address: "Ujjain",
     description: "Living room false ceiling + TV unit",
-    latestRemark: "Laminate ordered · delivery in 5 days",
+    latestRemark: "Laminate ordered Â· delivery in 5 days",
     taskCount: 0,
     updatedAt: "2026-07-27T09:40:00",
   },
@@ -251,7 +235,7 @@ const initialProjects = [
     store: "North Store",
     projectType: "Retail Showroom",
     scope: "Other",
-    budget: "₹25 – 50 Lakh",
+    budget: "Rs. 25 - 50 Lakh",
     status: "On Hold",
     progress: 30,
     salesOwner: "Sneha Patel",
@@ -261,7 +245,7 @@ const initialProjects = [
     endDate: "2026-09-01",
     address: "AB Road, Indore",
     description: "Showroom interiors and display units",
-    latestRemark: "On hold · waiting client advance",
+    latestRemark: "On hold Â· waiting client advance",
     taskCount: 0,
     updatedAt: "2026-07-20T16:00:00",
   },
@@ -273,7 +257,7 @@ const initialProjects = [
     store: "Main Branch",
     projectType: "Residential",
     scope: "Full Home Interiors",
-    budget: "Above ₹50 Lakh",
+    budget: "Above Rs. 50 Lakh",
     status: "Completed",
     progress: 100,
     salesOwner: "Mukesh singh",
@@ -283,14 +267,14 @@ const initialProjects = [
     endDate: "2026-04-30",
     address: "Palm Court, Indore",
     description: "Luxury penthouse interiors",
-    latestRemark: "Handover done · warranty activated",
+    latestRemark: "Handover done Â· warranty activated",
     taskCount: 0,
     updatedAt: "2026-05-02T12:00:00",
   },
 ];
 
 function formatDate(iso: string) {
-  if (!iso) return "—";
+  if (!iso) return "\u2014";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const day = d.toLocaleString("en-GB", { day: "2-digit" });
@@ -308,8 +292,11 @@ function initials(name: string) {
     .join("");
 }
 
-const selectClass =
-  "h-11 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+const fieldClass =
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const selectClass = fieldClass;
+const labelClass = "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]";
+const serif = { fontFamily: "Georgia, 'Times New Roman', serif" } as const;
 
 export default function ProjectsTable() {
   const router = useRouter();
@@ -344,7 +331,8 @@ export default function ProjectsTable() {
     store: "Main Branch",
     projectType: "Residential",
     scope: "Full Home Interiors",
-    budget: "₹10 – 25 Lakh",
+    budget: "",
+    dlpHoldingPercent: 20,
     status: "Kickoff" as ProjectStatus,
     progress: 0,
     salesOwner: "Mukesh singh",
@@ -376,6 +364,7 @@ export default function ProjectsTable() {
       projectType: String(dto.projectType || ""),
       scope: String(dto.scope || ""),
       budget: String(dto.budget || ""),
+      dlpHoldingPercent: Number(dto.dlpHoldingPercent ?? 20),
       status: (statuses.includes(statusLabel) ? statusLabel : "Kickoff") as ProjectStatus,
       progress: Number(dto.progress || 0),
       salesOwner: salesOwner?.name || "",
@@ -545,7 +534,8 @@ export default function ProjectsTable() {
       store: "Main Branch",
       projectType: "Residential",
       scope: "Full Home Interiors",
-      budget: "₹10 – 25 Lakh",
+      budget: "",
+    dlpHoldingPercent: 20,
       status: "Kickoff",
       progress: 0,
       salesOwner: "Mukesh singh",
@@ -579,6 +569,7 @@ export default function ProjectsTable() {
       projectType: p.projectType,
       scope: p.scope,
       budget: p.budget,
+      dlpHoldingPercent: p.dlpHoldingPercent ?? 20,
       status: p.status,
       progress: p.progress,
       salesOwner: p.salesOwner,
@@ -607,6 +598,7 @@ export default function ProjectsTable() {
       projectType: form.projectType,
       scope: form.scope,
       budget: form.budget,
+      dlpHoldingPercent: Number(form.dlpHoldingPercent) || 0,
       status: labelToEnum(form.status),
       progress: Math.min(100, Math.max(0, Number(form.progress) || 0)),
       financialYear: form.financialYear || null,
@@ -757,112 +749,117 @@ export default function ProjectsTable() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {error && (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       )}
-      {loading && (
-        <div className="text-sm text-gray-500">Loading projects...</div>
-      )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#c4a574]">
+            Execution
+          </p>
+          <h1
+            className="mt-1 font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
+            style={serif}
+          >
             Projects
-          </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Track interior projects across stores — status, progress, and team.
+          </h1>
+          <p className="mt-1 text-sm text-[#8a7b68]">
+            Track interior work across stores - status, progress, and team.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/settings/projects">
-            <Button size="sm" variant="outline">
-              Project Settings
-            </Button>
-          </Link>
-          <Button size="sm" onClick={openAdd}>
-            + New Project
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {[
-          { label: "Total Projects", value: stats.total },
-          { label: "Active", value: stats.active },
-          { label: "On Hold", value: stats.onHold },
-          { label: "Completed", value: stats.completed },
-          { label: "Avg Progress", value: `${stats.avgProgress}%` },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]"
+        <div className="flex flex-wrap gap-2 self-start lg:self-auto">
+          <Link
+            href="/settings/projects"
+            className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#9a7748] dark:border-[#3a342c] dark:bg-[#1a1714]"
           >
-            <p className="text-xs text-gray-500">{s.label}</p>
-            <p className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">
-              {s.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <div className="flex-1 sm:max-w-xs">
-          <Input
-            type="text"
-            placeholder="Search project, client, ID…"
-            defaultValue={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+            Settings
+          </Link>
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] hover:bg-black dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+          >
+            + New project
+          </button>
         </div>
-        <select
-          value={storeFilter}
-          onChange={(e) => setStoreFilter(e.target.value)}
-          className={selectClass}
-        >
-          {["All Stores", ...storeOptions.map((s) => s.name)].map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as "All" | ProjectStatus)
-          }
-          className={selectClass}
-        >
-          <option value="All">All Status</option>
-          {statuses.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className={selectClass}
-        >
-          <option value="All">All Types</option>
-          {projectTypes.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="grid grid-cols-2 divide-y divide-[#eadfcf] sm:grid-cols-5 sm:divide-x sm:divide-y-0 dark:divide-[#3a342c]">
+          {[
+            { label: "Total", value: String(stats.total) },
+            { label: "Active", value: String(stats.active) },
+            { label: "On hold", value: String(stats.onHold), accent: stats.onHold > 0 },
+            { label: "Completed", value: String(stats.completed) },
+            { label: "Avg progress", value: `${stats.avgProgress}%`, accent: true },
+          ].map((s) => (
+            <div key={s.label} className="px-4 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">{s.label}</p>
+              <p
+                className={`mt-1 font-serif text-2xl ${s.accent ? "text-[#9a7748]" : "text-[#1c1610] dark:text-[#f3ece2]"}`}
+                style={serif}
+              >
+                {loading ? "\u2014" : s.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap">
+          <div className="relative flex-1 sm:min-w-[220px]">
+            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#b3a594]">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search project, client, or ID"
+              defaultValue={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${fieldClass} pl-10`}
+            />
+          </div>
+          <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className={`${selectClass} lg:w-44`}>
+            {["All Stores", ...storeOptions.map((s) => s.name)].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "All" | ProjectStatus)}
+            className={`${selectClass} lg:w-40`}
+          >
+            <option value="All">All status</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={`${selectClass} lg:w-44`}>
+            <option value="All">All types</option>
+            {projectTypes.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="max-w-full overflow-x-auto">
           <div className="min-w-[1400px]">
             <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+              <TableHeader className="border-b border-[#f0e8db] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#1c1914]">
                 <TableRow>
                   {[
                     "Project",
@@ -872,7 +869,7 @@ export default function ProjectsTable() {
                     "Status",
                     "Progress",
                     "Assigned To",
-                    "Franchisees",
+                    "Vendors",
                     "Timeline",
                     "Latest Remark",
                     "Actions",
@@ -880,47 +877,47 @@ export default function ProjectsTable() {
                     <TableCell
                       key={h}
                       isHeader
-                      className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap"
+                      className="px-4 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] whitespace-nowrap"
                     >
                       {h}
                     </TableCell>
                   ))}
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+              <TableBody className="divide-y divide-[#f0e8db] dark:divide-[#3a342c]">
                 {filtered.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="px-4 py-3 text-start">
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                  <TableRow key={p.id} className="hover:bg-[#fbf8f3] dark:hover:bg-white/[0.03]">
+                    <TableCell className="px-4 py-3.5 text-start">
+                      <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                         {p.name}
                       </p>
-                      <p className="text-xs text-gray-400">{p.id}</p>
-                      <p className="text-xs text-gray-400">FY {p.financialYear}</p>
+                      <p className="text-xs font-semibold text-[#9a7748]">{p.id.slice(0, 8)}</p>
+                      <p className="text-xs text-[#b3a594]">FY {p.financialYear}</p>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 text-start whitespace-nowrap">
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    <TableCell className="px-4 py-3.5 text-start whitespace-nowrap">
+                      <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                         {p.client}
                       </p>
-                      <p className="text-xs text-gray-500">{p.phone}</p>
+                      <p className="text-xs text-[#8a7b68]">{p.phone}</p>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 text-start whitespace-nowrap">
-                      <p className="text-sm text-gray-800 dark:text-white/90">
+                    <TableCell className="px-4 py-3.5 text-start whitespace-nowrap">
+                      <p className="text-sm text-[#1c1610] dark:text-[#f3ece2]">
                         {p.projectType}
                       </p>
-                      <p className="text-xs text-gray-500">{p.scope}</p>
+                      <p className="text-xs text-[#8a7b68]">{p.scope}</p>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                    <TableCell className="px-4 py-3.5 text-sm text-[#6b645b] whitespace-nowrap">
                       {p.store}
                     </TableCell>
 
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="px-4 py-3.5">
                       <div className="flex flex-col gap-1.5">
-                        <Badge size="sm" color={statusColor[p.status]}>
+                        <span className={`inline-flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusChip[p.status]}`}>
                           {p.status}
-                        </Badge>
+                        </span>
                         <select
                           value={p.status}
                           onChange={(e) =>
@@ -929,7 +926,7 @@ export default function ProjectsTable() {
                               e.target.value as ProjectStatus
                             )
                           }
-                          className="h-8 rounded-md border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                          className="h-8 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 text-xs text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                         >
                           {statuses.map((s) => (
                             <option key={s} value={s}>
@@ -940,15 +937,15 @@ export default function ProjectsTable() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 min-w-[140px]">
+                    <TableCell className="px-4 py-3.5 min-w-[140px]">
                       <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#eadfcf] dark:bg-[#3a342c]">
                           <div
-                            className="h-full rounded-full bg-brand-600 transition-all"
+                            className="h-full rounded-full bg-[#c4a574] transition-all"
                             style={{ width: `${p.progress}%` }}
                           />
                         </div>
-                        <span className="w-8 text-xs font-medium text-gray-600 dark:text-gray-300">
+                        <span className="w-8 text-xs font-medium text-[#6b645b]">
                           {p.progress}%
                         </span>
                       </div>
@@ -961,21 +958,21 @@ export default function ProjectsTable() {
                         onChange={(e) =>
                           updateProgress(p.id, Number(e.target.value))
                         }
-                        className="mt-1 w-full accent-brand-600"
+                        className="mt-1 w-full accent-[#c4a574]"
                       />
                     </TableCell>
 
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="px-4 py-3.5">
                       <div className="flex items-center gap-2" title={p.assignedTo}>
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-700 text-[11px] font-semibold text-white">
-                          {initials(p.assignedTo)}
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1c1610] text-[11px] font-semibold text-[#e8d5b5]">
+                          {initials(p.assignedTo) || "\u2014"}
                         </span>
                         <select
                           value={p.assignedToId || ""}
                           onChange={(e) =>
                             void updateAssignee(p.id, e.target.value)
                           }
-                          className="h-8 max-w-[140px] rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
+                          className="h-8 max-w-[140px] rounded-lg border border-transparent bg-transparent text-xs text-[#6b645b] hover:border-[#eadfcf] focus:border-[#c4a574] focus:outline-hidden dark:text-[#d4c8b8]"
                         >
                           <option value="">Unassigned</option>
                           {p.assignedToId &&
@@ -991,7 +988,7 @@ export default function ProjectsTable() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 min-w-[180px]">
+                    <TableCell className="px-4 py-3.5 min-w-[180px]">
                       <div
                         className="relative"
                         ref={franchiseePickerId === p.id ? franchiseePickerRef : undefined}
@@ -1001,19 +998,19 @@ export default function ProjectsTable() {
                           onClick={() =>
                             setFranchiseePickerId((id) => (id === p.id ? null : p.id))
                           }
-                          className="max-w-[160px] truncate text-left text-xs text-gray-600 hover:text-brand-600 dark:text-gray-300"
+                          className="max-w-[160px] truncate text-left text-xs text-[#6b645b] hover:text-[#9a7748]"
                         >
-                          {p.franchiseeNames || "Assign franchisees"}
+                          {p.franchiseeNames || "Assign vendors"}
                         </button>
                         {franchiseePickerId === p.id ? (
-                          <div className="absolute z-30 mt-1 max-h-40 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                          <div className="absolute z-30 mt-1 max-h-40 w-56 overflow-y-auto rounded-xl border border-[#eadfcf] bg-white p-2 shadow-lg dark:border-[#3a342c] dark:bg-[#161411]">
                             {franchisees.length ? (
                               franchisees.map((user) => {
                                 const checked = p.franchiseeIds.includes(user.id);
                                 return (
                                   <label
                                     key={user.id}
-                                    className="flex items-center gap-2 rounded px-1 py-1 text-xs text-gray-700 dark:text-gray-300"
+                                    className="flex items-center gap-2 rounded-lg px-1 py-1 text-xs text-[#1c1610] dark:text-[#f3ece2]"
                                   >
                                     <input
                                       type="checkbox"
@@ -1030,8 +1027,8 @@ export default function ProjectsTable() {
                                 );
                               })
                             ) : (
-                              <p className="px-1 py-2 text-xs text-gray-400">
-                                No franchisee accounts yet
+                              <p className="px-1 py-2 text-xs text-[#b3a594]">
+                                No vendor accounts yet
                               </p>
                             )}
                           </div>
@@ -1039,24 +1036,24 @@ export default function ProjectsTable() {
                       </div>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 text-start whitespace-nowrap">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                    <TableCell className="px-4 py-3.5 text-start whitespace-nowrap">
+                      <p className="text-sm text-[#1c1610] dark:text-[#f3ece2]">
                         {p.startDate}
                       </p>
-                      <p className="text-xs text-gray-400">
-                        → {p.endDate}
+                      <p className="text-xs text-[#b3a594]">
+                        to {p.endDate}
                       </p>
                       {p.timelineTasks.slice(0, 2).map((task) => (
                         <p
                           key={task.id}
-                          className="mt-1 max-w-[140px] truncate text-[11px] text-gray-500"
+                          className="mt-1 max-w-[140px] truncate text-[11px] text-[#8a7b68]"
                           title={task.title}
                         >
                           {task.title}
-                          <span className="block text-gray-400">
+                          <span className="block text-[#b3a594]">
                             {formatDate(task.startDate || "")}
                             {task.dueDate
-                              ? ` → ${formatDate(task.dueDate)}`
+                              ? ` to ${formatDate(task.dueDate)}`
                               : ""}
                           </span>
                         </p>
@@ -1064,49 +1061,49 @@ export default function ProjectsTable() {
                       <button
                         type="button"
                         onClick={() => setTasksProject(p)}
-                        className="mt-1.5 text-left text-xs font-medium text-brand-500 hover:text-brand-600"
+                        className="mt-1.5 text-left text-xs font-semibold text-[#9a7748] hover:text-[#1c1610]"
                       >
                         + Add task
                       </button>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 max-w-[220px]">
-                      <p className="line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
-                        {p.latestRemark || "—"}
+                    <TableCell className="px-4 py-3.5 max-w-[220px]">
+                      <p className="line-clamp-2 text-sm text-[#8a7b68]">
+                        {p.latestRemark || "\u2014"}
                       </p>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3 whitespace-nowrap">
+                    <TableCell className="px-4 py-3.5 whitespace-nowrap">
                       <div className="flex flex-col gap-1">
                         <button
                           type="button"
                           onClick={() => openEdit(p)}
-                          className="text-left text-sm font-medium text-brand-500 hover:text-brand-600"
+                          className="text-left text-sm font-semibold text-[#9a7748] hover:text-[#1c1610]"
                         >
                           Edit
                         </button>
                         <Link
                           href="/design/designing"
-                          className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                          className="text-sm text-[#8a7b68] hover:text-[#1c1610]"
                         >
                           Design
                         </Link>
                         <Link
                           href={`/sales/quotations/new?from=project&id=${p.id}`}
-                          className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                          className="text-sm text-[#8a7b68] hover:text-[#1c1610]"
                         >
                           Quotation
                         </Link>
                         <Link
                           href={`/customer-issues?projectId=${p.id}`}
-                          className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                          className="text-sm text-[#8a7b68] hover:text-[#1c1610]"
                         >
                           Issue
                         </Link>
                         <button
                           type="button"
                           onClick={() => setTasksProject(p)}
-                          className="text-left text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
+                          className="text-left text-sm text-[#8a7b68] hover:text-[#1c1610]"
                         >
                           Tasks{p.taskCount ? ` (${p.taskCount})` : ""}
                         </button>
@@ -1117,8 +1114,13 @@ export default function ProjectsTable() {
 
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell className="px-4 py-10 text-center text-sm text-gray-500">
-                      No projects match your filters.
+                    <TableCell className="px-4 py-16 text-center">
+                      <p className="font-serif text-xl text-[#1c1610] dark:text-[#f4efe6]" style={serif}>
+                        {loading ? "Loading projects..." : "No projects match your filters"}
+                      </p>
+                      {!loading ? (
+                        <p className="mt-1 text-sm text-[#8a7b68]">Try a different search, store, or status.</p>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 )}
@@ -1131,15 +1133,15 @@ export default function ProjectsTable() {
       {/* Add / Edit modal */}
       {showAdd && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <div className="mb-5 flex items-center justify-between">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#eadfcf] bg-white p-0 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <div className="mb-0 flex items-center justify-between border-b border-[#eadfcf] bg-[#fbf8f3] px-6 py-4 dark:border-[#3a342c] dark:bg-[#1c1914]">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                  {editing ? "Edit Project" : "New Project"}
+                <h3 className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]" style={serif}>
+                  {editing ? "Edit project" : "New project"}
                 </h3>
                 {sourceLeadId && !editing ? (
-                  <p className="mt-1 text-sm text-brand-600 dark:text-brand-400">
-                    From lead: {sourceLeadClientName} — review and save to link
+                  <p className="mt-1 text-sm text-[#9a7748]">
+                    From lead: {sourceLeadClientName} - review and save to link
                     this project
                   </p>
                 ) : null}
@@ -1152,15 +1154,15 @@ export default function ProjectsTable() {
                   setSourceLeadId(null);
                   setSourceLeadClientName("");
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-[#8a7b68] hover:text-[#1c1610]"
               >
-                ✕
+                {"\u00D7"}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
               <div className="md:col-span-2">
-                <Label>Project Name</Label>
+                <label className={labelClass}>Project name</label>
                 <input
                   type="text"
                   value={form.name}
@@ -1168,11 +1170,11 @@ export default function ProjectsTable() {
                     setForm((f) => ({ ...f, name: e.target.value }))
                   }
                   placeholder="Enter project name"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <Label>Client Name</Label>
+                <label className={labelClass}>Client name</label>
                 <input
                   type="text"
                   value={form.client}
@@ -1180,29 +1182,29 @@ export default function ProjectsTable() {
                     setForm((f) => ({ ...f, client: e.target.value }))
                   }
                   placeholder="Client name"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <Label>Phone</Label>
+                <label className={labelClass}>Phone</label>
                 <input
                   type="tel"
                   value={form.phone}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, phone: e.target.value }))
                   }
-                  placeholder="+91 …"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  placeholder="+91 ..."
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <Label>Store</Label>
+                <label className={labelClass}>Store</label>
                 <select
                   value={form.store}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, store: e.target.value }))
                   }
-                  className={`${selectClass} w-full`}
+                  className={selectClass}
                 >
                   {storeOptions.map((s) => (
                     <option key={s.id} value={s.name}>
@@ -1212,13 +1214,13 @@ export default function ProjectsTable() {
                 </select>
               </div>
               <div>
-                <Label>Project Type</Label>
+                <label className={labelClass}>Project type</label>
                 <select
                   value={form.projectType}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, projectType: e.target.value }))
                   }
-                  className={`${selectClass} w-full`}
+                  className={selectClass}
                 >
                   {projectTypes.map((t) => (
                     <option key={t} value={t}>
@@ -1228,13 +1230,13 @@ export default function ProjectsTable() {
                 </select>
               </div>
               <div>
-                <Label>Scope</Label>
+                <label className={labelClass}>Scope</label>
                 <select
                   value={form.scope}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, scope: e.target.value }))
                   }
-                  className={`${selectClass} w-full`}
+                  className={selectClass}
                 >
                   {scopes.map((s) => (
                     <option key={s} value={s}>
@@ -1244,23 +1246,39 @@ export default function ProjectsTable() {
                 </select>
               </div>
               <div>
-                <Label>Budget</Label>
-                <select
+                <label className={labelClass}>Budget</label>
+                <input
+                  type="text"
                   value={form.budget}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, budget: e.target.value }))
                   }
-                  className={`${selectClass} w-full`}
-                >
-                  {budgets.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={"e.g. \u20B912 Lakh"}
+                  className={fieldClass}
+                />
               </div>
               <div>
-                <Label>Status</Label>
+                <label className={labelClass}>DLP holding %</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={form.dlpHoldingPercent}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      dlpHoldingPercent: Number(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="20"
+                  className={fieldClass}
+                />
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Held from vendor project value. 20% of 100 = ₹20 DLP, ₹80 payment.
+                </p>
+              </div>
+              <div>
+                <label className={labelClass}>Status</label>
                 <select
                   value={form.status}
                   onChange={(e) =>
@@ -1269,7 +1287,7 @@ export default function ProjectsTable() {
                       status: e.target.value as ProjectStatus,
                     }))
                   }
-                  className={`${selectClass} w-full`}
+                  className={selectClass}
                 >
                   {statuses.map((s) => (
                     <option key={s} value={s}>
@@ -1279,7 +1297,7 @@ export default function ProjectsTable() {
                 </select>
               </div>
               <div>
-                <Label>Progress (%)</Label>
+                <label className={labelClass}>Progress (%)</label>
                 <input
                   type="number"
                   min={0}
@@ -1291,17 +1309,17 @@ export default function ProjectsTable() {
                       progress: Number(e.target.value),
                     }))
                   }
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <Label>Sales Owner</Label>
+                <label className={labelClass}>Sales owner</label>
                 <select
                   value={form.salesOwner}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, salesOwner: e.target.value }))
                   }
-                  className={`${selectClass} w-full`}
+                  className={selectClass}
                 >
                   {team.map((m) => (
                     <option key={m} value={m}>
@@ -1311,7 +1329,7 @@ export default function ProjectsTable() {
                 </select>
               </div>
               <div>
-                <Label>Assigned To</Label>
+                <label className={labelClass}>Assigned to</label>
                 <select
                   value={form.assignedToId}
                   onChange={(e) => {
@@ -1319,7 +1337,7 @@ export default function ProjectsTable() {
                     const name = staff.find((u) => u.id === id)?.name || "";
                     setForm((f) => ({ ...f, assignedToId: id, assignedTo: name }));
                   }}
-                  className={`${selectClass} w-full`}
+                  className={selectClass}
                 >
                   <option value="">Unassigned</option>
                   {form.assignedToId &&
@@ -1334,20 +1352,20 @@ export default function ProjectsTable() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-400">
-                  CRM staff owner. Separate from franchisees.
+                <p className="mt-1 text-xs text-[#b3a594]">
+                  CRM staff owner. Separate from vendors.
                 </p>
               </div>
               <div className="md:col-span-2">
-                <Label>Assign to franchisees</Label>
-                <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2 dark:border-gray-700">
+                <label className={labelClass}>Assign to vendors</label>
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[#eadfcf] bg-[#fdfbf7] p-2 dark:border-[#3a342c] dark:bg-[#1a1714]">
                   {franchisees.length ? (
                     franchisees.map((user) => {
                       const checked = form.franchiseeIds.includes(user.id);
                       return (
                         <label
                           key={user.id}
-                          className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                          className="flex items-center gap-2 text-sm text-[#1c1610] dark:text-[#f3ece2]"
                         >
                           <input
                             type="checkbox"
@@ -1366,37 +1384,37 @@ export default function ProjectsTable() {
                       );
                     })
                   ) : (
-                    <p className="text-xs text-gray-400">No franchisee accounts yet</p>
+                    <p className="text-xs text-[#b3a594]">No vendor accounts yet</p>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-gray-400">
-                  One project can be assigned to multiple franchisees. This does not change Assigned To.
+                <p className="mt-1 text-xs text-[#b3a594]">
+                  One project can be assigned to multiple vendors. This does not change Assigned To.
                 </p>
               </div>
               <div>
-                <Label>Start Date</Label>
+                <label className={labelClass}>Start date</label>
                 <input
                   type="date"
                   value={form.startDate}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, startDate: e.target.value }))
                   }
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <Label>End Date</Label>
+                <label className={labelClass}>End date</label>
                 <input
                   type="date"
                   value={form.endDate}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, endDate: e.target.value }))
                   }
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  className={fieldClass}
                 />
               </div>
               <div className="md:col-span-2">
-                <Label>Site Address</Label>
+                <label className={labelClass}>Site address</label>
                 <input
                   type="text"
                   value={form.address}
@@ -1404,57 +1422,59 @@ export default function ProjectsTable() {
                     setForm((f) => ({ ...f, address: e.target.value }))
                   }
                   placeholder="Project / site address"
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  className={fieldClass}
                 />
               </div>
               <div className="md:col-span-2">
-                <Label>Description</Label>
+                <label className={labelClass}>Description</label>
                 <textarea
                   rows={2}
                   value={form.description}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, description: e.target.value }))
                   }
-                  placeholder="Write a description…"
-                  className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  placeholder="Write a description..."
+                  className="w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 py-2.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 />
               </div>
               <div className="md:col-span-2">
-                <Label>Latest Remark</Label>
+                <label className={labelClass}>Latest remark</label>
                 <textarea
                   rows={2}
                   value={form.latestRemark}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, latestRemark: e.target.value }))
                   }
-                  placeholder="Write your remark…"
-                  className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  placeholder="Write your remark..."
+                  className="w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 py-2.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
+            <div className="flex justify-end gap-2 border-t border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
+              <button
+                type="button"
                 onClick={() => {
                   setShowAdd(false);
                   setEditing(null);
                 }}
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1a1714]"
               >
                 Cancel
-              </Button>
-              <Button
-                size="sm"
+              </button>
+              <button
+                type="button"
                 onClick={saveProject}
                 disabled={!form.name.trim() || !form.client.trim()}
+                className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] disabled:opacity-50 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
               >
-                {editing ? "Save Changes" : "Create Project"}
-              </Button>
+                {editing ? "Save changes" : "Create project"}
+              </button>
             </div>
           </div>
         </div>
       )}
+
 
       {tasksProject ? (
         <ProjectTasksPanel

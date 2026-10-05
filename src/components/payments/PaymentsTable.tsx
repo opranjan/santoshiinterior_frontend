@@ -550,7 +550,7 @@ export default function PaymentsTable() {
             Payments
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Customer collections for projects. Franchisee payouts are under Pay Franchisee. Vendor payouts are under Pay Vendor.
+            Customer collections for projects. Vendor payouts are under Vendor Payment.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

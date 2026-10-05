@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/api";
 import type { AuthUser } from "@/lib/auth";
 import { formatActivityDate } from "@/lib/userRoles";
 import { generateTempPassword } from "@/components/users/UserFormModal";
-import { projectsApi, rolesApi, storesApi, usersApi } from "@/services/crmApi";
+import { projectsApi, rolesApi, storesApi, usersApi, vendorsApi } from "@/services/crmApi";
 
 const CATEGORIES = [
   "Carpenter",
@@ -42,7 +42,8 @@ type ProjectRow = {
 function isFranchiseeAccount(user: { accessRole?: { key?: string; label?: string } | null }) {
   return (
     user.accessRole?.key === "FRANCHISEE" ||
-    /franchisee/i.test(String(user.accessRole?.label || ""))
+    /franchisee/i.test(String(user.accessRole?.label || "")) ||
+    /vendor panel/i.test(String(user.accessRole?.label || ""))
   );
 }
 
@@ -61,6 +62,7 @@ function categoryOf(user: AuthUser) {
 export default function AdminFranchiseeManager() {
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([]);
+  const [vendors, setVendors] = useState<Array<{ id: string; name: string }>>([]);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [franchiseeRoleId, setFranchiseeRoleId] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
@@ -85,27 +87,30 @@ export default function AdminFranchiseeManager() {
     password: generateTempPassword(),
     category: "Carpenter",
     storeId: "",
+    vendorId: "",
   });
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-      const [roles, storesRes, usersRes, projectRes] = await Promise.all([
+      const [roles, storesRes, usersRes, projectRes, vendorsRes] = await Promise.all([
         rolesApi.list(),
         storesApi.list({ limit: 100 }),
         usersApi.list({ limit: 200, isActive: "all" }),
         projectsApi.list({ limit: 200 }),
+        vendorsApi.list({ limit: 200 }).catch(() => ({ items: [] })),
       ]);
       const roleId = roles.find((r) => r.key === "FRANCHISEE")?.id || "";
       setFranchiseeRoleId(roleId);
       setStores(storesRes.items.map((s) => ({ id: s.id, name: s.name })));
+      setVendors((vendorsRes.items || []).map((v) => ({ id: v.id, name: v.name })));
       setProjects((projectRes.items || []) as ProjectRow[]);
       setUsers(
         (usersRes.items || []).filter((u) => isFranchiseeAccount(u))
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load franchisees");
+      setError(err instanceof Error ? err.message : "Failed to load vendor logins");
     } finally {
       setLoading(false);
     }
@@ -147,6 +152,7 @@ export default function AdminFranchiseeManager() {
       password: generateTempPassword(),
       category: "Carpenter",
       storeId: "",
+      vendorId: "",
     });
     setFormOpen(true);
   };
@@ -160,13 +166,14 @@ export default function AdminFranchiseeManager() {
       password: "",
       category: categoryOf(user),
       storeId: user.storeId || "",
+      vendorId: user.vendorId || "",
     });
     setFormOpen(true);
   };
 
   const save = async () => {
     if (!franchiseeRoleId) {
-      setError("Franchisee role is not ready. Restart the API, then try again.");
+      setError("Vendor panel role is not ready. Restart the API, then try again.");
       return;
     }
     if (!form.name.trim() || !form.email.trim()) {
@@ -174,7 +181,11 @@ export default function AdminFranchiseeManager() {
       return;
     }
     if (!editing && !form.password.trim()) {
-      setError("Password is required for a new franchisee login.");
+      setError("Password is required for a new vendor login.");
+      return;
+    }
+    if (!form.vendorId) {
+      setError("Select the vendor for this login.");
       return;
     }
     setSaving(true);
@@ -187,13 +198,14 @@ export default function AdminFranchiseeManager() {
         accessRoleId: franchiseeRoleId,
         roleLabel: form.category,
         storeId: form.storeId || null,
+        vendorId: form.vendorId || null,
       };
       if (editing) {
         await usersApi.update(editing.id, {
           ...body,
           ...(form.password.trim() ? { password: form.password.trim() } : {}),
         });
-        setNotice("Franchisee updated.");
+        setNotice("Vendor updated.");
         if (form.password.trim()) {
           setCredentials({
             name: form.name.trim(),
@@ -212,12 +224,12 @@ export default function AdminFranchiseeManager() {
           email: form.email.trim(),
           password: form.password.trim(),
         });
-        setNotice("Franchisee created. Copy the login and share it.");
+        setNotice("Vendor created. Copy the login and share it.");
       }
       setFormOpen(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save franchisee");
+      setError(err instanceof ApiError ? err.message : "Failed to save vendor");
     } finally {
       setSaving(false);
     }
@@ -267,12 +279,11 @@ export default function AdminFranchiseeManager() {
             className="mt-1 font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
           >
-            Franchisees
+            Vendor Panel
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-[#8a7b68]">
-            Create franchisee logins, set work category, and assign projects.
-            This is separate from a project’s Assigned To person in CRM. One
-            project can go to several franchisees.
+            Create vendor panel logins, set work category, and assign projects.
+            One project can go to several vendors.
           </p>
         </div>
         <button
@@ -280,7 +291,7 @@ export default function AdminFranchiseeManager() {
           onClick={openCreate}
           className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
         >
-          Add franchisee
+          Add vendor
         </button>
       </div>
 
@@ -298,7 +309,7 @@ export default function AdminFranchiseeManager() {
       <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="grid grid-cols-2 divide-x divide-y divide-[#eadfcf] xl:grid-cols-4 xl:divide-y-0 dark:divide-[#3a342c]">
           {[
-            { label: "Total franchisees", value: totals.total },
+            { label: "Total vendors", value: totals.total },
             { label: "Active", value: totals.active },
             { label: "Inactive", value: totals.inactive },
             { label: "Assigned projects", value: totals.projects },
@@ -343,7 +354,7 @@ export default function AdminFranchiseeManager() {
           <table className="min-w-full text-sm">
             <thead className="bg-[#f6efe4] text-left dark:bg-[#1a1714]">
               <tr>
-                {["Franchisee", "Phone", "Category", "Store", "Projects", "Last login", "Status", "Actions"].map((h) => (
+                {["Login", "Vendor", "Phone", "Category", "Store", "Projects", "Last login", "Status", "Actions"].map((h) => (
                   <th key={h} className="px-4 py-3.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
                     {h}
                   </th>
@@ -357,6 +368,7 @@ export default function AdminFranchiseeManager() {
                     <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">{user.name}</p>
                     <p className="text-xs text-[#8a7b68]">{user.email}</p>
                   </td>
+                  <td className="px-4 py-3.5 text-[#8a7b68]">{user.vendor?.name || "—"}</td>
                   <td className="px-4 py-3.5 text-[#8a7b68]">{user.phone || "—"}</td>
                   <td className="px-4 py-3.5 text-[#8a7b68]">{categoryOf(user)}</td>
                   <td className="px-4 py-3.5 text-[#8a7b68]">{user.store?.name || "—"}</td>
@@ -394,14 +406,14 @@ export default function AdminFranchiseeManager() {
               ))}
               {!loading && !filtered.length ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#8a7b68]">
-                    No franchisees yet. Add one and share the login.
+                  <td colSpan={9} className="px-4 py-10 text-center text-[#8a7b68]">
+                    No vendor logins yet. Add one and share the login.
                   </td>
                 </tr>
               ) : null}
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#8a7b68]">
+                  <td colSpan={9} className="px-4 py-10 text-center text-[#8a7b68]">
                     Loading…
                   </td>
                 </tr>
@@ -416,7 +428,7 @@ export default function AdminFranchiseeManager() {
           <div className="w-full max-w-lg rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-5 shadow-xl dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                {editing ? "Edit franchisee" : "Add franchisee"}
+                {editing ? "Edit vendor" : "Add vendor"}
               </h3>
               <button type="button" onClick={() => setFormOpen(false)} className="text-[#8a7b68]">
                 ✕
@@ -447,6 +459,21 @@ export default function AdminFranchiseeManager() {
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   className={fieldClass}
                 />
+              </div>
+              <div>
+                <p className={labelClass}>Vendor *</p>
+                <select
+                  value={form.vendorId}
+                  onChange={(e) => setForm((f) => ({ ...f, vendorId: e.target.value }))}
+                  className={fieldClass}
+                >
+                  <option value="">Select vendor</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <p className={labelClass}>Work category</p>
@@ -518,11 +545,11 @@ export default function AdminFranchiseeManager() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                  Assign to franchisee
+                  Assign to vendor
                 </h3>
                 <p className="text-sm text-[#8a7b68]">
                   {assigning.name} will see these projects. CRM Assigned To is unchanged. Other
-                  franchisees on the same project stay assigned.
+                  vendors on the same project stay assigned.
                 </p>
               </div>
               <button type="button" onClick={() => setAssigning(null)} className="text-[#8a7b68]">
@@ -564,7 +591,7 @@ export default function AdminFranchiseeManager() {
                         {project.clientName || "—"}
                         {crmOwner ? ` · CRM Assigned To: ${crmOwner}` : ""}
                         {others.length
-                          ? ` · other franchisees: ${others.map((user) => user.name).join(", ")}`
+                          ? ` · other vendors: ${others.map((user) => user.name).join(", ")}`
                           : ""}
                       </span>
                     </span>
@@ -594,7 +621,7 @@ export default function AdminFranchiseeManager() {
               Share login details
             </h3>
             <p className="mt-1 text-sm text-[#8a7b68]">
-              Give these to the franchisee. They sign in at the same CRM login page.
+              Give these to the vendor. They sign in at the same CRM login page.
             </p>
             <dl className="mt-4 space-y-2 rounded-xl border border-[#eadfcf] bg-white p-4 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
               <div>

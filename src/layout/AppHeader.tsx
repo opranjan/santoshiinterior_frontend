@@ -4,16 +4,14 @@ import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
-import { isFranchiseeUser, isVendorUser } from "@/lib/permissions";
+import { isVendorPanelUser } from "@/lib/permissions";
 import Link from "next/link";
 import React, { useState ,useEffect,useRef} from "react";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const { user } = useAuth();
-  const vendor = isVendorUser(user);
-  const franchisee = isFranchiseeUser(user);
-  const partner = vendor || franchisee;
+  const partner = isVendorPanelUser(user);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
@@ -96,7 +94,7 @@ const AppHeader: React.FC = () => {
                 className="h-8 w-8 rounded-md object-contain"
               />
               <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
-                {vendor ? "Vendor Panel" : franchisee ? "Franchisee Panel" : "Santoshi Interiors"}
+                {partner ? "Vendor Panel" : "Santoshi Interiors"}
               </span>
             </span>
           </Link>
@@ -125,10 +123,10 @@ const AppHeader: React.FC = () => {
             {partner ? (
               <p className="text-sm tracking-wide text-[#6b645b]">
                 <span className="text-[11px] uppercase tracking-[0.22em] text-[#9a7748]">
-                  {vendor ? "Vendor Panel" : "Franchisee Panel"}
+                  Vendor Panel
                 </span>
                 <span className="mx-3 text-[#d4c6b0]">·</span>
-                {vendor ? user?.vendor?.name || "Santoshi Interiors" : user?.name || "Santoshi Interiors"}
+                {user?.vendor?.name || user?.name || "Santoshi Interiors"}
               </p>
             ) : (
             <form>

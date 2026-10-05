@@ -9,6 +9,7 @@ import {
   BellIcon,
   BoltIcon,
   BoxCubeIcon,
+  ChatIcon,
   DollarLineIcon,
   FileIcon,
   FolderIcon,
@@ -73,6 +74,13 @@ const quickActions = [
     href: "/work-orders",
     permissions: ["workorders.manage", "workorders.update", "site.manage"],
     Icon: TaskIcon,
+  },
+  {
+    label: "Chat Box",
+    hint: "Message vendors",
+    href: "/chat-box",
+    permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"],
+    Icon: ChatIcon,
   },
   {
     label: "Payments",

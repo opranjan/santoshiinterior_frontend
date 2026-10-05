@@ -1611,3 +1611,109 @@ export const quotationSettingsApi = {
     return payload.data as { url: string };
   },
 };
+
+export type VendorChatPersonDto = {
+  id: string;
+  name: string;
+  roleLabel?: string | null;
+};
+
+export type VendorChatAttachmentDto = {
+  id: string;
+  fileName: string;
+  mimeType?: string | null;
+  size?: number | null;
+  fileUrl: string;
+};
+
+export type VendorChatMessageDto = {
+  id: string;
+  threadUserId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+  editedAt?: string | null;
+  sender?: { id: string; name: string; roleLabel?: string | null } | null;
+  attachments?: VendorChatAttachmentDto[];
+  mentions?: Array<{
+    userId: string;
+    user?: { id: string; name: string; roleLabel?: string | null } | null;
+  }>;
+  replyToId?: string | null;
+  replyTo?: {
+    id: string;
+    body?: string | null;
+    senderId?: string;
+    sender?: { id: string; name: string } | null;
+    attachments?: Array<{ id: string; fileName: string }>;
+  } | null;
+};
+
+export type VendorChatThreadDto = {
+  id: string;
+  name: string;
+  roleLabel?: string | null;
+  vendorName?: string | null;
+  lastMessage?: string | null;
+  lastSenderId?: string | null;
+  lastAt?: string | null;
+  lastSeenAt?: string | null;
+};
+
+export type VendorChatSendBody = {
+  body: string;
+  threadUserId?: string;
+  mentionIds?: string[];
+  files?: File[];
+  replyToId?: string | null;
+};
+
+export const vendorChatApi = {
+  threads: () => api.get<{ items: VendorChatThreadDto[] }>("/vendor-chat/threads"),
+  directory: (threadUserId?: string) =>
+    api.get<{ items: VendorChatPersonDto[] }>(
+      "/vendor-chat/directory",
+      threadUserId ? { threadUserId } : undefined
+    ),
+  mine: () =>
+    api.get<{ threadUserId: string; items: VendorChatMessageDto[] }>("/vendor-chat/me"),
+  list: (threadUserId: string) =>
+    api.get<{ threadUserId: string; items: VendorChatMessageDto[] }>(
+      `/vendor-chat/${threadUserId}`
+    ),
+  send: async (body: VendorChatSendBody) => {
+    const files = body.files || [];
+    if (!files.length) {
+      return api.post<VendorChatMessageDto>("/vendor-chat", {
+        body: body.body,
+        threadUserId: body.threadUserId,
+        mentionIds: body.mentionIds || [],
+        replyToId: body.replyToId || null,
+      });
+    }
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("body", body.body || "");
+    if (body.threadUserId) form.append("threadUserId", body.threadUserId);
+    form.append("mentionIds", JSON.stringify(body.mentionIds || []));
+    if (body.replyToId) form.append("replyToId", body.replyToId);
+    files.forEach((file) => form.append("file", file));
+    const res = await fetch(`${base}/vendor-chat`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Could not send message");
+    }
+    return json.data as VendorChatMessageDto;
+  },
+  edit: (id: string, body: { body: string; mentionIds?: string[] }) =>
+    api.patch<VendorChatMessageDto>(`/vendor-chat/messages/${id}`, body),
+};

@@ -1,18 +1,18 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import AdminPayVendor from "@/components/vendors/AdminPayVendor";
+import AdminPayFranchisee from "@/components/franchisee/AdminPayFranchisee";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
-  title: "Pay Vendor",
+  title: "Vendor Payment",
   description: "Record company payouts to vendors",
 };
 
 export default function VendorPaymentsAdminPage() {
   return (
     <div>
-      <PageBreadcrumb pageTitle="Pay Vendor" />
-      <AdminPayVendor />
+      <Suspense fallback={<p className="p-4 text-sm text-gray-500">Loading…</p>}>
+        <AdminPayFranchisee />
+      </Suspense>
     </div>
   );
 }

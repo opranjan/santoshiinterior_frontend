@@ -97,8 +97,8 @@ export default function UserFormModal({
                 {title}
               </h3>
               <p className="mt-1 text-sm text-[#8a7b68]">
-                {title.includes("Franchisee")
-                  ? "Create a franchisee login. Copy the email and password after save and share them."
+                {title.includes("Vendor")
+                  ? "Create a vendor panel login. Copy the email and password after save and share them."
                   : "Add login details and assign a role for CRM access."}
               </p>
             </div>
@@ -275,12 +275,7 @@ export default function UserFormModal({
                     </p>
                     {role.key === "FRANCHISEE" ? (
                       <p className="mt-1 text-[11px] font-medium text-[#9a7748]">
-                        After login they see assigned projects from the CRM. They cannot add projects.
-                      </p>
-                    ) : null}
-                    {role.key === "VENDOR" ? (
-                      <p className="mt-1 text-[11px] font-medium text-[#9a7748]">
-                        After login they see vendor dashboard, design, assigned projects, and procurement.
+                        After login they see the Vendor panel: projects, design, procurement, payments, and documents.
                       </p>
                     ) : null}
                   </button>
@@ -295,7 +290,7 @@ export default function UserFormModal({
             ) : (
               <p className="mt-2 text-xs text-red-500">Please select a role.</p>
             )}
-            {selectedRole?.key === "VENDOR" ? (
+            {selectedRole?.key === "VENDOR" || selectedRole?.key === "FRANCHISEE" ? (
               <div className="mt-4">
                 <Label>Vendor company</Label>
                 <select
@@ -321,7 +316,7 @@ export default function UserFormModal({
           </button>
           <button
             type="button"
-            disabled={saving || !form.accessRoleId || (selectedRole?.key === "VENDOR" && !form.vendorId)}
+            disabled={saving || !form.accessRoleId || ((selectedRole?.key === "VENDOR" || selectedRole?.key === "FRANCHISEE") && !form.vendorId)}
             className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] disabled:opacity-40 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
             onClick={() => void onSubmit(form)}
           >

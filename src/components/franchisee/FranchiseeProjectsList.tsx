@@ -58,7 +58,7 @@ export default function FranchiseeProjectsList({
   return (
     <div className="space-y-6">
       <div className="vendor-rise">
-        <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Franchisee panel</p>
+        <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
         <h1 className="vendor-serif mt-2 text-3xl text-[#111] md:text-4xl">{title}</h1>
         <div className="vendor-gold-rule mt-3" />
         <p className="mt-3 max-w-xl text-sm text-[#6b645b]">{subtitle}</p>

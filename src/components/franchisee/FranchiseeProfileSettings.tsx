@@ -149,7 +149,7 @@ export default function FranchiseeProfileSettings() {
           Profile Settings
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Your franchisee login and work details. Email stays as issued by the company.
+          Your vendor login and work details. Email stays as issued by the company.
         </p>
       </div>
 

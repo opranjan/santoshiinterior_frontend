@@ -15,7 +15,7 @@ import {
   type VendorDto,
 } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
-import { isVendorUser } from "@/lib/permissions";
+import { isVendorPanelUser } from "@/lib/permissions";
 
 const fieldClass =
   "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
@@ -62,7 +62,7 @@ function formatDate(iso?: string | null) {
 export default function ProcurementRfqs() {
   const router = useRouter();
   const { user } = useAuth();
-  const vendorView = isVendorUser(user);
+  const vendorView = isVendorPanelUser(user);
   const searchParams = useSearchParams();
   const requestId = searchParams.get("requestId") || "";
   const [items, setItems] = useState<RfqDto[]>([]);

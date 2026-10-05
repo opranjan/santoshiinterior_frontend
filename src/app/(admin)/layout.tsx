@@ -7,7 +7,7 @@ import RoutePermissionGuard from "@/components/auth/RoutePermissionGuard";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
-import { isFranchiseeUser, isVendorUser } from "@/lib/permissions";
+import { isVendorPanelUser } from "@/lib/permissions";
 import React from "react";
 
 export default function AdminLayout({
@@ -17,9 +17,7 @@ export default function AdminLayout({
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const { user } = useAuth();
-  const vendor = isVendorUser(user);
-  const franchisee = isFranchiseeUser(user);
-  const partner = vendor || franchisee;
+  const partner = isVendorPanelUser(user);
 
   const mainContentMargin = isMobileOpen
     ? "ml-0"

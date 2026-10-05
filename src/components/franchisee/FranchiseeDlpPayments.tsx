@@ -6,11 +6,14 @@ import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
+import { parseMoney, splitProjectValue } from "@/lib/dlpHolding";
 
 type ProjectRow = {
   id: string;
   name: string;
   clientName?: string | null;
+  budget?: string | null;
+  dlpHoldingPercent?: number | string | null;
 };
 
 type PaymentRow = {
@@ -61,6 +64,20 @@ function methodLabel(method?: string) {
   const key = String(method || "").toUpperCase();
   if (key === "BANK_TRANSFER") return "NEFT";
   return enumToLabel(method || "UPI");
+}
+
+function txnStatus(row: PaymentRow) {
+  const key = String(row.status || "").toUpperCase();
+  const amount = money(row.amount);
+  const paid = money(row.paidAmount) || (key === "PAID" ? amount : 0);
+  if (key === "PAID" || (amount > 0 && paid >= amount)) {
+    return { label: "Paid", color: "success" as const };
+  }
+  if (key === "PARTIAL" || paid > 0) {
+    return { label: "Partially Paid", color: "warning" as const };
+  }
+  if (key === "OVERDUE") return { label: "Overdue", color: "error" as const };
+  return { label: "Unpaid", color: "error" as const };
 }
 
 function isDlp(row: PaymentRow) {
@@ -127,32 +144,39 @@ export default function FranchiseeDlpPayments() {
   );
 
   const byProject = useMemo(() => {
-    const map = new Map<string, ProjectDlp>();
+    const paidByProject = new Map<string, { paid: number; dlpDate: string | null }>();
     for (const row of dlpPayments) {
       const id = row.projectId || row.project?.id;
       if (!id) continue;
-      if (!map.has(id)) {
-        map.set(id, {
-          id,
-          name: row.project?.name || "—",
-          customer: row.project?.clientName || row.clientName || "",
-          dlpAmount: 0,
-          paid: 0,
-          pending: 0,
-          dlpDate: row.dueDate || row.paidDate || row.createdAt || null,
-        });
-      }
-      const item = map.get(id)!;
-      item.dlpAmount += money(row.amount);
-      item.paid += money(row.paidAmount);
+      const current = paidByProject.get(id) || { paid: 0, dlpDate: null };
+      current.paid += money(row.paidAmount) || (row.status === "PAID" ? money(row.amount) : 0);
       const at = row.dueDate || row.paidDate || row.createdAt || null;
-      if (at && (!item.dlpDate || at < item.dlpDate)) item.dlpDate = at;
+      if (at && (!current.dlpDate || at < current.dlpDate)) current.dlpDate = at;
+      paidByProject.set(id, current);
     }
-    return [...map.values()].map((item) => ({
-      ...item,
-      pending: Math.max(0, item.dlpAmount - item.paid),
-    }));
-  }, [dlpPayments]);
+
+    const rows: ProjectDlp[] = [];
+    for (const project of projects) {
+      const split = splitProjectValue(
+        parseMoney(project.budget),
+        Number(project.dlpHoldingPercent ?? 20)
+      );
+      const paidInfo = paidByProject.get(project.id);
+      const dlpAmount = split.dlp;
+      if (dlpAmount <= 0 && !paidInfo) continue;
+      const paid = paidInfo?.paid || 0;
+      rows.push({
+        id: project.id,
+        name: project.name,
+        customer: project.clientName || "",
+        dlpAmount: dlpAmount || paid,
+        paid,
+        pending: Math.max(0, (dlpAmount || paid) - paid),
+        dlpDate: paidInfo?.dlpDate || null,
+      });
+    }
+    return rows;
+  }, [projects, dlpPayments]);
 
   const filteredProjects = useMemo(() => {
     return byProject.filter((row) => {
@@ -234,6 +258,7 @@ export default function FranchiseeDlpPayments() {
       `Paid by Company: ${money(row.paidAmount)}`,
       `Date: ${formatDate(row.paidDate || row.createdAt)}`,
       `Mode: ${methodLabel(row.method)}`,
+      `Status: ${txnStatus(row).label}`,
     ].join("\n");
     const blob = new Blob([body], { type: "text/plain;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -247,11 +272,11 @@ export default function FranchiseeDlpPayments() {
   return (
     <div className="space-y-6">
       <div className="vendor-rise">
-        <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Franchisee panel</p>
+        <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
         <h1 className="vendor-serif mt-2 text-3xl text-[#111] md:text-4xl">DLP Payment</h1>
         <div className="vendor-gold-rule mt-3" />
         <p className="mt-3 max-w-xl text-sm text-[#6b645b]">
-          View all Delay in Payments (DLP) and payments made by the company.
+          View DLP holding (retention) on your project value. Example: project 100 with 20% holding → ₹20 DLP, remaining ₹80 in Payments.
         </p>
       </div>
 
@@ -281,7 +306,7 @@ export default function FranchiseeDlpPayments() {
       <div className="vendor-card vendor-rise overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Delay settlements</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Holding settlements</p>
             <h2 className="vendor-serif mt-1 text-2xl text-[#111]">DLP Summary by Project</h2>
           </div>
           <div className="flex items-center gap-2">
@@ -355,7 +380,7 @@ export default function FranchiseeDlpPayments() {
               {!loading && !pagedProjects.length ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-10 text-center text-[#8a8175]">
-                    No DLP cases yet. The company records DLP when a customer delays payment.
+                    No DLP holding yet. Holding is a percent of the vendor project value, kept until DLP is released.
                   </td>
                 </tr>
               ) : null}
@@ -392,7 +417,7 @@ export default function FranchiseeDlpPayments() {
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Company settlements</p>
           <h2 className="vendor-serif mt-1 text-2xl text-[#111]">DLP Payment History</h2>
           <p className="mt-1 text-xs text-[#8a8175]">
-            Payment transactions made by the company for DLP.
+            Payment transactions made by the company to release DLP holding.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -406,6 +431,7 @@ export default function FranchiseeDlpPayments() {
                 <th className="px-4 py-2">Paid Amount (₹)</th>
                 <th className="px-4 py-2">Payment Date</th>
                 <th className="px-4 py-2">Payment Mode</th>
+                <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Receipt</th>
               </tr>
             </thead>
@@ -425,6 +451,11 @@ export default function FranchiseeDlpPayments() {
                   <td className="px-4 py-3 text-[#6b645b]">{formatDate(row.paidDate || row.createdAt)}</td>
                   <td className="px-4 py-3 text-[#6b645b]">{methodLabel(row.method)}</td>
                   <td className="px-4 py-3">
+                    <Badge size="sm" color={txnStatus(row).color}>
+                      {txnStatus(row).label}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
                     <button
                       type="button"
                       onClick={() => downloadReceipt(row)}
@@ -438,7 +469,7 @@ export default function FranchiseeDlpPayments() {
               ))}
               {!loading && !txnRows.length ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-[#8a8175]">
+                  <td colSpan={9} className="px-5 py-10 text-center text-[#8a8175]">
                     No DLP settlements yet.
                   </td>
                 </tr>
@@ -456,8 +487,7 @@ export default function FranchiseeDlpPayments() {
       </div>
 
       <div className="vendor-card px-5 py-4 text-sm text-[#6b645b]">
-        DLP (Delay in Payments) are amounts delayed by customers. Company settles DLP as per
-        agreed terms.
+        DLP holding is a percent of the project value kept until the company releases it.
       </div>
     </div>
   );

@@ -104,14 +104,16 @@ export const CRM_ROLES: RoleDefinition[] = [
   },
   {
     key: "FRANCHISEE",
-    label: "Franchisee",
+    label: "Vendor Panel",
     global: false,
-    description: "Franchisee portal: add projects and view assigned work.",
+    description: "Vendor panel: assigned projects, design, procurement, payments, and documents.",
     permissions: [
       "franchisee.portal",
       "customers.view",
       "projects.view",
       "projects.manage",
+      "design.manage",
+      "purchaseorders.manage",
       "payments.manage",
       "documents.manage",
     ],

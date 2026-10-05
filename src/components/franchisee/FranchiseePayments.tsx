@@ -6,6 +6,7 @@ import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
+import { parseMoney, splitProjectValue } from "@/lib/dlpHolding";
 
 type ProjectRow = {
   id: string;
@@ -13,6 +14,7 @@ type ProjectRow = {
   clientName?: string | null;
   address?: string | null;
   budget?: string | null;
+  dlpHoldingPercent?: number | string | null;
 };
 
 type PaymentRow = {
@@ -34,6 +36,7 @@ type PaymentRow = {
     clientName?: string | null;
     address?: string | null;
     budget?: string | null;
+    dlpHoldingPercent?: number | string | null;
   } | null;
   createdBy?: { id: string; name: string } | null;
 };
@@ -58,9 +61,7 @@ function money(value: unknown) {
 }
 
 function budgetOf(project?: { budget?: string | null } | null) {
-  if (!project?.budget) return 0;
-  const n = Number(String(project.budget).replace(/[^\d.]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  return parseMoney(project?.budget);
 }
 
 function codeFromId(prefix: string, id: string) {
@@ -72,6 +73,20 @@ function methodLabel(method?: string) {
   const key = String(method || "").toUpperCase();
   if (key === "BANK_TRANSFER") return "NEFT";
   return enumToLabel(method || "UPI");
+}
+
+function txnStatus(row: PaymentRow) {
+  const key = String(row.status || "").toUpperCase();
+  const amount = money(row.amount);
+  const paid = money(row.paidAmount) || (key === "PAID" ? amount : 0);
+  if (key === "PAID" || (amount > 0 && paid >= amount)) {
+    return { label: "Paid", color: "success" as const };
+  }
+  if (key === "PARTIAL" || paid > 0) {
+    return { label: "Partially Paid", color: "warning" as const };
+  }
+  if (key === "OVERDUE") return { label: "Overdue", color: "error" as const };
+  return { label: "Unpaid", color: "error" as const };
 }
 
 type ProjectPay = {
@@ -106,7 +121,7 @@ export default function FranchiseePayments() {
       try {
         const [projectRes, paymentRes] = await Promise.all([
           projectsApi.list({ limit: 100 }),
-          paymentsApi.list({ limit: 100, type: "FRANCHISEE_PAYOUT" }),
+          paymentsApi.list({ limit: 100 }),
         ]);
         if (cancelled) return;
         setProjects((projectRes.items || []) as ProjectRow[]);
@@ -142,7 +157,14 @@ export default function FranchiseePayments() {
         const projectId = row.projectId || row.project?.id;
         if (!projectId || !assignedIds.has(projectId)) return false;
         const kind = String(row.type || "").toUpperCase();
-        if (kind && kind !== "FRANCHISEE_PAYOUT" && !kind.includes("FRANCHISEE")) {
+        if (kind === "DLP") return false;
+        if (
+          kind &&
+          kind !== "FRANCHISEE_PAYOUT" &&
+          kind !== "VENDOR" &&
+          !kind.includes("FRANCHISEE") &&
+          !kind.includes("VENDOR")
+        ) {
           return false;
         }
         return inRange(row.paidDate || row.createdAt);
@@ -157,7 +179,10 @@ export default function FranchiseePayments() {
         id: project.id,
         name: project.name,
         location: project.address || "",
-        projectAmount: budgetOf(project),
+        projectAmount: splitProjectValue(
+          budgetOf(project),
+          Number(project.dlpHoldingPercent ?? 20)
+        ).payable,
         paid: 0,
         pending: 0,
         lastPaidAt: null,
@@ -213,6 +238,7 @@ export default function FranchiseePayments() {
       "Payment Date",
       "Paid By",
       "Payment Mode",
+      "Status",
       "Remarks",
     ];
     const lines = rangedPayments.map((row) =>
@@ -223,6 +249,7 @@ export default function FranchiseePayments() {
         formatDate(row.paidDate || row.createdAt),
         row.createdBy?.name || "Santoshi Interior Pvt. Ltd.",
         methodLabel(row.method),
+        txnStatus(row).label,
         row.remark || "",
       ]
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
@@ -249,11 +276,11 @@ export default function FranchiseePayments() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="vendor-rise">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Franchisee panel</p>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
           <h1 className="vendor-serif mt-2 text-3xl text-[#111] md:text-4xl">Payments</h1>
           <div className="vendor-gold-rule mt-3" />
           <p className="mt-3 max-w-xl text-sm text-[#6b645b]">
-            These are payouts from Santoshi Interior to you for assigned projects — not customer collections.
+            These are payouts from Santoshi Interior to you for assigned projects, after DLP holding. DLP (held amount) is shown under DLP Payment.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -270,7 +297,7 @@ export default function FranchiseePayments() {
           <p className="mt-2 text-xs font-medium text-[#9a7748]">View Projects</p>
         </Link>
         <div className={`${card} vendor-rise vendor-rise-delay-1`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Total Project Amount</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Payable after DLP</p>
           <p className="vendor-serif mt-2 text-3xl text-success-600">{formatINR(totals.projectAmount)}</p>
           <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
         </div>
@@ -318,7 +345,7 @@ export default function FranchiseePayments() {
                 <th className="px-5 py-2.5">Sr. No.</th>
                 <th className="px-4 py-2.5">Site / Project Name</th>
                 <th className="px-4 py-2.5">Project ID</th>
-                <th className="px-4 py-2.5">Project Amount (₹)</th>
+                <th className="px-4 py-2.5">Payable after DLP (₹)</th>
                 <th className="px-4 py-2.5">Total Paid by Company</th>
                 <th className="px-4 py-2.5">Pending Amount (₹)</th>
                 <th className="px-4 py-2.5">Last Payment Date</th>
@@ -406,6 +433,7 @@ export default function FranchiseePayments() {
                 <th className="px-4 py-2.5">Payment Date</th>
                 <th className="px-4 py-2.5">Paid By</th>
                 <th className="px-4 py-2.5">Payment Mode</th>
+                <th className="px-4 py-2.5">Status</th>
                 <th className="px-4 py-2.5">Remarks</th>
               </tr>
             </thead>
@@ -424,12 +452,17 @@ export default function FranchiseePayments() {
                   <td className="px-4 py-3 text-[#6b645b]">{formatDate(row.paidDate || row.createdAt)}</td>
                   <td className="px-4 py-3 text-[#6b645b]">Santoshi Interior Pvt. Ltd.</td>
                   <td className="px-4 py-3 text-[#6b645b]">{methodLabel(row.method)}</td>
+                  <td className="px-4 py-3">
+                    <Badge size="sm" color={txnStatus(row).color}>
+                      {txnStatus(row).label}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3 text-[#6b645b]">{row.remark || "—"}</td>
                 </tr>
               ))}
               {!loading && !txnRows.length ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-[#8a8175]">
+                  <td colSpan={9} className="px-5 py-10 text-center text-[#8a8175]">
                     No payment transactions yet.
                   </td>
                 </tr>
