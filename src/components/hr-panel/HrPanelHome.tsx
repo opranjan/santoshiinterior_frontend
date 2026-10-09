@@ -227,7 +227,7 @@ export default function HrPanelHome() {
   ];
 
   const leaveRows = [
-    { label: "Total Leave Requests", value: leave.total ?? 0, color: "#2f7a45", icon: "umbrella", delta: vs.leaves },
+    { label: "Total Leave Requests", value: leave.total ?? 0, color: "#2f7a45", icon: "umbrella", delta: vs.leaves ?? 0 },
     { label: "Approved", value: leave.approved ?? 0, color: "#c4a574", icon: "check", delta: 33 },
     { label: "Pending", value: leave.pending ?? 0, color: "#c45c5c", icon: "pending", delta: 50 },
     { label: "Rejected", value: leave.rejected ?? 0, color: "#8a7b68", icon: "close", delta: 0 },
@@ -371,7 +371,9 @@ export default function HrPanelHome() {
             <Link href="/hr/leaves" className="text-xs font-medium text-[#c4a574]">View All</Link>
           </div>
           <ul className="space-y-3">
-            {leaveRows.map((row) => (
+            {leaveRows.map((row) => {
+              const delta = Number(row.delta ?? 0);
+              return (
               <li key={row.label} className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-full text-white" style={{ background: row.color }}>
                   <Icon name={row.icon} />
@@ -381,12 +383,13 @@ export default function HrPanelHome() {
                 </span>
                 <span className="text-right">
                   <span className="block text-base font-semibold">{row.value}</span>
-                  <span className={`text-[11px] ${row.delta >= 0 ? "text-[#2f7a45]" : "text-[#c45c5c]"}`}>
-                    {row.delta >= 0 ? "↑" : "↓"} {Math.abs(row.delta)}%
+                  <span className={`text-[11px] ${delta >= 0 ? "text-[#2f7a45]" : "text-[#c45c5c]"}`}>
+                    {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)}%
                   </span>
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       </div>
