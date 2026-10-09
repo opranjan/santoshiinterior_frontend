@@ -6,6 +6,8 @@ import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
 import {
   filterNavItems,
+  HR_NAV_ITEMS,
+  isHrPanelUser,
   isVendorPanelUser,
   NAV_ITEMS,
   OPERATIONS_NAV_ITEMS,
@@ -59,6 +61,14 @@ const ICONS: Record<string, React.ReactNode> = {
   "Vendor Payment": <DollarLineIcon className="size-5 shrink-0" />,
   "Warranty Desk": <CheckCircleIcon className="size-5 shrink-0" />,
   HR: <UserIcon className="size-5 shrink-0" />,
+  Employees: <GroupIcon className="size-5 shrink-0" />,
+  Attendance: <CalenderIcon className="size-5 shrink-0" />,
+  "Leave Requests": <CheckCircleIcon className="size-5 shrink-0" />,
+  Payroll: <DollarLineIcon className="size-5 shrink-0" />,
+  Performance: <TaskIcon className="size-5 shrink-0" />,
+  "HR Policies": <FileIcon className="size-5 shrink-0" />,
+  Reports: <FileIcon className="size-5 shrink-0" />,
+  Settings: <PlugInIcon className="size-5 shrink-0" />,
   Calendar: <CalenderIcon className="size-5 shrink-0" />,
   Admin: <UserCircleIcon className="size-5 shrink-0" />,
   "Vendor Panel": <GroupIcon className="size-5 shrink-0" />,
@@ -77,21 +87,29 @@ const AppSidebar: React.FC = () => {
   const { user } = useAuth();
   const pathname = usePathname();
   const vendorPanel = isVendorPanelUser(user);
+  const hrPanel = isHrPanelUser(user);
+  const isolated = vendorPanel || hrPanel;
 
   const navItems = useMemo(
     () =>
-      withIcons(vendorPanel ? VENDOR_NAV_ITEMS : filterNavItems(NAV_ITEMS, user)),
-    [user, vendorPanel]
+      withIcons(
+        hrPanel
+          ? HR_NAV_ITEMS
+          : vendorPanel
+            ? VENDOR_NAV_ITEMS
+            : filterNavItems(NAV_ITEMS, user)
+      ),
+    [user, vendorPanel, hrPanel]
   );
   const othersItems = useMemo(
     () =>
-      vendorPanel ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
-    [user, vendorPanel]
+      isolated ? [] : withIcons(filterNavItems(OTHER_NAV_ITEMS, user)),
+    [user, isolated]
   );
   const operationsItems = useMemo(
     () =>
-      vendorPanel ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
-    [user, vendorPanel]
+      isolated ? [] : withIcons(filterNavItems(OPERATIONS_NAV_ITEMS, user)),
+    [user, isolated]
   );
   const adminIndex = navItems.findIndex((item) => item.name === "Admin");
   const menuBeforeAdmin =
@@ -312,7 +330,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`no-print fixed inset-y-0 left-0 top-16 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-white px-5 text-gray-900 transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 lg:top-0 lg:h-screen lg:z-[60]
-        ${vendorPanel ? "vendor-sidebar" : "crm-sidebar"}
+        ${isolated ? "vendor-sidebar" : "crm-sidebar"} ${hrPanel ? "hr-sidebar" : ""}
         ${
           isExpanded || isMobileOpen
             ? "w-[290px]"
@@ -342,10 +360,10 @@ const AppSidebar: React.FC = () => {
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="sidebar-brand-title">
-                  {vendorPanel ? "Vendor Panel" : "Santoshi Interiors"}
+                  {hrPanel ? "Santoshi Interiors" : vendorPanel ? "Vendor Panel" : "Santoshi Interiors"}
                 </span>
                 <span className="sidebar-brand-kicker">
-                  {vendorPanel ? "Santoshi Interiors" : "CRM"}
+                  {hrPanel ? "Design Your Dream Space" : isolated ? "Santoshi Interiors" : "CRM"}
                 </span>
               </span>
             </span>
@@ -365,6 +383,7 @@ const AppSidebar: React.FC = () => {
           <div className="flex flex-col gap-6">
             {navItems.length > 0 ? (
               <div>
+                {hrPanel ? null : (
                 <h2
                   className={`sidebar-kicker mb-3 flex items-center ${
                     !isExpanded && !isHovered
@@ -378,6 +397,7 @@ const AppSidebar: React.FC = () => {
                     <HorizontaLDots />
                   )}
                 </h2>
+                )}
                 {renderMenuItems(menuBeforeAdmin, "main")}
               </div>
             ) : null}
@@ -440,9 +460,11 @@ const AppSidebar: React.FC = () => {
           <span className="min-w-0">
             <span className="sidebar-foot-name">{user.name}</span>
             <span className="sidebar-foot-role">
-              {vendorPanel
-                ? "Vendor workspace"
-                : user.accessRole?.label || user.roleLabel || "CRM workspace"}
+              {hrPanel
+                  ? "HR workspace"
+                  : vendorPanel
+                  ? "Vendor workspace"
+                  : user.accessRole?.label || user.roleLabel || "CRM workspace"}
             </span>
           </span>
         </div>

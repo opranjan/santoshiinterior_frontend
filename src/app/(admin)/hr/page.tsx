@@ -1,18 +1,12 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import HrDashboard from "@/components/hr/HrDashboard";
+import HrPanelHome from "@/components/hr-panel/HrPanelHome";
 import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "HR",
-  description: "Manage human resources across stores",
+  title: "HR Dashboard",
+  description: "HR panel dashboard",
 };
 
 export default function HrPage() {
-  return (
-    <div>
-      <PageBreadcrumb pageTitle="HR" />
-      <HrDashboard />
-    </div>
-  );
+  return <HrPanelHome />;
 }

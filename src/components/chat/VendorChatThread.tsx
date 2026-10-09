@@ -546,8 +546,8 @@ export default function VendorChatThread({
   const canSend = Boolean(draft.trim() || files.length || editingId);
 
   return (
-    <div className="chat-canvas flex h-full min-h-0 min-w-0 w-full flex-col">
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3 md:px-5 md:py-5">
+    <div className="chat-canvas flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+      <div className="no-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3 md:px-5 md:py-5">
         {!messages.length ? (
           <div className="mx-auto flex max-w-sm flex-col items-center px-4 py-16 text-center">
             <span className="chat-avatar inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#1c1610] font-serif text-xl text-[#e8d5b5]">
@@ -588,7 +588,7 @@ export default function VendorChatThread({
                   }`}
                 >
                 {!mine ? <ChatAvatar name={name} size="sm" /> : null}
-                <div className={`group flex min-w-0 max-w-[calc(100%-3.25rem)] flex-col ${mine ? "items-end" : "items-start"}`}>
+                <div className={`group flex min-w-0 max-w-[min(85%,20rem)] flex-col ${mine ? "items-end" : "items-start"} sm:max-w-[calc(100%-3.25rem)]`}>
                 <div
                   className={`group w-fit min-w-0 overflow-visible px-3.5 py-2 text-[14.5px] leading-[1.45] [overflow-wrap:anywhere] ${
                     mine
@@ -664,7 +664,7 @@ export default function VendorChatThread({
       ) : null}
       <form
         onSubmit={(e) => void submit(e)}
-        className="chat-composer-wrap relative min-w-0 shrink-0 border-t border-[#eadfcf] px-3 py-2.5 md:px-4 md:py-3.5 dark:border-[var(--vendor-line)]"
+        className="chat-composer-wrap relative z-10 min-w-0 shrink-0 border-t border-[#eadfcf] bg-white px-2 py-2 md:px-4 md:py-3.5 dark:border-[var(--vendor-line)]"
       >
         {editingId ? (
           <div className="mb-2 flex items-center justify-between rounded-lg bg-[#f4efe6] px-3 py-1.5 text-[11px] text-[#6b645b]">
@@ -734,7 +734,7 @@ export default function VendorChatThread({
             ))}
           </div>
         ) : null}
-        <div className="chat-composer-bar relative flex min-w-0 items-end gap-1 rounded-full border border-[#eadfcf] bg-white px-2 py-1.5 focus-within:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714]">
+        <div className="relative min-w-0">
           <input
             ref={fileRef}
             type="file"
@@ -758,7 +758,7 @@ export default function VendorChatThread({
             }}
           />
           {emojiOpen ? (
-            <div className="absolute bottom-[3.4rem] left-2 z-20 grid grid-cols-5 gap-1 rounded-2xl border border-[#eadfcf] bg-white p-2 shadow-[0_12px_32px_rgba(28,22,16,0.12)]">
+            <div className="absolute bottom-full left-0 z-20 mb-2 grid grid-cols-5 gap-1 rounded-2xl border border-[#eadfcf] bg-white p-2 shadow-[0_12px_32px_rgba(28,22,16,0.12)]">
               {["😀", "😊", "😂", "👍", "🙏", "✅", "❤️", "🏠", "📐", "✨"].map((emoji) => (
                 <button
                   key={emoji}
@@ -775,11 +775,12 @@ export default function VendorChatThread({
               ))}
             </div>
           ) : null}
+        <div className="chat-composer-bar">
           <button
             type="button"
             title="Emoji"
             onClick={() => setEmojiOpen((open) => !open)}
-            className="chat-composer-icon inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#8a8175] hover:bg-[#f4efe6] hover:text-[#1c1610]"
+            className="chat-composer-icon"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
               <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
@@ -793,7 +794,7 @@ export default function VendorChatThread({
             title="Attach file"
             disabled={Boolean(editingId)}
             onClick={() => fileRef.current?.click()}
-            className="chat-composer-icon inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#8a8175] hover:bg-[#f4efe6] hover:text-[#1c1610] disabled:opacity-40"
+            className="chat-composer-icon"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path
@@ -809,7 +810,7 @@ export default function VendorChatThread({
             title="Attach photo"
             disabled={Boolean(editingId)}
             onClick={() => imageRef.current?.click()}
-            className="chat-composer-icon inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#8a8175] hover:bg-[#f4efe6] hover:text-[#1c1610] disabled:opacity-40"
+            className="chat-composer-icon"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
               <rect x="3.5" y="5.5" width="17" height="13" rx="2.2" stroke="currentColor" strokeWidth="1.7" />
@@ -855,15 +856,13 @@ export default function VendorChatThread({
                 void submit();
               }
             }}
-            placeholder={`Type a message to ${peerName}…`}
-            className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent py-2.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] dark:text-[#f3ece2]"
+            placeholder="Type a message…"
+            className="chat-composer-input"
           />
           <button
             type="submit"
             disabled={sending || !canSend}
-            className={`chat-composer-icon inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full disabled:opacity-40 ${
-              canSend && !sending ? "chat-send-ready" : "bg-[#eadfcf] text-[#8a8175]"
-            }`}
+            className={`chat-composer-icon chat-composer-send ${canSend && !sending ? "chat-send-ready" : ""}`}
             title={editingId ? "Save" : "Send"}
           >
             {sending ? (
@@ -875,7 +874,9 @@ export default function VendorChatThread({
             )}
           </button>
         </div>
+        </div>
       </form>
     </div>
   );
 }
+

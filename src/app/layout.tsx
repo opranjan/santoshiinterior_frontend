@@ -5,11 +5,17 @@ import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { AppToaster } from '@/components/ui/toast/ToastHost';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 
 const outfit = Outfit({
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: {

@@ -93,7 +93,7 @@ export const CRM_ROLES: RoleDefinition[] = [
     label: "HR",
     global: false,
     description: "Employee records, attendance, and leave management.",
-    permissions: ["hr.manage", "users.view"],
+    permissions: ["hr.portal", "hr.manage", "hr.view"],
   },
   {
     key: "STAFF",

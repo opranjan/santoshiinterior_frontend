@@ -4,6 +4,7 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { useAuth } from "@/context/AuthContext";
 import { designAssetUrl } from "@/lib/designAssets";
+import { isHrPanelUser } from "@/lib/permissions";
 
 export default function UserDropdown() {
   const { user, logout } = useAuth();
@@ -20,6 +21,7 @@ export default function UserDropdown() {
 
   const displayName = user?.name || "User";
   const email = user?.email || "";
+  const hrPanel = isHrPanelUser(user);
 
   return (
     <div className="relative">
@@ -27,13 +29,13 @@ export default function UserDropdown() {
         onClick={toggleDropdown}
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11 bg-brand-500 text-white flex items-center justify-center text-sm font-semibold">
+        <span className="mr-0 overflow-hidden rounded-full h-9 w-9 bg-brand-500 text-white flex items-center justify-center text-xs font-semibold lg:mr-3 lg:h-11 lg:w-11 lg:text-sm">
           {user?.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={designAssetUrl(user.avatarUrl)}
               alt={displayName}
-              className="h-11 w-11 object-cover"
+              className="h-9 w-9 object-cover lg:h-11 lg:w-11"
             />
           ) : (
             displayName
@@ -45,10 +47,13 @@ export default function UserDropdown() {
           )}
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">{displayName}</span>
+        <span className="mr-1 hidden min-w-0 lg:block">
+          <span className="block truncate font-medium text-theme-sm text-[#1c1610] dark:text-white">{displayName}</span>
+          {hrPanel ? <span className="block text-[11px] font-normal text-[#8a7b68]">HR Admin</span> : null}
+        </span>
 
         <svg
-          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
+          className={`hidden stroke-gray-500 transition-transform duration-200 lg:block dark:stroke-gray-400 ${
             isOpen ? "rotate-180" : ""
           }`}
           width="18"

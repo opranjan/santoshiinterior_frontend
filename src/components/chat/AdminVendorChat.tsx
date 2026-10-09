@@ -305,7 +305,7 @@ export default function AdminVendorChat() {
             ))}
           </div>
         </div>
-        <div className="mt-3 min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        <div className="no-scrollbar mt-3 min-h-0 flex-1 overflow-y-auto px-2 pb-3">
           {filtered.map((row) => {
             const selected = row.id === activeId;
             const count = unread[row.id] || 0;

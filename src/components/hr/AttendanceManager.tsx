@@ -37,7 +37,7 @@ type AttendanceRecord = {
 };
 
 type Props = {
-  employees: EmployeeLite[];
+  employees?: EmployeeLite[];
 };
 
 const attendanceColor: Record<
@@ -125,7 +125,7 @@ function seedForDate(employees: EmployeeLite[], date: string): AttendanceRecord[
     }));
 }
 
-export default function AttendanceManager({ employees }: Props) {
+export default function AttendanceManager({ employees = [] }: Props) {
   const [date, setDate] = useState(todayIso());
   const [storeFilter, setStoreFilter] = useState("All Stores");
   const [statusFilter, setStatusFilter] = useState<"All" | AttendanceStatus>(

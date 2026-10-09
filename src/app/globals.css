@@ -1120,6 +1120,58 @@ span.flatpickr-weekday,
   box-shadow: inset 2px 0 0 #c4a574;
 }
 
+.hr-sidebar {
+  background: #0b0a09 !important;
+}
+
+.hr-sidebar .menu-item {
+  border-radius: 12px;
+  margin-bottom: 2px;
+}
+
+.hr-sidebar .menu-item-active {
+  background: #c4a574 !important;
+  color: #1c1610 !important;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.hr-sidebar .menu-item-inactive {
+  color: #e8dfd2 !important;
+}
+
+.hr-sidebar .menu-item-inactive:hover {
+  background: rgba(196, 165, 116, 0.12);
+  color: #f7f3ea !important;
+  padding-left: 1rem;
+}
+
+.hr-sidebar .menu-item-icon-active {
+  color: #1c1610 !important;
+}
+
+.hr-sidebar .menu-item-icon-inactive {
+  color: #d8c09a !important;
+}
+
+.hr-sidebar .menu-dropdown-item-active {
+  color: #c4a574 !important;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .salary-slip-sheet {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+
+.hr-header .bg-brand-500 {
+  background: #c4a574 !important;
+}
+
 .vendor-sidebar .menu-item-icon-inactive,
 .vendor-sidebar .menu-item-icon-active {
   color: inherit;
@@ -1166,6 +1218,59 @@ span.flatpickr-weekday,
   background: color-mix(in srgb, var(--vendor-paper) 92%, transparent) !important;
   border-color: var(--vendor-line) !important;
   backdrop-filter: blur(12px);
+}
+
+@media (max-width: 1023px) {
+  .vendor-shell {
+    overflow-x: hidden;
+  }
+
+  .vendor-shell .admin-page-content {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .vendor-shell .admin-page-content img,
+  .vendor-shell .admin-page-content table,
+  .vendor-shell .admin-page-content video {
+    max-width: 100%;
+  }
+
+  .vendor-shell .vendor-sidebar {
+    top: 3.5rem;
+    height: calc(100dvh - 3.5rem);
+    width: min(18.5rem, 86vw) !important;
+    padding-left: 0.85rem !important;
+    padding-right: 0.85rem !important;
+  }
+
+  .vendor-shell .vendor-card:hover {
+    transform: none;
+  }
+
+  .vendor-shell input,
+  .vendor-shell select,
+  .vendor-shell textarea {
+    font-size: 16px;
+  }
+
+  .vendor-shell .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .vendor-shell .vendor-serif {
+    overflow-wrap: anywhere;
+  }
+
+  .vendor-shell .admin-page-content .text-3xl {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .vendor-shell .admin-page-content h1 {
+    word-break: break-word;
+  }
 }
 
 .crm-header {
@@ -1507,6 +1612,81 @@ span.flatpickr-weekday,
   background: #c4a574;
   transform-origin: left center;
   animation: vendor-gold-line 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vendor-quick {
+  background: #fbf8f2;
+  border: 1px solid #eee6d8;
+  color: #111;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.vendor-quick-icon {
+  background: #111;
+  color: #c4a574;
+}
+
+.vendor-quick-label {
+  color: #111;
+}
+
+.vendor-quick-hint {
+  color: #8a8175;
+}
+
+.vendor-quick:hover,
+.vendor-quick:focus-visible {
+  background: #111 !important;
+  border-color: #c4a574 !important;
+  box-shadow: 0 14px 28px rgba(17, 17, 17, 0.2);
+  transform: translateY(-2px);
+}
+
+.vendor-quick:hover .vendor-quick-icon,
+.vendor-quick:focus-visible .vendor-quick-icon {
+  background: #c4a574 !important;
+  color: #111 !important;
+}
+
+.vendor-quick:hover .vendor-quick-label,
+.vendor-quick:focus-visible .vendor-quick-label {
+  color: #f7f3ea !important;
+}
+
+.vendor-quick:hover .vendor-quick-hint,
+.vendor-quick:focus-visible .vendor-quick-hint {
+  color: #d4c8b8 !important;
+}
+
+@media (max-width: 767px) {
+  .vendor-dash .vendor-card {
+    border-radius: 1.15rem;
+  }
+
+  .vendor-dash .vendor-kpi {
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(28, 22, 16, 0.05);
+  }
+
+  .vendor-dash .vendor-kpi::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 3px;
+    width: 100%;
+    background: linear-gradient(90deg, #c4a574, #eadfcf);
+  }
+
+  .vendor-dash .vendor-quick svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .vendor-dash .vendor-project-row {
+    box-shadow: 0 8px 18px rgba(28, 22, 16, 0.04);
+  }
 }
 
 .vendor-card {
@@ -2577,40 +2757,177 @@ span.flatpickr-weekday,
 }
 
 .chat-composer-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.35rem 2.35rem 2.35rem minmax(0, 1fr) 2.35rem;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  min-height: 2.85rem;
+  padding: 0.28rem 0.35rem;
+  border: 1px solid #eadfcf;
+  border-radius: 999px;
+  background: #ffffff;
   box-shadow: 0 8px 24px rgba(28, 22, 16, 0.06);
+}
+
+.dark .chat-composer-bar {
+  border-color: #3a342c;
+  background: #1a1714;
+}
+
+.chat-composer-icon {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #8a8175;
+  background: transparent;
+}
+
+.chat-composer-icon:hover {
+  background: #f4efe6;
+  color: #1c1610;
+}
+
+.chat-composer-icon:disabled {
+  opacity: 0.4;
+}
+
+.chat-composer-send {
+  background: #eadfcf;
+  color: #8a8175;
+}
+
+.chat-composer-send.chat-send-ready {
+  background: #c4a574;
+  color: #1c1610;
+}
+
+.chat-composer-input {
+  min-width: 0;
+  width: 100%;
+  height: 2.25rem;
+  max-height: 2.25rem;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.35rem;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #1c1610;
+  outline: none;
+}
+
+.chat-composer-input::placeholder {
+  color: #b3a594;
+}
+
+.dark .chat-composer-input {
+  color: #f3ece2;
+}
+
+.chat-canvas,
+.chat-page,
+.chat-shell,
+.vendor-shell .admin-page-content,
+.vendor-shell .admin-main-content {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chat-canvas::-webkit-scrollbar,
+.chat-page::-webkit-scrollbar,
+.chat-shell::-webkit-scrollbar,
+.chat-canvas *::-webkit-scrollbar,
+.vendor-shell .admin-page-content::-webkit-scrollbar,
+.vendor-shell .admin-main-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .chat-page {
   height: calc(100dvh - 7.5rem);
 }
 
-@media (max-width: 767px) {
-  .chat-page {
-    height: calc(100dvh - 5.75rem);
-    margin-left: -1rem;
-    margin-right: -1rem;
-    margin-bottom: -1rem;
-    border-left: 0;
-    border-right: 0;
-    border-bottom: 0;
-    border-radius: 1.25rem 1.25rem 0 0;
+@media (max-width: 1023px) {
+  html:has(.is-chat-page),
+  body:has(.is-chat-page) {
+    height: 100svh;
+    max-height: 100svh;
+    overflow: hidden;
   }
 
-  .vendor-shell .chat-page {
-    height: calc(100dvh - 6.5rem);
+  .is-chat-page {
+    height: 100svh !important;
+    max-height: 100svh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .is-chat-page .admin-page-content {
+    padding: 0 !important;
+    max-width: none;
+    overflow: visible !important;
+  }
+
+  .chat-page,
+  .is-chat-page .chat-page {
+    position: fixed !important;
+    top: 3.5rem;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 45;
+    display: flex !important;
+    flex-direction: column;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+
+  .chat-canvas {
+    flex: 1 1 auto;
+    min-height: 0 !important;
+    height: auto !important;
   }
 
   .chat-composer-wrap {
-    padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+    flex: 0 0 auto !important;
+    position: relative;
+    z-index: 6;
+    padding: 0.45rem 0.65rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-composer-bar {
+    grid-template-columns: 2.15rem 2.15rem 2.15rem minmax(0, 1fr) 2.15rem;
+    min-height: 2.65rem;
+    padding: 0.22rem 0.28rem;
   }
 
   .chat-composer-icon {
-    height: 2.25rem;
-    width: 2.25rem;
+    height: 2.05rem;
+    width: 2.05rem;
+  }
+
+  .chat-composer-input {
+    height: 2.05rem;
+    max-height: 2.05rem;
+    font-size: 16px;
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .chat-page {
     height: calc(100dvh - 7.5rem);
   }

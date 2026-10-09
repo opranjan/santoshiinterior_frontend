@@ -221,18 +221,18 @@ export default function IntegrationsSettings() {
       <div className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-6 dark:border-[#3a342c] dark:bg-[#161411]">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">Telephony</p>
         <h2 className="mt-1 font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-          Jio SIP trunk · cloud telephony
+          Exotel · click-to-call
         </h2>
         <p className="mt-2 text-sm text-[#8a7b68]">
-          Jio Business SIP connects to your IP-PBX (FreePBX / Asterisk). The CRM
-          originates click-to-call through AMI or a CPaaS HTTP API, then stores CDRs.
+          Exotel rings the agent&apos;s mobile first, then connects the customer using
+          your ExoPhone as caller ID. Call status and recordings are saved from the webhook.
         </p>
 
         {telStatus ? (
           <div className="mt-4 flex flex-wrap gap-2">
             <Pill ok={telStatus.configured} label={telStatus.configured ? "Telephony configured" : "Not configured"} />
-            <Pill ok={telStatus.sipConfigured} label={telStatus.sipConfigured ? "SIP host set" : "SIP missing"} />
-            <Pill ok={telStatus.clickToCallReady} label={telStatus.clickToCallReady ? "Click-to-call ready" : "Needs AMI or HTTP"} />
+            <Pill ok={Boolean(telStatus.exotelConfigured)} label={telStatus.exotelConfigured ? "Exotel API ready" : "Exotel keys missing"} />
+            <Pill ok={telStatus.clickToCallReady} label={telStatus.clickToCallReady ? "Click-to-call ready" : "Needs Exotel credentials"} />
             <Pill ok={telWebhookReceived} label={telWebhookReceived ? "CDR received" : "CDR waiting"} />
           </div>
         ) : null}
@@ -243,7 +243,7 @@ export default function IntegrationsSettings() {
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">CDR webhook (PBX / JioCX → CRM)</label>
+            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Status callback (Exotel → CRM)</label>
             <div className="mt-1.5 flex gap-2">
               <input value={telWebhookUrl} disabled className="h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]" />
               <button type="button" onClick={() => void copyTel()} className="inline-flex h-11 shrink-0 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]">
@@ -258,16 +258,15 @@ export default function IntegrationsSettings() {
         </div>
 
         <div className="mt-6 rounded-xl border border-[#eadfcf] bg-white p-4 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
-          <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">Backend `.env` (Jio SIP)</p>
+          <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">Backend `.env` (Exotel)</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-[#8a7b68]">
-            <li><code>JIO_SIP_HOST</code> / <code>JIO_SIP_PORT</code> — registrar from Jio</li>
-            <li><code>JIO_SIP_USERNAME</code> / <code>JIO_SIP_PASSWORD</code> — SIP auth if required (often IP-only)</li>
-            <li><code>JIO_SIP_DID</code> — caller ID / landline DID</li>
-            <li><code>JIO_SIP_TRUNK_NAME</code> — FreePBX trunk name (default jio-trunk)</li>
-            <li><code>AMI_HOST</code> / <code>AMI_USERNAME</code> / <code>AMI_SECRET</code> — Asterisk click-to-call</li>
-            <li><code>TELEPHONY_DEFAULT_EXTENSION</code> or user SIP extension in Users</li>
-            <li><code>TELEPHONY_CLICK_TO_CALL_URL</code> — optional JioCX / CPaaS HTTP originate</li>
-            <li><code>TELEPHONY_PROVIDER</code> — ami | http | manual</li>
+            <li><code>TELEPHONY_PROVIDER=exotel</code></li>
+            <li><code>EXOTEL_API_KEY</code> / <code>EXOTEL_API_TOKEN</code> — Dashboard → Settings → API</li>
+            <li><code>EXOTEL_ACCOUNT_SID</code> — Account SID from the same page</li>
+            <li><code>EXOTEL_EXOPHONE</code> — virtual number used as Caller ID</li>
+            <li><code>EXOTEL_SUBDOMAIN</code> — <code>api.in.exotel.com</code> (India) or <code>api.exotel.com</code></li>
+            <li><code>EXOTEL_AGENT_NUMBER</code> — optional fallback if the user has no mobile</li>
+            <li>Each agent&apos;s CRM user profile must have a mobile number (Exotel rings that first)</li>
           </ul>
         </div>
       </div>

@@ -59,7 +59,7 @@ export default function FranchiseeProjectsList({
     <div className="space-y-6">
       <div className="vendor-rise">
         <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
-        <h1 className="vendor-serif mt-2 text-3xl text-[#111] md:text-4xl">{title}</h1>
+        <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">{title}</h1>
         <div className="vendor-gold-rule mt-3" />
         <p className="mt-3 max-w-xl text-sm text-[#6b645b]">{subtitle}</p>
       </div>
@@ -71,9 +71,9 @@ export default function FranchiseeProjectsList({
           { label: "Ongoing", value: loading ? "—" : counts.ongoing },
           { label: "Pending", value: loading ? "—" : counts.pending },
         ].map((item, index) => (
-          <div key={item.label} className={`vendor-card vendor-rise p-4 vendor-rise-delay-${index + 1}`}>
+          <div key={item.label} className={`vendor-card vendor-rise p-3 sm:p-4 vendor-rise-delay-${index + 1}`}>
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">{item.label}</p>
-            <p className="vendor-serif mt-2 text-3xl text-[#111]">{item.value}</p>
+          <p className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl">{item.value}</p>
           </div>
         ))}
       </div>
@@ -82,7 +82,7 @@ export default function FranchiseeProjectsList({
         {items.map((row, index) => (
           <article
             key={row.id}
-            className={`vendor-card vendor-rise p-5 vendor-rise-delay-${(index % 6) + 1}`}
+            className={`vendor-card vendor-rise p-4 sm:p-5 vendor-rise-delay-${(index % 6) + 1}`}
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">
@@ -92,7 +92,7 @@ export default function FranchiseeProjectsList({
                 {enumToLabel(row.status || "KICKOFF")}
               </span>
             </div>
-            <h2 className="vendor-serif mt-3 text-2xl leading-tight text-[#111]">{row.name}</h2>
+            <h2 className="vendor-serif mt-3 text-xl leading-tight text-[#111] sm:text-2xl">{row.name}</h2>
             <p className="mt-2 text-sm text-[#6b645b]">{row.address || "Location not listed"}</p>
             <div className="mt-5 grid grid-cols-2 gap-4 border-t border-[#eee6d8] pt-4 dark:border-[var(--vendor-line)]">
               <div>

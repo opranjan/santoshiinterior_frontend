@@ -71,6 +71,7 @@ const IMPLIES: Record<string, string[]> = {
   "documents.manage": ["documents.view"],
   "design.manage": ["design.view"],
   "hr.manage": ["hr.view"],
+  "hr.portal": ["hr.view", "hr.manage"],
   "stores.manage": ["stores.view"],
   "vendor.chat.all": ["chat.box"],
 };
@@ -160,7 +161,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/warranty-desk", permissions: ["warranty.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/customer-issues", permissions: ["issues.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/documents", permissions: ["documents.view", "documents.manage", "projects.view", "workorders.manage", "sales.view", "sales.manage", "sales.full"] },
-  { prefix: "/hr", permissions: ["hr.manage", "hr.view", "users.view", "users.manage"] },
+  { prefix: "/hr", permissions: ["hr.manage", "hr.view", "hr.portal", "users.view", "users.manage"] },
   { prefix: "/calendar", permissions: ["calendar.view", "sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
   { prefix: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
   { prefix: "/franchisees", permissions: ["users.manage", "users.view"] },
@@ -188,6 +189,14 @@ export const canAccessRoute = (
     path.startsWith("/design") ||
     path.startsWith("/operations/procurement") ||
     vendorPanelOnly.some((p) => path === p || path.startsWith(`${p}/`));
+  if (isHrPanelUser(user)) {
+    return (
+      path === "/" ||
+      path === "/profile" ||
+      path === "/hr" ||
+      path.startsWith("/hr/")
+    );
+  }
   if (isVendorPanelUser(user)) return vendorPanelOk;
   if (vendorPanelOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
     return false;
@@ -336,6 +345,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     subItems: [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
       { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view"] },
+      { name: "HR Panel", path: "/users", permissions: ["users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
     ],
   },
@@ -464,6 +474,28 @@ export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
 
 export const FRANCHISEE_NAV_ITEMS = VENDOR_NAV_ITEMS;
 
+const HR_PANEL_PERMS = ["hr.portal", "hr.manage", "hr.view"];
+
+export const HR_NAV_ITEMS: NavPermissionGroup[] = [
+  { name: "Dashboard", path: "/", permissions: HR_PANEL_PERMS },
+  { name: "Employees", path: "/hr/employees", permissions: HR_PANEL_PERMS },
+  { name: "Attendance", path: "/hr/attendance", permissions: HR_PANEL_PERMS },
+  { name: "Leave Requests", path: "/hr/leaves", permissions: HR_PANEL_PERMS },
+  {
+    name: "Payroll",
+    path: "/hr/payroll/slips",
+    permissions: HR_PANEL_PERMS,
+    subItems: [
+      { name: "Salary Slips", path: "/hr/payroll/slips", permissions: HR_PANEL_PERMS },
+    ],
+  },
+  { name: "Performance", path: "/hr/performance", permissions: HR_PANEL_PERMS },
+  { name: "HR Policies", path: "/hr/policies", permissions: HR_PANEL_PERMS },
+  { name: "Documents", path: "/hr/documents", permissions: HR_PANEL_PERMS },
+  { name: "Reports", path: "/hr/reports", permissions: HR_PANEL_PERMS },
+  { name: "Settings", path: "/hr/settings", permissions: HR_PANEL_PERMS },
+];
+
 const filterNavNode = (
   item: NavPermissionItem,
   user: AuthUser | null | undefined
@@ -514,4 +546,19 @@ export const isVendorUser = (user: AuthUser | null | undefined) => {
 
 export const isVendorPanelUser = (user: AuthUser | null | undefined) =>
   isFranchiseeUser(user) || isVendorUser(user);
+
+export const isHrPanelUser = (user: AuthUser | null | undefined) => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return false;
+  if (user.accessRole?.key === "HR_PANEL") return true;
+  if (user.accessRole?.key === "HR") return true;
+  if (user.role === "HR") return true;
+  return (
+    hasPermission(user, "hr.portal") &&
+    !hasAnyPermission(user, ["sales.full", "sales.manage", "users.manage"])
+  );
+};
+
+export const isIsolatedShellUser = (user: AuthUser | null | undefined) =>
+  isVendorPanelUser(user) || isHrPanelUser(user);
 

@@ -220,7 +220,33 @@ export default function DocumentsWorkspace() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="overflow-x-auto">
+        <div className="grid grid-cols-2 gap-3 p-3 md:hidden">
+          {filtered.map((row) => {
+            const href = designAssetUrl(row.url);
+            const type = previewKind(row.fileName, row.kind);
+            return (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => href && setPreview(row)}
+                className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f2] text-left"
+              >
+                <span className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-white">
+                  {type === "image" && href ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={href} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                      {fileKind(row.fileName, row.kind)}
+                    </span>
+                  )}
+                </span>
+                <span className="block truncate px-2.5 py-2 text-xs font-medium text-[#111]">{row.fileName}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs text-gray-500 dark:bg-white/[0.02]">
               <tr>

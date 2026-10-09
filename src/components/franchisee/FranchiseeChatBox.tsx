@@ -97,23 +97,23 @@ export default function FranchiseeChatBox() {
   const typingLabel = typingPhrase(typingNames);
 
   return (
-    <div className="chat-shell chat-page flex min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-[28px] border border-[#eadfcf] bg-white dark:border-[var(--vendor-line)] dark:bg-[var(--vendor-paper)]">
-      <div className="flex items-center gap-2 border-b border-[#eadfcf] bg-white px-3 py-3 md:gap-3 md:px-5 md:py-3.5 dark:border-[var(--vendor-line)]">
-        <ChatAvatar name="Santoshi Interiors" size="md" online={presence.staffOnline || connected} />
+    <div className="chat-shell chat-page flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-[#eadfcf] bg-white dark:border-[var(--vendor-line)] dark:bg-[var(--vendor-paper)]">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[#eadfcf] bg-white px-3 py-2 md:gap-3 md:px-5 md:py-3.5 dark:border-[var(--vendor-line)]">
+        <ChatAvatar name="Santoshi Interiors" size="sm" online={presence.staffOnline || connected} />
         <div className="min-w-0 flex-1">
-          <p className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-2">
-            <span className="truncate font-serif text-[1.15rem] leading-none text-[#111] md:text-[1.35rem]">
+          <p className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-serif text-[1.05rem] leading-tight text-[#111] md:text-[1.35rem]">
               Santoshi Interiors
             </span>
             <span
-              className={`mt-1 font-sans text-[11px] sm:mt-0 sm:text-[12px] ${
+              className={`shrink-0 font-sans text-[11px] md:text-[12px] ${
                 typingLabel ? "italic text-[#9a7748]" : presence.staffOnline || connected ? "text-[#2f9d64]" : "text-[#8a8175]"
               }`}
             >
               {typingLabel || (presence.staffOnline || connected ? "● Online" : "Offline")}
             </span>
           </p>
-          <p className="mt-1 truncate text-[11px] text-[#8a8175] md:mt-1.5 md:text-xs">Direct line with the studio team</p>
+          <p className="mt-0.5 truncate text-[11px] text-[#8a8175] md:mt-1.5 md:text-xs">Direct line with the studio team</p>
         </div>
       </div>
       <VendorChatThread

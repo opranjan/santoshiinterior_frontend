@@ -571,7 +571,8 @@ export default function LeadCommunicationPanel({
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [chatTemplate, setChatTemplate] = useState<ChatTemplateId>("start_chat_ut");
-  const [requirement, setRequirement] = useState(projectName || "");
+  const [templateName, setTemplateName] = useState(firstName(clientName));
+  const [templateNeed, setTemplateNeed] = useState(projectName || "");
 
   const canViewAll = hasAnyPermission(user, [
     "messages.view.all",
@@ -634,8 +635,9 @@ export default function LeadCommunicationPanel({
 
   useEffect(() => {
     setChatTemplate("start_chat_ut");
-    setRequirement(projectName || "");
-  }, [leadId, projectName]);
+    setTemplateName(firstName(clientName));
+    setTemplateNeed(projectName || "");
+  }, [leadId, clientName, projectName]);
 
   useEffect(() => {
     (async () => {
@@ -746,14 +748,13 @@ export default function LeadCommunicationPanel({
     setNotice("");
     try {
       const selectedSpec = CHAT_TEMPLATES.find((row) => row.id === chatTemplate);
+      const nameValue = templateName.trim() || firstName(clientName);
+      const needValue = templateNeed.trim() || projectName || "interior design";
       const followupValues =
         selectedSpec?.params === 2
-          ? [
-              firstName(clientName),
-              requirement.trim() || projectName || "interior design",
-            ]
+          ? [nameValue, needValue]
           : selectedSpec?.params === 1
-            ? [firstName(clientName)]
+            ? [nameValue]
             : [];
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
@@ -798,6 +799,7 @@ export default function LeadCommunicationPanel({
         to: phone,
         leadId,
         extension: user?.sipExtension || undefined,
+        agentNumber: user?.phone || undefined,
       });
       if (result.originate.mode === "manual" && result.originate.dialFallback) {
         window.location.href = result.originate.dialFallback;
@@ -1022,38 +1024,50 @@ export default function LeadCommunicationPanel({
                     </option>
                   ))}
                 </select>
-                {chatTemplate === "interior_lead_followup" ? (
-                  <>
+                {CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.params ? (
+                  <div className="space-y-2">
                     <label className="block text-[11px] font-medium uppercase tracking-wide text-[#667781] dark:text-gray-400">
-                      Requirement
+                      Name you want in the message
                     </label>
                     <input
                       type="text"
-                      value={requirement}
-                      onChange={(e) => setRequirement(e.target.value)}
-                      placeholder="e.g. 3 BHK living room + kitchen"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      placeholder="e.g. Rahul"
                       className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:border-[#25d366] focus:outline-none dark:border-gray-600 dark:bg-[#111b21] dark:text-[#e9edef]"
                     />
+                    {CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.params === 2 ? (
+                      <>
+                        <label className="block text-[11px] font-medium uppercase tracking-wide text-[#667781] dark:text-gray-400">
+                          What they asked for
+                        </label>
+                        <input
+                          type="text"
+                          value={templateNeed}
+                          onChange={(e) => setTemplateNeed(e.target.value)}
+                          placeholder="e.g. 3 BHK living room + kitchen"
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:border-[#25d366] focus:outline-none dark:border-gray-600 dark:bg-[#111b21] dark:text-[#e9edef]"
+                        />
+                      </>
+                    ) : null}
+                    <p className="text-[11px] text-[#667781] dark:text-gray-400">
+                      You can type only these blanks. WhatsApp does not allow a full custom message until the customer replies.
+                    </p>
                     <div className="whitespace-pre-wrap rounded-xl bg-[#efeae2] px-3 py-2 text-[12px] leading-5 text-[#111b21] dark:bg-[#0b141a] dark:text-[#e9edef]">
                       {fillPlaceholders(
-                        CHAT_TEMPLATES.find((row) => row.id === "interior_lead_followup")?.body || "",
-                        [
-                          firstName(clientName),
-                          requirement.trim() || projectName || "interior design",
-                        ]
+                        CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.body || "",
+                        CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.params === 2
+                          ? [
+                              templateName.trim() || firstName(clientName),
+                              templateNeed.trim() || projectName || "interior design",
+                            ]
+                          : [templateName.trim() || firstName(clientName)]
                       )}
                     </div>
-                  </>
-                ) : CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.body ? (
-                  <div className="whitespace-pre-wrap rounded-xl bg-[#efeae2] px-3 py-2 text-[12px] leading-5 text-[#111b21] dark:bg-[#0b141a] dark:text-[#e9edef]">
-                    {fillPlaceholders(
-                      CHAT_TEMPLATES.find((row) => row.id === chatTemplate)?.body || "",
-                      [firstName(clientName)]
-                    )}
                   </div>
                 ) : (
                   <p className="text-[12px] text-[#667781] dark:text-gray-400">
-                    Sends the approved Hi opener. No extra body text is needed.
+                    This template has no blanks. WhatsApp sends the approved Hi text as-is. After {clientName} replies, a Type a message box will appear for free chat.
                   </p>
                 )}
               </div>

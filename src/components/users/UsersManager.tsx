@@ -165,14 +165,18 @@ export default function UsersManager() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AuthUser | null>(null);
   const [prefillFranchisee, setPrefillFranchisee] = useState(false);
+  const [prefillHr, setPrefillHr] = useState(false);
   const [credentials, setCredentials] = useState<{
     name: string;
     email: string;
     password: string;
     franchisee: boolean;
+    hr?: boolean;
   } | null>(null);
 
   const franchiseeRoleId = roles.find((r) => r.key === "FRANCHISEE")?.id || "";
+  const hrPanelRoleId =
+    roles.find((r) => r.key === "HR_PANEL")?.id || roles.find((r) => r.key === "HR")?.id || "";
   const defaultRoleId = franchiseeRoleId
     ? roles.find((r) => r.key === "SALES")?.id || roles[0]?.id || ""
     : roles.find((r) => r.key === "SALES")?.id || roles[0]?.id || "";
@@ -228,7 +232,11 @@ export default function UsersManager() {
 
   const formInitial = useMemo((): UserFormState => {
     if (!editingUser) {
-      const roleId = prefillFranchisee && franchiseeRoleId ? franchiseeRoleId : defaultRoleId;
+      const roleId = prefillHr && hrPanelRoleId
+        ? hrPanelRoleId
+        : prefillFranchisee && franchiseeRoleId
+          ? franchiseeRoleId
+          : defaultRoleId;
       const form = emptyUserForm(roleId);
       form.password = generateTempPassword();
       return form;
@@ -245,15 +253,16 @@ export default function UsersManager() {
       storeId: editingUser.storeId || "",
       vendorId: editingUser.vendorId || "",
     };
-  }, [editingUser, defaultRoleId, franchiseeRoleId, prefillFranchisee]);
+  }, [editingUser, defaultRoleId, franchiseeRoleId, hrPanelRoleId, prefillFranchisee, prefillHr]);
 
   const saveUser = async (form: UserFormState) => {
     try {
       setSaving(true);
       setError("");
-      const selectedIsFranchisee =
-        roles.find((r) => r.id === form.accessRoleId)?.key === "FRANCHISEE";
-      const selectedIsVendor = roles.find((r) => r.id === form.accessRoleId)?.key === "VENDOR";
+      const selectedRoleKey = roles.find((r) => r.id === form.accessRoleId)?.key;
+      const selectedIsFranchisee = selectedRoleKey === "FRANCHISEE";
+      const selectedIsVendor = selectedRoleKey === "VENDOR";
+      const selectedIsHr = selectedRoleKey === "HR_PANEL" || selectedRoleKey === "HR";
       const body = {
         name: form.name.trim(),
         email: form.email.trim(),
@@ -278,6 +287,7 @@ export default function UsersManager() {
             email: form.email.trim(),
             password: form.password.trim(),
             franchisee: selectedIsFranchisee,
+            hr: selectedIsHr,
           });
         }
       } else {
@@ -291,6 +301,7 @@ export default function UsersManager() {
           email: form.email.trim(),
           password: form.password.trim(),
           franchisee: selectedIsFranchisee,
+          hr: selectedIsHr,
         });
         setNotice("User created. Copy the login details and share them.");
       }
@@ -357,6 +368,7 @@ export default function UsersManager() {
                   return;
                 }
                 setEditingUser(null);
+                setPrefillHr(false);
                 setPrefillFranchisee(true);
                 setFormOpen(true);
               }}
@@ -367,8 +379,25 @@ export default function UsersManager() {
             <button
               type="button"
               onClick={() => {
+                if (!hrPanelRoleId) {
+                  setError("HR panel role is not ready yet. Restart the API, then try again.");
+                  return;
+                }
                 setEditingUser(null);
                 setPrefillFranchisee(false);
+                setPrefillHr(true);
+                setFormOpen(true);
+              }}
+              className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+            >
+              Add HR panel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingUser(null);
+                setPrefillFranchisee(false);
+                setPrefillHr(false);
                 setFormOpen(true);
               }}
               className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
@@ -607,6 +636,8 @@ export default function UsersManager() {
         title={
           editingUser
             ? "Edit User"
+              : prefillHr
+              ? "Add HR Panel"
               : prefillFranchisee
               ? "Add Vendor"
               : "Add User"
@@ -621,6 +652,7 @@ export default function UsersManager() {
           setFormOpen(false);
           setEditingUser(null);
           setPrefillFranchisee(false);
+          setPrefillHr(false);
         }}
         onSubmit={saveUser}
       />
@@ -632,7 +664,9 @@ export default function UsersManager() {
               Share login details
             </h3>
             <p className="mt-1 text-sm text-[#8a7b68]">
-              {credentials.franchisee
+              {credentials.hr
+                ? "Give these to HR. They sign in at the same URL and will see the HR panel."
+                : credentials.franchisee
                 ? "Give these to the vendor. They sign in to the same CRM and will see the Vendor panel."
                 : "Give these to the user for first login."}
             </p>
@@ -670,7 +704,9 @@ export default function UsersManager() {
                     `Email: ${credentials.email}`,
                     `Password: ${credentials.password}`,
                     `Login: ${origin}/signin`,
-                    credentials.franchisee
+                    credentials.hr
+                      ? "After login they see the HR panel"
+                      : credentials.franchisee
                       ? "After login they see the Vendor panel"
                       : "",
                   ]

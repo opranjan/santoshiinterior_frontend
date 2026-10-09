@@ -344,6 +344,7 @@ export type TelephonyStatusDto = {
   sipConfigured: boolean;
   amiConfigured: boolean;
   httpConfigured: boolean;
+  exotelConfigured?: boolean;
   clickToCallReady: boolean;
   webrtcReady: boolean;
   sipHost: string | null;
@@ -354,6 +355,20 @@ export type TelephonyStatusDto = {
   sipWssUrl: string | null;
   sipUsername: string | null;
   defaultExtension: string | null;
+  exotelSubdomain?: string | null;
+  exotelCallerId?: string | null;
+  exotelMissing?: string[];
+  exotelTrial?: boolean;
+  exotelLive?: {
+    authOk?: boolean;
+    subdomain?: string;
+    accountType?: string | null;
+    accountStatus?: string | null;
+    kycStatus?: string | null;
+    callerId?: string | null;
+    exophoneCount?: number;
+    message?: string | null;
+  } | null;
   webhookPath: string;
   recommendedWebhookUrl?: string | null;
   publicApiUrlConfigured?: boolean;
@@ -395,6 +410,7 @@ export const telephonyApi = {
     phone?: string;
     leadId?: string;
     extension?: string;
+    agentNumber?: string;
     note?: string;
   }) =>
     api.post<{
@@ -1165,6 +1181,7 @@ export const warrantyApi = {
 };
 
 export const hrApi = {
+  summary: () => api.get<Record<string, unknown>>("/hr/summary"),
   listEmployees: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/employees", query),
   createEmployee: (body: Record<string, unknown>) =>
@@ -1181,6 +1198,75 @@ export const hrApi = {
   createLeave: (body: Record<string, unknown>) => api.post("/hr/leaves", body),
   updateLeave: (id: string, body: Record<string, unknown>) =>
     api.put(`/hr/leaves/${id}`, body),
+  getSalarySlip: (query: { employeeId: string; month: string }) =>
+    api.get<Record<string, unknown>>("/hr/payroll/slip", query),
+  saveSalarySlip: (body: Record<string, unknown>) =>
+    api.post("/hr/payroll/slip", body),
+  performance: () => api.get<Record<string, unknown>>("/hr/performance"),
+  createGoal: (body: Record<string, unknown>) =>
+    api.post("/hr/performance/goals", body),
+  updateGoal: (id: string, body: Record<string, unknown>) =>
+    api.put(`/hr/performance/goals/${id}`, body),
+  reports: (query?: Record<string, string | number | undefined>) =>
+    api.get<Record<string, unknown>>("/hr/reports", query),
+  listPolicies: () =>
+    api.get<{ items: Record<string, unknown>[]; employeeCount: number; categories: string[] }>(
+      "/hr/policies"
+    ),
+  createPolicy: (body: Record<string, unknown>) => api.post("/hr/policies", body),
+  updatePolicy: (id: string, body: Record<string, unknown>) =>
+    api.put(`/hr/policies/${id}`, body),
+  removePolicy: (id: string) => api.delete(`/hr/policies/${id}`),
+  uploadPolicyFile: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${base}/hr/policies/${id}/files`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Failed to upload file");
+    }
+    return json.data as Record<string, unknown>;
+  },
+  listDocuments: (query?: Record<string, string | number | undefined>) =>
+    api.get<Record<string, unknown>>("/hr/documents", query),
+  uploadDocument: async (body: { name: string; type: string; employeeId?: string; scope?: string }, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("file", file);
+    form.append("name", body.name);
+    form.append("type", body.type);
+    if (body.employeeId) form.append("employeeId", body.employeeId);
+    if (body.scope) form.append("scope", body.scope);
+    const res = await fetch(`${base}/hr/documents`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Failed to upload document");
+    }
+    return json.data as Record<string, unknown>;
+  },
+  updateDocument: (id: string, body: Record<string, unknown>) =>
+    api.put(`/hr/documents/${id}`, body),
+  removeDocument: (id: string, hard?: boolean) =>
+    api.delete(`/hr/documents/${id}${hard ? "?hard=true" : ""}`),
 };
 
 export const usersApi = {

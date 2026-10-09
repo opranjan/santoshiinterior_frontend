@@ -35,38 +35,37 @@ const titles: Record<CustomerMessageKind, string> = {
 
 const hints: Record<CustomerMessageKind, string> = {
   whatsapp:
-    "Uses the interior_design_offer template: image header, {{1}} first name, {{2}} services list.",
+    "Uses a MARKETING template. Default is interior_design_offer: image header, {{1}} first name, {{2}} services list.",
   broadcast:
-    "Sends the same WhatsApp template to every selected customer. Defaults to interior_design_offer.",
+    "Sends the same MARKETING WhatsApp template to every selected customer. Defaults to interior_design_offer.",
   marketing:
-    "Send from this customer list. Default is interior_design_offer (image header, {{1}} name, {{2}} services). If WhatsApp does not deliver it, switch the template below to start_chat_ut or followup (Utility).",
+    "Send from this customer list using MARKETING templates only. Default is interior_design_offer (image header, {{1}} name, {{2}} services).",
 };
 
 const OFFER_TEMPLATE = "interior_design_offer";
 const SERVICE_TEMPLATES = ["interior_design_services", "interior_design_service"];
-const UTILITY_TEMPLATES = ["start_chat_ut", "followup"];
-const MARKETING_PREFERRED = [
-  OFFER_TEMPLATE,
-  ...SERVICE_TEMPLATES,
-  ...UTILITY_TEMPLATES,
-];
+const MARKETING_PREFERRED = [OFFER_TEMPLATE, ...SERVICE_TEMPLATES];
 
 type TemplateRow = WhatsAppStatusDto["approvedTemplates"][number];
 
-function pickTemplate(kind: CustomerMessageKind, rows: TemplateRow[]) {
-  const preferred =
-    kind === "marketing" ? MARKETING_PREFERRED : [OFFER_TEMPLATE, ...UTILITY_TEMPLATES];
-  for (const name of preferred) {
-    const match = rows.find((row) => row.name === name);
+function isMarketingTemplate(row: TemplateRow) {
+  const cat = String(row.category || "").toUpperCase();
+  if (cat === "UTILITY" || cat === "AUTHENTICATION") return false;
+  if (cat === "MARKETING") return true;
+  return MARKETING_PREFERRED.includes(row.name);
+}
+
+function marketingRows(rows: TemplateRow[]) {
+  return (rows || []).filter(isMarketingTemplate);
+}
+
+function pickTemplate(_kind: CustomerMessageKind, rows: TemplateRow[]) {
+  const list = marketingRows(rows);
+  for (const name of MARKETING_PREFERRED) {
+    const match = list.find((row) => row.name === name);
     if (match) return match;
   }
-  if (kind === "marketing") {
-    const marketing = rows.find(
-      (row) => String(row.category || "").toUpperCase() === "MARKETING"
-    );
-    if (marketing) return marketing;
-  }
-  return rows[0];
+  return list[0];
 }
 
 const fieldClass =
@@ -131,24 +130,15 @@ export default function CustomerSendModal({
   }, [open, kind]);
 
   const visibleTemplates = useMemo(() => {
-    const preferred =
-      kind === "marketing" ? MARKETING_PREFERRED : [OFFER_TEMPLATE, ...UTILITY_TEMPLATES];
-    const ranked = [...templates].sort((a, b) => {
-      const ai = preferred.indexOf(a.name);
-      const bi = preferred.indexOf(b.name);
-      if (ai === -1 && bi === -1) return 0;
+    return marketingRows(templates).sort((a, b) => {
+      const ai = MARKETING_PREFERRED.indexOf(a.name);
+      const bi = MARKETING_PREFERRED.indexOf(b.name);
+      if (ai === -1 && bi === -1) return a.name.localeCompare(b.name);
       if (ai === -1) return 1;
       if (bi === -1) return -1;
       return ai - bi;
     });
-    if (kind !== "marketing") return ranked;
-    const marketing = ranked.filter(
-      (row) =>
-        String(row.category || "").toUpperCase() === "MARKETING" ||
-        preferred.includes(row.name)
-    );
-    return marketing.length ? marketing : ranked;
-  }, [kind, templates]);
+  }, [templates]);
 
   if (!open) return null;
 
@@ -279,17 +269,11 @@ export default function CustomerSendModal({
               </p>
             ) : null}
 
-            {configured &&
-            templates.length > 0 &&
-            !(kind === "marketing" ? MARKETING_PREFERRED : [OFFER_TEMPLATE]).some(
-              (name) => templates.some((row) => row.name === name)
-            ) ? (
+            {configured && templates.length > 0 && !visibleTemplates.length ? (
               <p className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-700">
-                {kind === "marketing"
-                  ? "interior_design_offer"
-                  : "interior_design_offer"}{" "}
-                is not on the connected Cloud API WhatsApp account. Create that
-                template in Meta for this same number, then it will appear here.
+                No MARKETING templates are approved on this WhatsApp account.
+                Create a MARKETING template in WhatsApp Manager, then it will appear here.
+                Utility templates are hidden on this customer send screen.
               </p>
             ) : null}
 
@@ -359,9 +343,7 @@ export default function CustomerSendModal({
                 placeholder={
                   needsHeaderImage || selectedTemplate?.name === OFFER_TEMPLATE
                     ? "Optional {{2}} services text. Leave blank to use the default services line."
-                    : UTILITY_TEMPLATES.includes(selectedTemplate?.name || "")
-                      ? "{{1}} is filled with the customer first name. No extra text is required."
-                      : "Optional extra body text for this template."
+                    : "Optional extra body text for this MARKETING template."
                 }
                 className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               />

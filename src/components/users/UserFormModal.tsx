@@ -99,7 +99,9 @@ export default function UserFormModal({
               <p className="mt-1 text-sm text-[#8a7b68]">
                 {title.includes("Vendor")
                   ? "Create a vendor panel login. Copy the email and password after save and share them."
-                  : "Add login details and assign a role for CRM access."}
+                  : title.includes("HR")
+                    ? "Create an HR panel login. Copy the email and password after save and share them."
+                    : "Add login details and assign a role for CRM access."}
               </p>
             </div>
             <button
@@ -147,7 +149,8 @@ export default function UserFormModal({
                 placeholder="101"
               />
               <p className="mt-1 text-[11px] text-gray-500">
-                Jio SIP click-to-call rings this extension first.
+                Optional PBX extension. Exotel click-to-call uses this user&apos;s
+                mobile number first, not the SIP extension.
               </p>
             </div>
             {!isEdit ? (

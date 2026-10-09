@@ -101,7 +101,7 @@ type ProjectPay = {
 
 const card = "vendor-card p-4";
 const dateClass =
-  "h-10 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-3 text-sm text-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20";
+  "h-10 w-full min-w-0 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-3 text-sm text-[#111] sm:w-auto dark:border-[var(--vendor-line)] dark:bg-black/20";
 const selectClass =
   "h-9 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-2 text-sm text-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20";
 
@@ -277,7 +277,7 @@ export default function FranchiseePayments() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="vendor-rise">
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
-          <h1 className="vendor-serif mt-2 text-3xl text-[#111] md:text-4xl">Payments</h1>
+          <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">Payments</h1>
           <div className="vendor-gold-rule mt-3" />
           <p className="mt-3 max-w-xl text-sm text-[#6b645b]">
             These are payouts from Santoshi Interior to you for assigned projects, after DLP holding. DLP (held amount) is shown under DLP Payment.

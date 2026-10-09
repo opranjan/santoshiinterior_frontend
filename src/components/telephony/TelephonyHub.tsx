@@ -38,6 +38,7 @@ export default function TelephonyHub() {
   const [dialing, setDialing] = useState(false);
   const [phone, setPhone] = useState("");
   const [extension, setExtension] = useState(user?.sipExtension || "");
+  const [agentNumber, setAgentNumber] = useState(user?.phone || "");
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +64,12 @@ export default function TelephonyHub() {
     if (user?.sipExtension && !extension) setExtension(user.sipExtension);
   }, [user?.sipExtension, extension]);
 
+  useEffect(() => {
+    if (user?.phone && !agentNumber) setAgentNumber(user.phone);
+  }, [user?.phone, agentNumber]);
+
+  const isExotel = (status?.provider || "exotel").toLowerCase() === "exotel";
+
   const clickToCall = async () => {
     if (!phone.trim() || dialing) return;
     setDialing(true);
@@ -72,6 +79,7 @@ export default function TelephonyHub() {
       const result = await telephonyApi.clickToCall({
         to: phone.trim(),
         extension: extension.trim() || undefined,
+        agentNumber: agentNumber.trim() || undefined,
       });
       setNotice(result.originate.message || "Call originated");
       if (result.originate.mode === "manual" && result.originate.dialFallback) {
@@ -93,10 +101,10 @@ export default function TelephonyHub() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-              Cloud telephony · Jio SIP trunk
+              Cloud telephony · Exotel
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Click-to-call rings your SIP extension, then dials the customer through the Jio trunk.
+              Click-to-call rings your mobile first. After you answer, Exotel connects the customer on the ExoPhone.
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={() => void load()}>
@@ -109,17 +117,17 @@ export default function TelephonyHub() {
             <Badge size="sm" color={status.configured ? "success" : "error"}>
               {status.configured ? "Telephony configured" : "Not configured"}
             </Badge>
-            <Badge size="sm" color={status.sipConfigured ? "success" : "warning"}>
-              SIP {status.sipConfigured ? "host set" : "host missing"}
+            <Badge size="sm" color={status.exotelConfigured ? "success" : "warning"}>
+              Exotel {status.exotelConfigured ? "API ready" : "needs keys"}
             </Badge>
             <Badge size="sm" color={status.clickToCallReady ? "success" : "warning"}>
               Click-to-call {status.clickToCallReady ? "ready" : "not ready"}
             </Badge>
+            <Badge size="sm" color={status.sipConfigured ? "success" : "light"}>
+              SIP {status.sipConfigured ? "host set" : "off"}
+            </Badge>
             <Badge size="sm" color={status.amiConfigured ? "success" : "light"}>
               AMI {status.amiConfigured ? "connected config" : "off"}
-            </Badge>
-            <Badge size="sm" color={status.httpConfigured ? "success" : "light"}>
-              HTTP CPaaS {status.httpConfigured ? "on" : "off"}
             </Badge>
             <Badge size="sm" color={webhookReceived ? "success" : "light"}>
               CDR webhook {webhookReceived ? "received" : "waiting"}
@@ -127,22 +135,50 @@ export default function TelephonyHub() {
           </div>
         ) : null}
 
-        {status?.sipHost ? (
+        {isExotel ? (
+          <p className="mt-3 text-xs text-gray-500">
+            Provider Exotel · {status?.exotelSubdomain || "api.in.exotel.com"} · ExoPhone{" "}
+            {status?.exotelCallerId || "not set"}
+          </p>
+        ) : status?.sipHost ? (
           <p className="mt-3 text-xs text-gray-500">
             Trunk {status.sipTrunkName} · {status.sipHost}:{status.sipPort} · DID{" "}
             {status.sipDid || "not set"} · codecs {status.sipCodecs}
           </p>
-        ) : (
+        ) : null}
+
+        {status && !status.exotelConfigured ? (
           <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
-            Add Jio SIP details in backend <code>.env</code> (see Settings → Integrations).
+            Still missing in backend <code>.env</code>
+            {status.exotelMissing?.length ? `: ${status.exotelMissing.join(", ")}` : ""}.
+            Save the file and restart the API. Trial accounts also need{" "}
+            <strong>Account SID</strong> from Dashboard → Settings → API.
           </p>
-        )}
+        ) : null}
+
+        {status?.exotelLive?.authOk ? (
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+            Exotel login works ({status.exotelLive.accountType || "account"} ·{" "}
+            {status.exotelLive.subdomain}). KYC:{" "}
+            <strong>{status.exotelLive.kycStatus || "unknown"}</strong>. ExoPhones:{" "}
+            {status.exotelLive.exophoneCount ?? 0}
+            {status.exotelLive.callerId ? ` (${status.exotelLive.callerId})` : ""}.
+          </p>
+        ) : status?.exotelLive?.message ? (
+          <p className="mt-3 text-sm text-error-600">{status.exotelLive.message}</p>
+        ) : null}
+
+        <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+          Trial outbound API calls need KYC submitted in the Exotel dashboard. Also
+          whitelist the agent mobile and the customer mobile (Settings → Whitelist
+          Numbers, max 10).
+        </p>
       </div>
 
       {canCall ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
           <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">Click to call</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-[1fr_160px_auto]">
+          <div className="mt-4 grid gap-4 md:grid-cols-[1fr_180px_auto]">
             <div>
               <Label>Customer number</Label>
               <Input
@@ -152,11 +188,11 @@ export default function TelephonyHub() {
               />
             </div>
             <div>
-              <Label>Your extension</Label>
+              <Label>Your mobile</Label>
               <Input
-                value={extension}
-                onChange={(e) => setExtension(e.target.value)}
-                placeholder={status?.defaultExtension || "101"}
+                value={agentNumber}
+                onChange={(e) => setAgentNumber(e.target.value)}
+                placeholder={user?.phone || "9876543210"}
               />
             </div>
             <div className="flex items-end">
