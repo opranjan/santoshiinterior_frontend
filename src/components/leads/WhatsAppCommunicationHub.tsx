@@ -416,7 +416,7 @@ export default function WhatsAppCommunicationHub({
               {viewMode === "project"
                 ? "No projects match your filters."
                 : viewMode === "campaign"
-                  ? "No incoming WhatsApp numbers yet. Every number that messages this WhatsApp line is saved here automatically."
+                  ? "No campaign chats. Ads and unknown WhatsApp numbers appear here — sales leads stay in Lead."
                   : "No leads match your filters."}
             </p>
           ) : (
