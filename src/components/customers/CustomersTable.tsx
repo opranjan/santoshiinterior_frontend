@@ -1314,10 +1314,13 @@ export default function CustomersTable() {
                 <div>
                   <p className="text-sm font-semibold text-[#1c1610]">Website account</p>
                   <p className="mt-1 text-xs text-[#6b5b4b]">
-                    {websiteShop.account.email}
-                    {websiteShop.account.lastLoginAt
-                      ? ` · last login ${formatDate(websiteShop.account.lastLoginAt)}`
-                      : ""}
+                    {websiteShop.account
+                      ? `${websiteShop.account.email}${
+                          websiteShop.account.lastLoginAt
+                            ? ` · last login ${formatDate(websiteShop.account.lastLoginAt)}`
+                            : ""
+                        }`
+                      : "No website login linked"}
                   </p>
                 </div>
                 <div>
