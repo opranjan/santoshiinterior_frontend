@@ -226,7 +226,7 @@ export default function HrDocumentsPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.85fr)]">
         <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#161411]">
-          <div className="mb-4 flex flex-wrap gap-2 border-b border-[#eadfcf] pb-3">
+          <div className="hr-scroll-tabs mb-4 border-b border-[#eadfcf] pb-3">
             {(["All Documents", "Employee Documents", "Company Documents", "Shared With Me", "Recycle Bin"] as Tab[]).map((item) => (
               <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-lg px-3 py-1.5 text-sm ${tab === item ? "bg-[#c4a574] text-white" : "text-[#5c5146]"}`}>
                 {item}
@@ -234,7 +234,7 @@ export default function HrDocumentsPage() {
             ))}
           </div>
           <div className="mb-4 flex flex-wrap gap-2">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search documents, employee name, type..." className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search documents, employee name, type..." className="h-10 min-w-0 w-full flex-1 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm sm:min-w-[180px]" />
             <select value={dept} onChange={(e) => setDept(e.target.value)} className="h-10 rounded-xl border border-[#eadfcf] bg-white px-2 text-sm">
               <option value="All">All Departments</option>
               {depts.map((d) => (

@@ -94,7 +94,7 @@ export default function HrEmployeesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search employee, department…"
-          className="mb-4 h-11 w-full max-w-sm rounded-xl border border-[#eadfcf] bg-white px-3 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]"
+          className="mb-4 h-11 w-full rounded-xl border border-[#eadfcf] bg-white px-3 text-sm dark:border-[#3a342c] dark:bg-[#1a1714] sm:max-w-sm"
         />
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">

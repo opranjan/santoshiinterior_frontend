@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 import AcceptancePreviewDrawer from "@/components/procurement/AcceptancePreviewDrawer";
 import CreateOrderModal from "@/components/procurement/CreateOrderModal";
+import DatePickerField from "@/components/form/DatePickerField";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { purchaseOrdersApi, type PurchaseOrderDto } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
@@ -70,6 +71,24 @@ function paymentLabel(state?: string) {
   return "Not initiated";
 }
 
+const FOLLOW_UP_TYPES = [
+  { value: "CALL", label: "Call" },
+  { value: "WHATSAPP", label: "WhatsApp" },
+  { value: "EMAIL", label: "Email" },
+  { value: "SITE_VISIT", label: "Visit" },
+] as const;
+
+function vendorDigits(row: PurchaseOrderDto) {
+  return String(row.vendorRecord?.phone || "").replace(/\D/g, "").replace(/^91/, "");
+}
+
+function followUpMessage(row: PurchaseOrderDto) {
+  const vendor = row.vendorRecord?.name || row.vendor;
+  const overdue = daysPassed(row.expectedDate);
+  const when = overdue ? ` Delivery was due ${overdue} days ago.` : "";
+  return `Hello ${vendor}, following up on ${row.kind === "WO" ? "work order" : "purchase order"} ${row.code} (${row.title || "order"}).${when} Please share an update.`;
+}
+
 export default function ProcurementOrders() {
   const { user } = useAuth();
   const vendorView = isVendorPanelUser(user);
@@ -82,6 +101,22 @@ export default function ProcurementOrders() {
   const [stateFilter, setStateFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [preview, setPreview] = useState<PurchaseOrderDto | null>(null);
+  const [followMenuId, setFollowMenuId] = useState<string | null>(null);
+  const [followOrder, setFollowOrder] = useState<PurchaseOrderDto | null>(null);
+  const [fuType, setFuType] = useState<(typeof FOLLOW_UP_TYPES)[number]["value"]>("CALL");
+  const [fuNote, setFuNote] = useState("");
+  const [fuNextDate, setFuNextDate] = useState("");
+  const [fuSaving, setFuSaving] = useState(false);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-order-follow-menu]")) return;
+      setFollowMenuId(null);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
 
   const load = async () => {
     const query: Record<string, string | number | undefined> = { limit: 100, search };
@@ -117,6 +152,60 @@ export default function ProcurementOrders() {
       setPreview(full);
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to load order");
+    }
+  };
+
+  const openFollowChannel = (row: PurchaseOrderDto, kind: "CALL" | "WHATSAPP" | "EMAIL") => {
+    const digits = vendorDigits(row);
+    const email = row.vendorRecord?.email?.trim();
+    if (kind === "CALL") {
+      if (!digits) {
+        toastError("No vendor phone on this order.");
+        return;
+      }
+      window.open(`tel:+91${digits.slice(-10)}`, "_self");
+      return;
+    }
+    if (kind === "WHATSAPP") {
+      if (!digits) {
+        toastError("No vendor phone on this order.");
+        return;
+      }
+      window.open(
+        `https://wa.me/91${digits.slice(-10)}?text=${encodeURIComponent(followUpMessage(row))}`,
+        "_blank",
+        "noopener,noreferrer"
+      );
+      return;
+    }
+    if (!email) {
+      toastError("No vendor email on this order.");
+      return;
+    }
+    window.open(
+      `mailto:${email}?subject=${encodeURIComponent(`Follow-up: ${row.code}`)}&body=${encodeURIComponent(followUpMessage(row))}`,
+      "_self"
+    );
+  };
+
+  const saveFollowUp = async () => {
+    if (!followOrder || !fuNote.trim()) return;
+    setFuSaving(true);
+    try {
+      const result = await purchaseOrdersApi.addFollowUp(followOrder.id, {
+        type: fuType,
+        note: fuNote.trim(),
+        nextDate: fuNextDate || null,
+      });
+      setItems((prev) => prev.map((item) => (item.id === result.order.id ? { ...item, ...result.order } : item)));
+      toastSuccess("Follow-up logged.");
+      setFollowOrder(null);
+      setFuNote("");
+      setFuNextDate("");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to log follow-up");
+    } finally {
+      setFuSaving(false);
     }
   };
 
@@ -263,7 +352,7 @@ export default function ProcurementOrders() {
 
       <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[1240px] text-left text-sm">
             <thead>
               <tr className="border-b border-[#f0e8db] bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914]">
                 <th className="px-3 py-3.5">S. no.</th>
@@ -274,19 +363,20 @@ export default function ProcurementOrders() {
                 <th className="px-3 py-3.5">Project</th>
                 <th className="px-3 py-3.5">Created</th>
                 <th className="px-3 py-3.5">Delivery</th>
+                <th className="px-3 py-3.5">Follow up</th>
                 <th className="px-3 py-3.5">State</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
+                  <td colSpan={10} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
                     Loading orders…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-16 text-center">
+                  <td colSpan={10} className="px-4 py-16 text-center">
                     <p
                       className="font-serif text-xl text-[#1c1610] dark:text-[#f4efe6]"
                       style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
@@ -362,6 +452,76 @@ export default function ProcurementOrders() {
                           <p className="text-xs font-semibold text-rose-600">{overdue} days passed</p>
                         ) : null}
                       </td>
+                      <td className="relative px-3 py-3.5" data-order-follow-menu onClick={(event) => event.stopPropagation()}>
+                        {(() => {
+                          const last = row.followUps?.[0];
+                          const next = last?.nextDate;
+                          return (
+                            <div className="min-w-[132px]">
+                              <button
+                                type="button"
+                                className="inline-flex h-9 items-center gap-1 rounded-md border border-[#eadfcf] bg-white px-3 text-xs font-semibold text-[#7A4A28] hover:bg-[#FBF7F1]"
+                                onClick={() => setFollowMenuId(followMenuId === row.id ? null : row.id)}
+                              >
+                                Follow up
+                                <span className="text-[10px]">▾</span>
+                              </button>
+                              {next ? (
+                                <p className="mt-1 text-[11px] text-[#9a7748]">Next {formatDate(next)}</p>
+                              ) : last ? (
+                                <p className="mt-1 text-[11px] text-[#8a7b68]">Last {formatDate(last.createdAt || last.date)}</p>
+                              ) : null}
+                              {followMenuId === row.id ? (
+                                <div className="absolute right-3 z-30 mt-1 w-44 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 shadow-lg">
+                                  <button
+                                    type="button"
+                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
+                                    onClick={() => {
+                                      setFollowMenuId(null);
+                                      openFollowChannel(row, "CALL");
+                                    }}
+                                  >
+                                    Call vendor
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
+                                    onClick={() => {
+                                      setFollowMenuId(null);
+                                      openFollowChannel(row, "WHATSAPP");
+                                    }}
+                                  >
+                                    WhatsApp
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
+                                    onClick={() => {
+                                      setFollowMenuId(null);
+                                      openFollowChannel(row, "EMAIL");
+                                    }}
+                                  >
+                                    Email
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
+                                    onClick={() => {
+                                      setFollowMenuId(null);
+                                      setFuType("CALL");
+                                      setFuNote("");
+                                      setFuNextDate("");
+                                      setFollowOrder(row);
+                                    }}
+                                  >
+                                    Log follow-up
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                         <select
                           value={row.orderState}
@@ -383,6 +543,76 @@ export default function ProcurementOrders() {
           </table>
         </div>
       </div>
+
+      {followOrder ? (
+        <div className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl sm:p-6">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-[#1c1610]">Log follow-up</h3>
+                <p className="mt-1 text-sm text-[#8a7b68]">
+                  {followOrder.code} · {followOrder.vendorRecord?.name || followOrder.vendor}
+                </p>
+              </div>
+              <button type="button" className="text-[#8a7b68]" onClick={() => setFollowOrder(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {FOLLOW_UP_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => setFuType(type.value)}
+                  className={`rounded-md border px-3 py-2 text-sm ${
+                    fuType === type.value
+                      ? "border-[#c4a574] bg-[#f6efe4] text-[#7A4A28]"
+                      : "border-[#eadfcf] text-[#6b5b4b]"
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+            <label className="mt-4 block text-sm font-medium text-[#3d342c]">
+              Notes / outcome
+              <textarea
+                rows={3}
+                value={fuNote}
+                onChange={(event) => setFuNote(event.target.value)}
+                placeholder="What did the vendor say? Next steps…"
+                className={`${fieldClass} mt-1 h-auto py-2.5`}
+              />
+            </label>
+            <div className="mt-4">
+              <p className="mb-1.5 text-sm font-medium text-[#3d342c]">Next follow-up date</p>
+              <DatePickerField
+                id="po-follow-up-next-date"
+                value={fuNextDate}
+                onChange={setFuNextDate}
+                placeholder="Select date"
+              />
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setFollowOrder(null)}
+                className="h-11 rounded-md px-4 text-sm text-[#6b5b4b] sm:h-10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={fuSaving || !fuNote.trim()}
+                onClick={() => void saveFollowUp()}
+                className="h-11 rounded-md bg-[#7A4A28] px-4 text-sm font-semibold text-white disabled:opacity-50 sm:h-10"
+              >
+                Save follow-up
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <CreateOrderModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <AcceptancePreviewDrawer

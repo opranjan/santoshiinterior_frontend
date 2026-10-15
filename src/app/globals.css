@@ -1168,6 +1168,66 @@ span.flatpickr-weekday,
   }
 }
 
+.hr-scroll-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+
+.hr-scroll-tabs > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1023px) {
+  .hr-shell .vendor-sidebar,
+  .hr-shell .hr-sidebar {
+    top: 7.25rem;
+    height: calc(100dvh - 7.25rem - env(safe-area-inset-bottom, 0px));
+  }
+
+  .hr-shell .admin-page-content {
+    overflow-x: hidden;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .hr-shell .admin-page-content table {
+    max-width: none;
+  }
+
+  .hr-shell .overflow-x-auto {
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .hr-shell .overflow-x-auto table {
+    min-width: 40rem;
+  }
+
+  .hr-shell button,
+  .hr-shell a[class*="h-10"],
+  .hr-shell a[class*="h-11"] {
+    min-height: 2.5rem;
+  }
+
+  .hr-shell input,
+  .hr-shell select,
+  .hr-shell textarea {
+    min-height: 2.5rem;
+    font-size: 16px !important;
+  }
+
+  .hr-shell .salary-slip-sheet {
+    max-width: 100%;
+  }
+}
+
 .hr-header .bg-brand-500 {
   background: #c4a574 !important;
 }
@@ -1270,6 +1330,10 @@ span.flatpickr-weekday,
 
   .vendor-shell .admin-page-content h1 {
     word-break: break-word;
+  }
+
+  .hr-shell.vendor-shell .admin-page-content table {
+    max-width: none;
   }
 }
 

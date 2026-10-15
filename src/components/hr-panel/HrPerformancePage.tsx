@@ -280,7 +280,7 @@ export default function HrPerformancePage() {
       <div className="grid gap-4 xl:grid-cols-[1.05fr_1.15fr_0.9fr]">
         <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#161411]">
           <h2 className="text-base font-semibold">Performance Rating Distribution</h2>
-          <div className="mt-4 flex items-center gap-5">
+          <div className="mt-4 flex flex-wrap items-center gap-5">
             <div className="relative h-[132px] w-[132px] shrink-0 rounded-full" style={{ background: donut }}>
               <div className="absolute inset-[28px] grid place-items-center rounded-full bg-white dark:bg-[#161411]">
                 <strong className="block text-2xl leading-none">{total}</strong>
@@ -341,7 +341,7 @@ export default function HrPerformancePage() {
           <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <h2 className="mr-auto text-base font-semibold">Employee Performance</h2>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, department..." className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee, department..." className="h-10 min-w-0 w-full flex-1 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm sm:min-w-[180px]" />
               <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="h-10 rounded-xl border border-[#eadfcf] bg-white px-2 text-sm">
                 <option value="All">All Departments</option>
                 {depts.map((d) => (

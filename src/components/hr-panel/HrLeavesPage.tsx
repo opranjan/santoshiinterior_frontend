@@ -29,7 +29,7 @@ export default function HrLeavesPage() {
     <div className="space-y-5">
       <HrPageHeader crumb="HR › Leave Requests" title="Leave Requests" subtitle="Approve or reject employee leave" />
       {error ? <p className="text-sm text-error-600">{error}</p> : null}
-      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
+      <div className="overflow-x-auto rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-white/60 text-[11px] uppercase tracking-[0.12em] text-[#8a7b68]">
             <tr>

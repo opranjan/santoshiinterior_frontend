@@ -248,7 +248,7 @@ export default function HrReportsPage() {
 
         <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#161411]">
           <h2 className="mb-4 text-base font-semibold">Employee Count by Department</h2>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="relative h-[120px] w-[120px] shrink-0 rounded-full" style={{ background: conic(deptItems, deptTotal) }}>
               <div className="absolute inset-[26px] grid place-items-center rounded-full bg-white dark:bg-[#161411]">
                 <strong className="text-xl leading-none">{deptTotal}</strong>
@@ -276,7 +276,7 @@ export default function HrReportsPage() {
             <h2 className="text-base font-semibold">Leave Type Breakdown</h2>
             <span className="text-[11px] text-[#8a7b68]">This Month</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="relative h-[120px] w-[120px] shrink-0 rounded-full" style={{ background: conic(leaveItems, leaveTotal) }}>
               <div className="absolute inset-[26px] grid place-items-center rounded-full bg-white dark:bg-[#161411]">
                 <strong className="text-xl leading-none">{leaveTotal}</strong>
@@ -300,7 +300,7 @@ export default function HrReportsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="hr-scroll-tabs">
         {TABS.map((item) => (
           <button
             key={item}
@@ -327,7 +327,7 @@ export default function HrReportsPage() {
               setPage(1);
             }}
             placeholder="Search employee..."
-            className="h-10 min-w-[180px] flex-1 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm"
+            className="h-10 min-w-0 w-full flex-1 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm sm:min-w-[180px]"
           />
           <select value={deptFilter} onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }} className="h-10 rounded-xl border border-[#eadfcf] bg-white px-2 text-sm">
             <option value="All">All Departments</option>

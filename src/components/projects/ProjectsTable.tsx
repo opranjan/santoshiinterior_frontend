@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leadsApi, projectsApi, storesApi, usersApi } from "@/services/crmApi";
+import { customersApi, leadsApi, projectsApi, storesApi, usersApi } from "@/services/crmApi";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
 import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
@@ -302,6 +302,7 @@ export default function ProjectsTable() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromLeadHandled = useRef(false);
+  const fromCustomerHandled = useRef(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [storeOptions, setStoreOptions] = useState<
     { id: string; name: string }[]
@@ -318,6 +319,7 @@ export default function ProjectsTable() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [sourceLeadId, setSourceLeadId] = useState<string | null>(null);
   const [sourceLeadClientName, setSourceLeadClientName] = useState("");
+  const [sourceCustomerId, setSourceCustomerId] = useState<string | null>(null);
   const [tasksProject, setTasksProject] = useState<Project | null>(null);
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
@@ -468,6 +470,31 @@ export default function ProjectsTable() {
   }, [searchParams, loading, storeOptions, router]);
 
   useEffect(() => {
+    const fromCustomer = searchParams.get("fromCustomer");
+    if (!fromCustomer || fromCustomerHandled.current || loading) return;
+    fromCustomerHandled.current = true;
+
+    (async () => {
+      try {
+        const customer = await customersApi.get(fromCustomer);
+        setForm((prev) => ({
+          ...prev,
+          client: customer.name || prev.client,
+          phone: customer.phone || prev.phone,
+          store: customer.store?.name || storeOptions[0]?.name || prev.store,
+          address: customer.address || prev.address,
+        }));
+        setSourceCustomerId(fromCustomer);
+        setEditing(null);
+        setShowAdd(true);
+        router.replace("/projects", { scroll: false });
+      } catch {
+        setError("Could not load customer details for new project.");
+      }
+    })();
+  }, [searchParams, loading, storeOptions, router]);
+
+  useEffect(() => {
     if (!franchiseePickerId) return;
     const onPointerDown = (event: MouseEvent) => {
       const node = franchiseePickerRef.current;
@@ -555,6 +582,7 @@ export default function ProjectsTable() {
     setEditing(null);
     setSourceLeadId(null);
     setSourceLeadClientName("");
+    setSourceCustomerId(null);
     resetForm();
     setShowAdd(true);
   };
@@ -611,6 +639,7 @@ export default function ProjectsTable() {
       latestRemark: form.latestRemark || null,
       assignedToId: form.assignedToId || null,
       assigneeIds: form.franchiseeIds,
+      customerId: sourceCustomerId || undefined,
     };
 
     try {
@@ -638,6 +667,7 @@ export default function ProjectsTable() {
       setEditing(null);
       setSourceLeadId(null);
       setSourceLeadClientName("");
+      setSourceCustomerId(null);
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save project");

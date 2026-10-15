@@ -324,7 +324,7 @@ export default function HrSalarySlipPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
           <article className="salary-slip-sheet overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-[0_8px_24px_rgba(28,22,16,0.04)] dark:border-[#3a342c] dark:bg-[#161411]">
-            <header className="flex items-center justify-between bg-[#c4a574] px-5 py-3 text-[#1c1610]">
+            <header className="flex flex-wrap items-center justify-between gap-2 bg-[#c4a574] px-4 py-3 text-[#1c1610] sm:px-5">
               <span className="text-sm font-semibold">Salary Slip</span>
               <span className="text-xs font-medium">{monthLabel(month)}</span>
             </header>
@@ -350,7 +350,7 @@ export default function HrSalarySlipPage() {
                 </div>
               </div>
 
-              <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-1.5 text-sm">
+              <dl className="grid grid-cols-1 gap-x-3 gap-y-1.5 text-sm sm:grid-cols-[140px_1fr]">
                 {[
                   ["Employee Name", emp.name],
                   ["Employee ID", code],
@@ -368,7 +368,7 @@ export default function HrSalarySlipPage() {
 
               <div>
                 <p className="text-sm text-[#8a7b68]">Amount Paid</p>
-                <p className="flex flex-wrap items-center gap-3 text-[2rem] font-semibold leading-none text-[#1c1610] dark:text-[#f3ece2]">
+                <p className="flex flex-wrap items-center gap-3 text-[1.55rem] font-semibold leading-none text-[#1c1610] sm:text-[2rem] dark:text-[#f3ece2]">
                   {inr(live.paid)}
                   <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${paid ? "bg-[#e7f6ec] text-[#2f7a45]" : "bg-[#f4ead8] text-[#9a7748]"}`}>
                     {paid ? "Paid" : "Pending"}

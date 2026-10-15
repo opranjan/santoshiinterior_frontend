@@ -232,7 +232,7 @@ export default function HrPoliciesPage() {
         <section className="rounded-2xl border border-[#eadfcf] bg-white p-4 dark:border-[#3a342c] dark:bg-[#161411]">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h2 className="mr-auto text-sm font-semibold">All Policies ({filtered.length})</h2>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search policies..." className="h-9 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search policies..." className="h-9 w-full min-w-0 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm sm:w-auto sm:flex-1" />
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-xl border border-[#eadfcf] bg-white px-2 text-sm">
               <option>Active</option>
               <option>Draft</option>
@@ -294,7 +294,7 @@ export default function HrPoliciesPage() {
                       {editing ? (saving ? "Saving…" : "Save") : "Edit"}
                     </button>
                   </div>
-                  <dl className="grid grid-cols-[120px_1fr] gap-y-2 text-sm">
+                  <dl className="grid grid-cols-1 gap-y-2 text-sm sm:grid-cols-[120px_1fr]">
                     {[
                       ["Policy Name", "title"],
                       ["Category", "category"],

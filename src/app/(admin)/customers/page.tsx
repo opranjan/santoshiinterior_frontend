@@ -1,4 +1,3 @@
-import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import CustomersTable from "@/components/customers/CustomersTable";
 import { Metadata } from "next";
 import React from "react";
@@ -9,10 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function CustomersPage() {
-  return (
-    <div>
-      <PageBreadcrumb pageTitle="Customers" />
-      <CustomersTable />
-    </div>
-  );
+  return <CustomersTable />;
 }

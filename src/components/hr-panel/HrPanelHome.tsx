@@ -237,13 +237,13 @@ export default function HrPanelHome() {
     <div className="hr-dash space-y-5 text-[#1c1610]">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-serif text-[2rem] leading-none text-[#1c1610] dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+          <h1 className="font-serif text-[1.55rem] leading-tight text-[#1c1610] sm:text-[2rem] sm:leading-none dark:text-[#f3ece2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
             HR Dashboard
           </h1>
           <p className="mt-1 text-sm text-[#8a7b68]">Manage your team, track attendance, performance and growth</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="relative">
+        <div className="flex w-full flex-wrap items-stretch gap-2 sm:items-center lg:w-auto">
+          <label className="relative min-w-0 flex-1 sm:flex-none">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a7b68]">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -253,7 +253,7 @@ export default function HrPanelHome() {
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="h-11 rounded-xl border border-[#eadfcf] bg-white pl-10 pr-8 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+            className="h-11 w-full rounded-xl border border-[#eadfcf] bg-white pl-10 pr-8 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
           >
             {Array.from({ length: 6 }).map((_, i) => {
               const d = new Date();
@@ -269,7 +269,7 @@ export default function HrPanelHome() {
           </label>
           <Link
             href="/hr/employees"
-            className="inline-flex h-11 items-center rounded-xl bg-[#c4a574] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#b3915f]"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#c4a574] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#b3915f] sm:flex-none"
           >
             + Add Employee
           </Link>
@@ -300,7 +300,7 @@ export default function HrPanelHome() {
             <h2 className="text-base font-semibold">Department Wise Employees</h2>
             <Link href="/hr/employees" className="text-xs font-medium text-[#c4a574]">View All</Link>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center gap-5">
             <div className="relative h-[132px] w-[132px] shrink-0 rounded-full" style={{ background: donut }}>
               <div className="absolute inset-[28px] grid place-items-center rounded-full bg-white dark:bg-[#161411]">
                 <span className="text-center">
@@ -330,7 +330,7 @@ export default function HrPanelHome() {
             <h2 className="text-base font-semibold">Attendance Overview</h2>
             <span className="rounded-full bg-[#f4efe6] px-2.5 py-1 text-[11px] text-[#8a7b68]">This Week</span>
           </div>
-          <div className="mb-3 flex gap-4 text-[11px] text-[#8a7b68]">
+          <div className="mb-3 flex flex-wrap gap-4 text-[11px] text-[#8a7b68]">
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#2f7a45]" /> Present</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#c4a574]" /> On Leave</span>
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#eadfcf]" /> Absent</span>
@@ -399,7 +399,7 @@ export default function HrPanelHome() {
           <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 shadow-[0_8px_24px_rgba(28,22,16,0.04)] dark:border-[#3a342c] dark:bg-[#161411]">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <h2 className="mr-auto text-base font-semibold">Employees</h2>
-              <div className="relative min-w-[180px] flex-1">
+              <div className="relative min-w-0 w-full flex-1 sm:min-w-[180px]">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a7b68]">
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M8.5 1.5a7 7 0 105.6 11.5l3.7 3.7 1.4-1.4-3.7-3.7A7 7 0 008.5 1.5zm0 2a5 5 0 110 10 5 5 0 010-10z"/></svg>
                 </span>

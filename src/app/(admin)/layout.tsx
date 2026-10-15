@@ -7,7 +7,7 @@ import RoutePermissionGuard from "@/components/auth/RoutePermissionGuard";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
-import { isIsolatedShellUser } from "@/lib/permissions";
+import { isHrPanelUser, isIsolatedShellUser } from "@/lib/permissions";
 import { usePathname } from "next/navigation";
 import React from "react";
 
@@ -20,6 +20,7 @@ export default function AdminLayout({
   const { user } = useAuth();
   const pathname = usePathname();
   const partner = isIsolatedShellUser(user);
+  const hrPanel = isHrPanelUser(user);
   const chatPage = pathname === "/chat";
 
   const mainContentMargin = isMobileOpen
@@ -34,7 +35,7 @@ export default function AdminLayout({
         <div
           className={`overflow-x-hidden xl:flex ${
             chatPage ? "is-chat-page flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden" : "min-h-screen"
-          } ${isMobileOpen ? "max-lg:h-dvh max-lg:overflow-hidden" : ""} ${partner ? "vendor-shell" : ""}`}
+          } ${isMobileOpen ? "max-lg:h-dvh max-lg:overflow-hidden" : ""} ${partner ? "vendor-shell" : ""} ${hrPanel ? "hr-shell" : ""}`}
         >
           <AppSidebar />
           <Backdrop />

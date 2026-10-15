@@ -45,7 +45,7 @@ export default function HrAttendancePage() {
     <div className="space-y-5">
       <HrPageHeader crumb="HR › Attendance" title="Attendance" subtitle={subtitle} />
       {error ? <p className="text-sm text-error-600">{error}</p> : null}
-      <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-4 dark:border-[#3a342c] dark:bg-[#161411]">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
         <AttendanceManager employees={employees} />
       </div>
     </div>

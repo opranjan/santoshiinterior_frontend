@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   leadsApi,
   type LeadMessageDto,
@@ -16,6 +16,7 @@ type SelectedLead = {
   assignedToId?: string | null;
   salesOwnerId?: string | null;
   projectName?: string | null;
+  campaignName?: string | null;
   status?: string;
   assigneeName?: string | null;
   leadOwnerName?: string | null;
@@ -30,7 +31,7 @@ type HubProps = {
   fullHeight?: boolean;
 };
 
-type ViewMode = "project" | "lead";
+type ViewMode = "project" | "lead" | "campaign";
 
 const EMPTY_MESSAGES: LeadMessageDto[] = [];
 
@@ -62,6 +63,12 @@ const PROJECT_STAGES: Array<{ value: string; label: string }> = [
   { value: "HANDOVER", label: "Installation" },
   { value: "COMPLETED", label: "Completed" },
   { value: "ON_HOLD", label: "On Hold" },
+];
+
+const CAMPAIGN_TYPES: Array<{ value: string; label: string }> = [
+  { value: "ad", label: "Ads" },
+  { value: "post", label: "Posts" },
+  { value: "other", label: "Other campaigns" },
 ];
 
 function initials(name: string) {
@@ -141,6 +148,7 @@ export default function WhatsAppCommunicationHub({
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessagesProp);
   const [loadingChat, setLoadingChat] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const inboxRequestId = useRef(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -148,6 +156,7 @@ export default function WhatsAppCommunicationHub({
   }, [search]);
 
   const loadInbox = useCallback(async (silent = false) => {
+    const requestId = ++inboxRequestId.current;
     try {
       if (!silent) setLoadingInbox(true);
       setInboxError(null);
@@ -156,14 +165,18 @@ export default function WhatsAppCommunicationHub({
         viewMode,
         ...(viewMode === "project"
           ? { projectStatus: stageFilter || undefined }
-          : { leadStatus: stageFilter || undefined }),
+          : viewMode === "campaign"
+            ? { campaignType: stageFilter || undefined }
+            : { leadStatus: stageFilter || undefined }),
       });
+      if (requestId !== inboxRequestId.current) return;
       setInbox(rows);
     } catch (err) {
+      if (requestId !== inboxRequestId.current) return;
       setInbox([]);
       setInboxError(err instanceof Error ? err.message : "Failed to load conversations");
     } finally {
-      setLoadingInbox(false);
+      if (requestId === inboxRequestId.current) setLoadingInbox(false);
     }
   }, [debouncedSearch, viewMode, stageFilter]);
 
@@ -234,6 +247,7 @@ export default function WhatsAppCommunicationHub({
       clientName: item.clientName,
       phone: item.phone,
       projectName: item.projectName,
+      campaignName: item.campaignName,
       status: item.status,
       assigneeName: item.assigneeName,
       leadOwnerName: item.leadOwnerName || item.assigneeName,
@@ -266,6 +280,7 @@ export default function WhatsAppCommunicationHub({
       clientName: item.clientName,
       phone: item.phone,
       projectName: item.projectName,
+      campaignName: item.campaignName,
       status: item.status,
       assigneeName: item.assigneeName,
       leadOwnerName: item.leadOwnerName || item.assigneeName,
@@ -287,7 +302,9 @@ export default function WhatsAppCommunicationHub({
   const stageOptions =
     viewMode === "project"
       ? PROJECT_STAGES
-      : LEAD_STATUSES.map((s) => ({ value: s, label: enumToLabel(s) }));
+      : viewMode === "campaign"
+        ? CAMPAIGN_TYPES
+        : LEAD_STATUSES.map((s) => ({ value: s, label: enumToLabel(s) }));
 
   return (
     <div
@@ -330,20 +347,25 @@ export default function WhatsAppCommunicationHub({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name or project"
+              placeholder={
+                viewMode === "campaign"
+                  ? "Search campaign or name"
+                  : "Search name or project"
+              }
               className="h-9 w-full rounded-lg border-0 bg-[#f0f2f5] pl-9 pr-3 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#25d366]/30 dark:bg-[#202c33] dark:text-white/90"
             />
           </div>
 
           <div className="flex flex-wrap gap-1.5">
             <div className="flex h-8 rounded-lg bg-[#f0f2f5] p-0.5 dark:bg-[#202c33]">
-              {(["lead", "project"] as ViewMode[]).map((mode) => (
+              {(["lead", "project", "campaign"] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => {
                     setViewMode(mode);
                     setStageFilter("");
+                    setInbox([]);
                   }}
                   className={`rounded-md px-2.5 text-xs font-medium capitalize transition ${
                     viewMode === mode
@@ -360,7 +382,7 @@ export default function WhatsAppCommunicationHub({
               onChange={(e) => setStageFilter(e.target.value)}
               className="h-8 min-w-0 flex-1 rounded-lg border-0 bg-[#f0f2f5] px-2 text-xs text-[#111b21] focus:outline-none focus:ring-2 focus:ring-[#25d366]/30 dark:bg-[#202c33] dark:text-gray-200"
             >
-              <option value="">All stages</option>
+              <option value="">{viewMode === "campaign" ? "All campaigns" : "All stages"}</option>
               {stageOptions.map((stage) => (
                 <option key={stage.value} value={stage.value}>
                   {stage.label}
@@ -393,7 +415,9 @@ export default function WhatsAppCommunicationHub({
             <p className="px-4 py-8 text-center text-sm text-gray-400">
               {viewMode === "project"
                 ? "No projects match your filters."
-                : "No leads match your filters."}
+                : viewMode === "campaign"
+                  ? "No incoming WhatsApp numbers yet. Every number that messages this WhatsApp line is saved here automatically."
+                  : "No leads match your filters."}
             </p>
           ) : (
             inbox.map((item) => {
@@ -481,6 +505,7 @@ export default function WhatsAppCommunicationHub({
             assigneeName={loadedLead.assigneeName}
             leadOwnerName={loadedLead.leadOwnerName}
             projectName={loadedLead.projectName}
+            campaignName={loadedLead.campaignName}
             hideCustomerPhone={viewMode === "project"}
             initialMessages={messages}
             onRefresh={() => {

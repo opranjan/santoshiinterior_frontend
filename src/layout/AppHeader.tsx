@@ -58,7 +58,7 @@ const AppHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className={`no-print sticky top-0 z-[80] flex w-full min-w-0 shrink-0 bg-white border-gray-200 dark:border-gray-800 dark:bg-gray-900 lg:border-b ${partner ? (hrPanel ? "vendor-header hr-header min-h-16" : "vendor-header h-14") : "crm-header"}`}>
+    <header className={`no-print sticky top-0 z-[80] flex w-full min-w-0 shrink-0 bg-white border-gray-200 dark:border-gray-800 dark:bg-gray-900 lg:border-b ${partner ? (hrPanel ? "vendor-header hr-header min-h-16 overflow-visible" : "vendor-header h-14") : "crm-header"}`}>
       <div className="flex flex-col items-center justify-between grow min-w-0 lg:flex-row lg:px-6">
         <div className={`flex items-center justify-between w-full min-w-0 gap-2 px-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4 ${partner ? "py-2" : "py-3"}`}>
           <button
@@ -114,8 +114,8 @@ const AppHeader: React.FC = () => {
           </Link>
 
           {partner ? (
-            <div className="flex shrink-0 items-center gap-0.5 lg:hidden">
-              <ThemeToggleButton />
+            <div className="flex shrink-0 items-center gap-0 lg:hidden">
+              {hrPanel ? null : <ThemeToggleButton />}
               <NotificationDropdown />
               <UserDropdown />
             </div>
@@ -198,6 +198,20 @@ const AppHeader: React.FC = () => {
             )}
           </div>
         </div>
+        {hrPanel ? (
+          <div className="w-full min-w-0 px-3 pb-2 lg:hidden">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a7b68]">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M8.5 1.5a7 7 0 105.6 11.5l3.7 3.7 1.4-1.4-3.7-3.7A7 7 0 008.5 1.5zm0 2a5 5 0 110 10 5 5 0 010-10z"/></svg>
+              </span>
+              <input
+                type="search"
+                placeholder={hrSearchPlaceholder}
+                className="h-10 w-full rounded-full border border-[#eadfcf] bg-[#fbf8f3] py-2 pl-10 pr-3 text-base text-[#1c1610] placeholder:text-[#b3a898] focus:border-[#c4a574] focus:outline-none"
+              />
+            </div>
+          </div>
+        ) : null}
         <div
           className={`${
             partner

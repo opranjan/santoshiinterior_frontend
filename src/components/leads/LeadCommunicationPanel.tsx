@@ -22,6 +22,7 @@ type Props = {
   hideCustomerPhone?: boolean;
   leadOwnerName?: string | null;
   projectName?: string | null;
+  campaignName?: string | null;
   initialMessages?: LeadMessageDto[];
   onRefresh?: () => void;
   embedded?: boolean;
@@ -547,6 +548,7 @@ export default function LeadCommunicationPanel({
   hideCustomerPhone = false,
   leadOwnerName,
   projectName,
+  campaignName,
   initialMessages = [],
   onRefresh,
   embedded = false,
@@ -904,6 +906,11 @@ export default function LeadCommunicationPanel({
         </div>
       </div>
 
+      {campaignName ? (
+        <div className="shrink-0 bg-[#e8f5e9] px-4 py-1.5 text-[11px] text-[#1b5e20] dark:bg-emerald-500/10 dark:text-emerald-100">
+          From campaign / ad: {campaignName}
+        </div>
+      ) : null}
       {webhookMissing ? (
         <div className="shrink-0 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
           Replies appear after the WhatsApp webhook is connected.

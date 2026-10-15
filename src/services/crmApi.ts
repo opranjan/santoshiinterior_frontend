@@ -139,7 +139,10 @@ export type WhatsAppInboxItemDto = {
   assigneeName?: string | null;
   leadOwnerName?: string | null;
   updatedAt: string;
-  viewMode?: "project" | "lead";
+  viewMode?: "project" | "lead" | "campaign";
+  campaignType?: string | null;
+  campaignName?: string | null;
+  campaignUrl?: string | null;
   displayTitle?: string;
   displaySubtitle?: string;
   lastMessage?: {
@@ -245,9 +248,10 @@ export const leadsApi = {
     api.get<LeadMessageDto[]>(`/leads/${id}/messages`),
   getMessagingInbox: (query?: {
     search?: string;
-    viewMode?: "project" | "lead";
+    viewMode?: "project" | "lead" | "campaign";
     leadStatus?: string;
     projectStatus?: string;
+    campaignType?: string;
     status?: string;
     projectId?: string;
     leadId?: string;
@@ -419,6 +423,55 @@ export const telephonyApi = {
     }>("/telephony/calls", body),
 };
 
+export type CustomerWebsiteShop = {
+  account: { id: string; email: string; phone: string; lastLoginAt?: string | null } | null;
+  addresses: Array<{
+    id: string;
+    name: string;
+    phone: string;
+    line1: string;
+    city: string;
+    state: string;
+    pin: string;
+  }>;
+  cart: Array<{
+    id: string;
+    title: string;
+    quantity: number;
+    price?: number;
+    discountedPrice: number;
+    imgs?: { thumbnails?: string[]; previews?: string[] };
+  }>;
+  wishlist: Array<{
+    id: string;
+    title: string;
+    price?: number;
+    discountedPrice: number;
+    imgs?: { thumbnails?: string[]; previews?: string[] };
+  }>;
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    projectId?: string | null;
+    total: number;
+    createdAt: string;
+    items: Array<{ id: string; title: string; quantity: number; price: number; imageUrl?: string | null }>;
+  }>;
+  projects?: Array<{
+    id: string;
+    name: string;
+    status: string;
+    statusLabel: string;
+    progress: number;
+    projectType?: string;
+    address?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    latestRemark?: string;
+  }>;
+};
+
 export type CustomerDto = {
   id: string;
   name: string;
@@ -439,6 +492,9 @@ export type CustomerDto = {
   lastContact?: string | null;
   createdAt: string;
   updatedAt: string;
+  websiteUser?: { id: string; email: string; phone: string; lastLoginAt?: string | null } | null;
+  websiteShop?: CustomerWebsiteShop | null;
+  _count?: { projects?: number };
 };
 
 export type CustomerMessageKind = "whatsapp" | "broadcast" | "marketing";
@@ -465,10 +521,21 @@ export type CustomerMessageSendResult = {
 export const customersApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<CustomerDto>>("/customers", query),
+  get: (id: string) => api.get<CustomerDto>(`/customers/${id}`),
   create: (body: Record<string, unknown>) =>
     api.post<CustomerDto>("/customers", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.put<CustomerDto>(`/customers/${id}`, body),
+  updateOrderStatus: (id: string, orderId: string, status: string) =>
+    api.put<CustomerWebsiteShop["orders"][number]>(`/customers/${id}/orders/${orderId}`, {
+      status,
+    }),
+  convertOrderToProject: (id: string, orderId: string) =>
+    api.post<{
+      alreadyConverted?: boolean;
+      project: NonNullable<CustomerWebsiteShop["projects"]>[number];
+      order: CustomerWebsiteShop["orders"][number];
+    }>(`/customers/${id}/orders/${orderId}/convert-to-project`, {}),
   remove: (id: string) => api.delete<{ id: string }>(`/customers/${id}`),
   sendMessages: async (body: {
     customerIds: string[];
@@ -787,6 +854,8 @@ export type PurchaseOrderDto = {
   vendorRecord?: {
     id: string;
     name: string;
+    phone?: string | null;
+    email?: string | null;
     gstin?: string | null;
     address?: string | null;
     city?: string | null;
@@ -814,6 +883,15 @@ export type PurchaseOrderDto = {
   items?: PurchaseOrderItemDto[];
   files?: Array<{ id: string; fileName: string; fileUrl: string; kind?: string }>;
   comments?: PurchaseOrderCommentDto[];
+  followUps?: Array<{
+    id: string;
+    type: string;
+    note?: string | null;
+    date: string;
+    nextDate?: string | null;
+    createdAt: string;
+    by?: { id: string; name: string } | null;
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -827,6 +905,14 @@ export const purchaseOrdersApi = {
     api.put<PurchaseOrderDto>(`/purchase-orders/${id}`, body),
   addComment: (id: string, message: string) =>
     api.post<PurchaseOrderDto>(`/purchase-orders/${id}/comments`, { message }),
+  addFollowUp: (
+    id: string,
+    body: { type: string; note: string; nextDate?: string | null }
+  ) =>
+    api.post<{ followUp: NonNullable<PurchaseOrderDto["followUps"]>[number]; order: PurchaseOrderDto }>(
+      `/purchase-orders/${id}/follow-ups`,
+      body
+    ),
   receive: (id: string, body: Record<string, unknown>) =>
     api.post<PurchaseOrderDto>(`/purchase-orders/${id}/receive`, body),
   remove: (id: string) => api.delete<{ id: string }>(`/purchase-orders/${id}`),
