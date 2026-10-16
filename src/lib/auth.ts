@@ -39,6 +39,7 @@ export type AuthUser = {
     category?: string | null;
     status?: string | null;
   } | null;
+  loginPortal?: "CRM" | "EMPLOYEE" | "BOTH";
   isActive?: boolean;
   avatarUrl?: string | null;
   lastLoginAt?: string | null;

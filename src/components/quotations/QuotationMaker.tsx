@@ -53,6 +53,7 @@ type MakerItem = {
 };
 
 type ColumnKey =
+  | "image"
   | "area"
   | "category"
   | "code"
@@ -72,6 +73,7 @@ const QUOTATION_SETTINGS_PATH = "/settings/quotations/settings";
 
 const COLUMN_DEFS: Array<{ key: ColumnKey; label: string; defaultOn: boolean }> =
   [
+    { key: "image", label: "Image", defaultOn: true },
     { key: "area", label: "Area", defaultOn: true },
     { key: "category", label: "Category", defaultOn: true },
     { key: "name", label: "Item", defaultOn: true },
@@ -86,6 +88,7 @@ const COLUMN_DEFS: Array<{ key: ColumnKey; label: string; defaultOn: boolean }> 
   ];
 
 const HEADER_LABEL: Record<ColumnKey, string> = {
+  image: "Image",
   area: "Area",
   category: "Category",
   code: "Code",
@@ -98,6 +101,31 @@ const HEADER_LABEL: Record<ColumnKey, string> = {
   basePrice: "Base Price",
   finalPrice: "Final Price",
 };
+
+function makerItemToResult(item: MakerItem): MakerAddItemResult {
+  return {
+    area: item.area,
+    category: item.category,
+    subCategory: "",
+    code: item.code,
+    catalogId: "",
+    catalogName: "",
+    name: item.name,
+    description: item.description,
+    specification: item.specification,
+    unitPrice: item.unitPrice,
+    uom: item.uom,
+    qty: item.qty,
+    imageUrl: item.imageUrl,
+    margin: 0,
+    marginUnit: "%",
+    discount: 0,
+    discountUnit: "%",
+    tax: "",
+    hsn: "",
+    subItems: [],
+  };
+}
 
 function formatInr(n: number) {
   return `₹ ${Math.round(n).toLocaleString("en-IN")}`;
@@ -187,6 +215,11 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
   const [areaFilter, setAreaFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingSnapshot, setEditingSnapshot] =
+    useState<MakerAddItemResult | null>(null);
+  const itemImageInputRef = useRef<HTMLInputElement>(null);
+  const imageTargetIdRef = useRef<string | null>(null);
   const [visibleCols, setVisibleCols] = useState<Record<ColumnKey, boolean>>(
     () =>
       Object.fromEntries(
@@ -534,17 +567,28 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
   const openAddItem = () => {
     setFabOpen(false);
     setView("items");
+    setEditingItemId(null);
+    setEditingSnapshot(null);
     setAddItemOpen(true);
+  };
+
+  const openEditItem = (item: MakerItem) => {
+    setEditingItemId(item.id);
+    setEditingSnapshot(makerItemToResult(item));
+    setAddItemOpen(true);
+  };
+
+  const closeItemModal = () => {
+    setAddItemOpen(false);
+    setEditingItemId(null);
+    setEditingSnapshot(null);
   };
 
   const handleAddItem = (result: MakerAddItemResult | MakerAddItemResult[]) => {
     const list = Array.isArray(result) ? result : [result];
-    const stamp = Date.now();
-    const next: MakerItem[] = [];
-    list.forEach((row, idx) => {
-      const parentId = `local-${stamp}-${idx}`;
-      next.push({
-        id: parentId,
+    const row = list[0];
+    if (editingItemId && row) {
+      updateItem(editingItemId, {
         area: row.area,
         category: row.category,
         code: row.code,
@@ -554,13 +598,35 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         unitPrice: row.unitPrice,
         uom: row.uom,
         qty: row.qty,
-        imageUrl: row.imageUrl,
+        imageUrl: row.imageUrl || "",
       });
-      row.subItems.forEach((sub, i) => {
+      flash("Item updated");
+      setEditingItemId(null);
+      setEditingSnapshot(null);
+      return;
+    }
+    const stamp = Date.now();
+    const next: MakerItem[] = [];
+    list.forEach((itemRow, idx) => {
+      const parentId = `local-${stamp}-${idx}`;
+      next.push({
+        id: parentId,
+        area: itemRow.area,
+        category: itemRow.category,
+        code: itemRow.code,
+        name: itemRow.name,
+        description: itemRow.description || itemRow.name,
+        specification: itemRow.specification,
+        unitPrice: itemRow.unitPrice,
+        uom: itemRow.uom,
+        qty: itemRow.qty,
+        imageUrl: itemRow.imageUrl,
+      });
+      itemRow.subItems.forEach((sub, i) => {
         next.push({
           id: `local-${stamp}-${idx}-sub-${i}`,
-          area: sub.area || row.area,
-          category: sub.category || row.category,
+          area: sub.area || itemRow.area,
+          category: sub.category || itemRow.category,
           code: sub.code,
           name: sub.name,
           description: sub.description || sub.name,
@@ -609,6 +675,63 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, ...patch } : it))
     );
+  };
+
+  const removeItem = (id: string) => {
+    setItems((prev) => prev.filter((it) => it.id !== id && it.parentId !== id));
+    setSelected((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    flash("Item removed");
+  };
+
+  const duplicateItem = (item: MakerItem) => {
+    const copy: MakerItem = {
+      ...item,
+      id: `local-${Date.now()}`,
+      name: item.name ? `${item.name} (copy)` : item.name,
+    };
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.id === item.id);
+      if (idx < 0) return [...prev, copy];
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+    flash("Item duplicated");
+  };
+
+  const deleteSelectedItems = () => {
+    const ids = new Set(
+      Object.entries(selected)
+        .filter(([, on]) => on)
+        .map(([id]) => id)
+    );
+    if (!ids.size) return;
+    setItems((prev) =>
+      prev.filter((it) => !ids.has(it.id) && !ids.has(it.parentId || ""))
+    );
+    setSelected({});
+    flash(ids.size > 1 ? `${ids.size} items removed` : "Item removed");
+  };
+
+  const pickItemImage = (itemId: string) => {
+    imageTargetIdRef.current = itemId;
+    itemImageInputRef.current?.click();
+  };
+
+  const onItemImageFile = (file: File | null) => {
+    const targetId = imageTargetIdRef.current;
+    if (!file || !targetId) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateItem(targetId, { imageUrl: String(reader.result || "") });
+      flash("Image updated");
+    };
+    reader.readAsDataURL(file);
+    imageTargetIdRef.current = null;
   };
 
   const saveTitle = async () => {
@@ -722,8 +845,48 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
 
   const renderCell = (item: MakerItem, key: ColumnKey) => {
     const cellInput =
-      "h-8 w-full min-w-[72px] rounded border border-transparent bg-transparent px-1.5 text-sm text-gray-800 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden";
+      "h-9 w-full min-w-[72px] rounded-md border border-transparent bg-transparent px-1.5 text-sm text-gray-800 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden";
     switch (key) {
+      case "image":
+        return (
+          <div className="flex w-[118px] flex-col gap-1 py-1">
+            <div className="relative h-16 w-16 overflow-hidden rounded-md border border-gray-200 bg-gray-50">
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={designAssetUrl(item.imageUrl)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-[10px] text-gray-400">
+                  No image
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => pickItemImage(item.id)}
+                className="rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-700 hover:border-[#E85D75] hover:text-[#E85D75]"
+              >
+                {item.imageUrl ? "Replace" : "Add"}
+              </button>
+              {item.imageUrl ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateItem(item.id, { imageUrl: "" });
+                    flash("Image removed");
+                  }}
+                  className="rounded-md border border-red-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-red-600 hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          </div>
+        );
       case "area":
         return (
           <input
@@ -767,13 +930,14 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         );
       case "description":
         return (
-          <input
+          <textarea
             value={item.description}
             onChange={(e) =>
               updateItem(item.id, { description: e.target.value })
             }
-            className={`${cellInput} min-w-[140px]`}
-            placeholder="—"
+            rows={2}
+            className="min-h-9 min-w-[180px] w-full resize-y rounded-md border border-transparent bg-transparent px-1.5 py-1.5 text-sm text-gray-800 hover:border-gray-200 focus:border-[#E85D75] focus:outline-hidden"
+            placeholder="Description"
           />
         );
       case "specification":
@@ -1382,6 +1546,21 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
                 </div>
               </div>
 
+              {Object.values(selected).some(Boolean) ? (
+                <div className="flex items-center justify-between gap-3 border-b border-[#E85D75]/20 bg-[#E85D75]/5 px-4 py-2">
+                  <p className="text-sm text-gray-700">
+                    {Object.values(selected).filter(Boolean).length} selected
+                  </p>
+                  <button
+                    type="button"
+                    onClick={deleteSelectedItems}
+                    className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                  >
+                    Delete selected
+                  </button>
+                </div>
+              ) : null}
+
               {filterOpen ? (
                 <div className="flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3">
                   <div>
@@ -1429,7 +1608,7 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
               ) : null}
 
               <div className="min-h-0 flex-1 overflow-auto">
-                <div className="min-w-[980px]">
+                <div className="min-w-[1180px]">
                   <table className="w-full border-collapse text-left">
                     <thead className="sticky top-0 z-10 bg-gray-50">
                       <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -1459,6 +1638,7 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
                             {HEADER_LABEL[col.key]}
                           </th>
                         ))}
+                        <th className="whitespace-nowrap px-2 py-3">Actions</th>
                       </tr>
                     </thead>
                     {filteredItems.length > 0 ? (
@@ -1466,7 +1646,7 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
                         {filteredItems.map((item, index) => (
                           <tr
                             key={item.id}
-                            className="border-b border-gray-100 hover:bg-gray-50/80"
+                            className="border-b border-gray-100 align-top hover:bg-gray-50/80"
                           >
                             <td className="px-3 py-2">
                               <input
@@ -1489,6 +1669,31 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
                                 {renderCell(item, col.key)}
                               </td>
                             ))}
+                            <td className="px-2 py-2">
+                              <div className="flex flex-wrap items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditItem(item)}
+                                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:border-[#E85D75] hover:text-[#E85D75]"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => duplicateItem(item)}
+                                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                  Duplicate
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeItem(item.id)}
+                                  className="rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1644,10 +1849,24 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         }}
       />
 
+      <input
+        ref={itemImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          onItemImageFile(e.target.files?.[0] || null);
+          e.target.value = "";
+        }}
+      />
+
       <MakerAddItemModal
         open={addItemOpen}
         existingAreas={areaOptions}
-        onClose={() => setAddItemOpen(false)}
+        initialItem={editingSnapshot}
+        title={editingSnapshot ? "Edit Item" : "Add Item"}
+        submitLabel={editingSnapshot ? "Update Item" : "Add Item"}
+        onClose={closeItemModal}
         onAdd={handleAddItem}
       />
     </div>

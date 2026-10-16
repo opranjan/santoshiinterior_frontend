@@ -252,6 +252,7 @@ export default function UsersManager() {
       managerId: editingUser.managerId || "",
       storeId: editingUser.storeId || "",
       vendorId: editingUser.vendorId || "",
+      loginPortal: editingUser.loginPortal || "CRM",
     };
   }, [editingUser, defaultRoleId, franchiseeRoleId, hrPanelRoleId, prefillFranchisee, prefillHr]);
 
@@ -273,6 +274,7 @@ export default function UsersManager() {
         managerId: form.managerId || null,
         storeId: form.storeId || null,
         vendorId: selectedIsVendor || selectedIsFranchisee ? form.vendorId || null : null,
+        loginPortal: form.loginPortal,
       };
 
       if (editingUser) {

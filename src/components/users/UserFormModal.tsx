@@ -17,6 +17,7 @@ export type UserFormState = {
   managerId: string;
   storeId: string;
   vendorId: string;
+  loginPortal: "CRM" | "EMPLOYEE" | "BOTH";
 };
 
 export function emptyUserForm(defaultRoleId = ""): UserFormState {
@@ -31,6 +32,7 @@ export function emptyUserForm(defaultRoleId = ""): UserFormState {
     managerId: "",
     storeId: "",
     vendorId: "",
+    loginPortal: "CRM",
   };
 }
 
@@ -123,6 +125,26 @@ export default function UserFormModal({
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Mukesh Singh"
               />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Login portal</Label>
+              <select
+                value={form.loginPortal}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    loginPortal: e.target.value as UserFormState["loginPortal"],
+                  }))
+                }
+                className="h-11 w-full rounded-lg border border-[#eadfcf] bg-white px-3 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+              >
+                <option value="CRM">CRM website only</option>
+                <option value="EMPLOYEE">Employee / payroll app only</option>
+                <option value="BOTH">Both CRM and employee app</option>
+              </select>
+              <p className="mt-1 text-[11px] text-gray-500">
+                Employee app login also needs an HR employee record with the same email.
+              </p>
             </div>
             <div>
               <Label>Email (login)</Label>

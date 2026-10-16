@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Label from "@/components/form/Label";
 import { quotationCatalogsApi } from "@/services/crmApi";
+import { designAssetUrl } from "@/lib/designAssets";
 import {
   normalizeCatalogSettings,
   type CatalogItem,
@@ -108,6 +109,29 @@ function blankDraft(catalogId = ""): Draft {
     discountUnit: "%",
     tax: "",
     hsn: "",
+  };
+}
+
+function draftFromResult(item: MakerAddItemResult, catalogId = ""): Draft {
+  return {
+    area: item.area || "All Area",
+    category: item.category || "",
+    subCategory: item.subCategory || "",
+    code: item.code || "",
+    catalogId: item.catalogId || catalogId,
+    name: item.name || "",
+    description: item.description || "",
+    specification: item.specification || "",
+    price: item.unitPrice ? String(item.unitPrice) : "",
+    uom: item.uom || "",
+    qty: item.qty != null ? String(item.qty) : "1",
+    imageUrl: item.imageUrl || "",
+    margin: item.margin ? String(item.margin) : "",
+    marginUnit: item.marginUnit || "%",
+    discount: item.discount ? String(item.discount) : "",
+    discountUnit: item.discountUnit || "%",
+    tax: item.tax || "",
+    hsn: item.hsn || "",
   };
 }
 
@@ -678,7 +702,7 @@ function ItemFormBody({
               {draft.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={draft.imageUrl}
+                  src={designAssetUrl(draft.imageUrl)}
                   alt="Item"
                   className="h-full w-full object-cover"
                 />
@@ -711,7 +735,7 @@ function ItemFormBody({
                       />
                     </svg>
                   </span>
-                  <span className="text-[11px] text-gray-500">Upload image or</span>
+                  <span className="text-[11px] text-gray-500">Add image</span>
                   <span
                     role="button"
                     tabIndex={0}
@@ -728,7 +752,7 @@ function ItemFormBody({
                         fill="currentColor"
                       />
                     </svg>
-                    Select From Inspiration
+                    Inspiration
                   </span>
                 </>
               )}
@@ -736,9 +760,35 @@ function ItemFormBody({
                 type="file"
                 accept="image/*"
                 className="absolute inset-0 cursor-pointer opacity-0"
-                onChange={(e) => onPickImage(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  onPickImage(e.target.files?.[0] || null);
+                  e.target.value = "";
+                }}
               />
             </label>
+            <div className="flex flex-wrap gap-1.5">
+              <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:border-[#E85D75] hover:text-[#E85D75]">
+                {draft.imageUrl ? "Replace" : "Add image"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    onPickImage(e.target.files?.[0] || null);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {draft.imageUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setDraft((d) => ({ ...d, imageUrl: "" }))}
+                  className="inline-flex items-center rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
             <div className="space-y-0.5 text-xs text-gray-500">
               <p>Perimeter: 0 ft</p>
               <p>Area: 0 sqft</p>
@@ -1269,6 +1319,9 @@ function ItemFormBody({
 type Props = {
   open: boolean;
   existingAreas?: string[];
+  initialItem?: MakerAddItemResult | null;
+  title?: string;
+  submitLabel?: string;
   onClose: () => void;
   onAdd: (item: MakerAddItemResult | MakerAddItemResult[]) => void;
 };
@@ -1276,6 +1329,9 @@ type Props = {
 export default function MakerAddItemModal({
   open,
   existingAreas = [],
+  initialItem = null,
+  title,
+  submitLabel,
   onClose,
   onAdd,
 }: Props) {
@@ -1357,7 +1413,12 @@ export default function MakerAddItemModal({
         setCatalogs(normalized.catalogs);
         setCategories(normalized.categories);
         setUoms(normalized.uoms);
-        setDraft(blankDraft(normalized.catalogs[0]?.id || ""));
+        const firstId = normalized.catalogs[0]?.id || "";
+        setDraft(
+          initialItem
+            ? draftFromResult(initialItem, firstId)
+            : blankDraft(firstId)
+        );
         setSubItems([]);
         setShowSettings(false);
         setNotice("");
@@ -1365,7 +1426,6 @@ export default function MakerAddItemModal({
         setQuickAdd(null);
         setPickerTarget(null);
         setPickedIds([]);
-        const firstId = normalized.catalogs[0]?.id;
         if (firstId) void loadCatalogItems(firstId, normalized.catalogs);
       } catch {
         if (!cancelled) {
@@ -1374,14 +1434,18 @@ export default function MakerAddItemModal({
           setCatalogs(normalized.catalogs);
           setCategories(normalized.categories);
           setUoms(normalized.uoms);
-          setDraft(blankDraft(normalized.catalogs[0]?.id || ""));
+          setDraft(
+            initialItem
+              ? draftFromResult(initialItem, normalized.catalogs[0]?.id || "")
+              : blankDraft(normalized.catalogs[0]?.id || "")
+          );
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, loadCatalogItems]);
+  }, [open, loadCatalogItems, initialItem]);
 
   const areas = useMemo(() => {
     const extra = existingAreas.filter(Boolean);
@@ -1542,8 +1606,8 @@ export default function MakerAddItemModal({
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-3 sm:p-4">
       <ItemFormBody
-        title="Add Item"
-        submitLabel="Add Item"
+        title={title || (initialItem ? "Edit Item" : "Add Item")}
+        submitLabel={submitLabel || (initialItem ? "Update Item" : "Add Item")}
         draft={draft}
         setDraft={setDraft}
         {...formShared}
@@ -1585,9 +1649,11 @@ export default function MakerAddItemModal({
         }
         onSubmit={() => {
           const catalogItems = itemsForCatalog(catalogs, draft.catalogId);
-          const picked = pickedIds
-            .map((id) => catalogItems.find((it) => it.id === id))
-            .filter((it): it is CatalogItem => Boolean(it));
+          const picked = initialItem
+            ? []
+            : pickedIds
+                .map((id) => catalogItems.find((it) => it.id === id))
+                .filter((it): it is CatalogItem => Boolean(it));
           if (picked.length) {
             onAdd(
               picked.map((item) =>
