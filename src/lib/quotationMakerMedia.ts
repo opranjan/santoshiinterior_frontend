@@ -25,7 +25,8 @@ export async function persistMakerMedia(input: {
   quotationId: string;
   blocks: FlowBlock[];
   freeImages: FreeImageBlock[];
-}): Promise<{ blocks: FlowBlock[]; freeImages: FreeImageBlock[] }> {
+  itemImageUrls?: string[];
+}): Promise<{ blocks: FlowBlock[]; freeImages: FreeImageBlock[]; itemImageUrls: string[] }> {
   const cache = new Map<string, string>();
   const blobsToRevoke: string[] = [];
 
@@ -59,6 +60,10 @@ export async function persistMakerMedia(input: {
     })
   );
 
+  const itemImageUrls = await Promise.all(
+    (input.itemImageUrls || []).map((url) => persistUrl(url))
+  );
+
   blobsToRevoke.forEach((url) => {
     try {
       URL.revokeObjectURL(url);
@@ -67,7 +72,7 @@ export async function persistMakerMedia(input: {
     }
   });
 
-  return { blocks, freeImages };
+  return { blocks, freeImages, itemImageUrls };
 }
 
 export async function persistTemplateLayout(input: {

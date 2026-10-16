@@ -482,7 +482,22 @@ function toResult(
   };
 }
 
-function applyCatalogItem(item: CatalogItem, prev: Draft): Draft {
+function imageFromCategory(
+  categories: CategoryRecord[],
+  categoryName?: string,
+  subCategory?: string
+) {
+  const cat = categories.find((c) => c.name === categoryName);
+  if (!cat) return "";
+  const sub = subCategory ? cat.subCategoryImages?.[subCategory] : "";
+  return sub || cat.imageUrl || "";
+}
+
+function applyCatalogItem(
+  item: CatalogItem,
+  prev: Draft,
+  categories: CategoryRecord[] = []
+): Draft {
   return {
     ...prev,
     name: item.name || prev.name,
@@ -493,7 +508,14 @@ function applyCatalogItem(item: CatalogItem, prev: Draft): Draft {
     specification: item.specification || prev.specification,
     price: String(item.price ?? prev.price),
     uom: item.uom || prev.uom,
-    imageUrl: item.imageUrl || prev.imageUrl,
+    imageUrl:
+      item.imageUrl ||
+      prev.imageUrl ||
+      imageFromCategory(
+        categories,
+        item.category || prev.category,
+        item.subCategory || prev.subCategory
+      ),
     margin: item.margin != null ? String(item.margin) : prev.margin,
     marginUnit: item.marginUnit || prev.marginUnit,
     discount: item.discount != null ? String(item.discount) : prev.discount,
@@ -794,6 +816,9 @@ function ItemFormBody({
                       ...d,
                       category: e.target.value,
                       subCategory: "",
+                      imageUrl:
+                        d.imageUrl ||
+                        imageFromCategory(categories, e.target.value),
                     }))
                   }
                   className={req(missingCategory)}
@@ -821,7 +846,13 @@ function ItemFormBody({
                 <select
                   value={draft.subCategory}
                   onChange={(e) =>
-                    setDraft((d) => ({ ...d, subCategory: e.target.value }))
+                    setDraft((d) => ({
+                      ...d,
+                      subCategory: e.target.value,
+                      imageUrl:
+                        d.imageUrl ||
+                        imageFromCategory(categories, d.category, e.target.value),
+                    }))
                   }
                   className={fieldClass}
                   disabled={!draft.category}
@@ -1547,7 +1578,7 @@ export default function MakerAddItemModal({
               ? prev.filter((id) => id !== item.id)
               : [...prev, item.id]
           );
-          setDraft((d) => applyCatalogItem(item, d));
+          setDraft((d) => applyCatalogItem(item, d, categories));
         }}
         onRemovePicked={(id) =>
           setPickedIds((prev) => prev.filter((x) => x !== id))
@@ -1561,11 +1592,15 @@ export default function MakerAddItemModal({
             onAdd(
               picked.map((item) =>
                 toResult(
-                  applyCatalogItem(item, {
-                    ...blankDraft(draft.catalogId),
-                    area: draft.area,
-                    qty: "1",
-                  }),
+                  applyCatalogItem(
+                    item,
+                    {
+                      ...blankDraft(draft.catalogId),
+                      area: draft.area,
+                      qty: "1",
+                    },
+                    categories
+                  ),
                   catalogs
                 )
               )
@@ -1615,7 +1650,7 @@ export default function MakerAddItemModal({
             onCatalogChange={(id) => void loadCatalogItems(id)}
             pickedIds={[]}
             onTogglePicked={(item) =>
-              setSubDraft((d) => applyCatalogItem(item, d))
+              setSubDraft((d) => applyCatalogItem(item, d, categories))
             }
             onRemovePicked={() => undefined}
           />
@@ -1639,14 +1674,14 @@ export default function MakerAddItemModal({
           onClose={() => setPickerTarget(null)}
           onPick={(item) => {
             if (pickerTarget === "sub") {
-              setSubDraft((d) => applyCatalogItem(item, d));
+              setSubDraft((d) => applyCatalogItem(item, d, categories));
               setPickerTarget(null);
               return;
             }
             setPickedIds((prev) =>
               prev.includes(item.id) ? prev : [...prev, item.id]
             );
-            setDraft((d) => applyCatalogItem(item, d));
+            setDraft((d) => applyCatalogItem(item, d, categories));
             setPickerTarget(null);
           }}
         />

@@ -27,6 +27,13 @@ const PRINT_STYLES = `
     max-width: 100%;
     display: block;
   }
+  .quotation-items-table img,
+  .quotation-item-image {
+    width: 320px !important;
+    height: 320px !important;
+    max-width: 320px !important;
+    object-fit: contain !important;
+  }
   .flex { display: flex; }
   .flex-wrap { flex-wrap: wrap; }
   .flex-1 { flex: 1 1 auto; }

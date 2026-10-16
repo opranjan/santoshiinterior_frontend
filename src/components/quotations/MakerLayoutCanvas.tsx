@@ -1316,7 +1316,7 @@ export default function MakerLayoutCanvas({
               <tr>
                 <th className="border border-gray-900 px-3 py-2">S.No</th>
                 <th className="border border-gray-900 px-3 py-2">Description</th>
-                <th className="border border-gray-900 px-3 py-2">Image</th>
+                <th className="border border-gray-900 px-3 py-2 text-center">Image</th>
                 <th className="border border-gray-900 px-3 py-2">UOM</th>
                 <th className="border border-gray-900 px-3 py-2">USP</th>
                 <th className="border border-gray-900 px-3 py-2">QTY</th>
@@ -1334,16 +1334,16 @@ export default function MakerLayoutCanvas({
                   <td className="border border-gray-900 px-3 py-2 font-medium">
                     {item.name || item.description || "Item"}
                   </td>
-                  <td className="border border-gray-900 px-3 py-2 text-gray-400">
+                  <td className="w-[340px] border border-gray-900 p-2 text-center align-middle">
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={designAssetUrl(item.imageUrl)}
-                        alt=""
-                        className="h-10 w-10 rounded object-cover"
+                        alt={item.name || item.description || "Item"}
+                        className="quotation-item-image mx-auto h-80 w-80 rounded-md object-contain"
                       />
                     ) : (
-                      "—"
+                      <span className="text-gray-400">—</span>
                     )}
                   </td>
                   <td className="border border-gray-900 px-3 py-2">

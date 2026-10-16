@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { mapQuotation } from "@/lib/crmMappers";
-import { quotationSettingsApi, quotationsApi } from "@/services/crmApi";
+import { quotationCatalogsApi, quotationSettingsApi, quotationsApi } from "@/services/crmApi";
+import { normalizeCatalogSettings } from "@/lib/quotationCatalogDefaults";
+import { designAssetUrl } from "@/lib/designAssets";
 import type { Quotation } from "./QuotationsTable";
 import MakerSettingsModal, {
   defaultMakerSettings,
@@ -331,11 +333,42 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
                 unitPrice: Number(it.rate || 0),
                 uom: String(it.unit || "Nos"),
                 qty: Number(it.qty || 1),
+                imageUrl: it.imageUrl ? designAssetUrl(String(it.imageUrl)) : undefined,
               } satisfies MakerItem;
             }
           )
         : [];
-      setItems(apiItems);
+      let nextItems = apiItems;
+      if (nextItems.some((item) => !item.imageUrl)) {
+        try {
+          const bundle = await quotationCatalogsApi.getBundle();
+          const normalized = normalizeCatalogSettings(bundle);
+          nextItems = nextItems.map((item) => {
+            if (item.imageUrl) return item;
+            for (const catalog of normalized.catalogs) {
+              const match = (catalog.catalogItems || []).find(
+                (row) =>
+                  (item.code && row.code && row.code === item.code) ||
+                  row.name === item.name ||
+                  row.name === item.description
+              );
+              if (match?.imageUrl) {
+                return { ...item, imageUrl: designAssetUrl(match.imageUrl) };
+              }
+            }
+            const category = normalized.categories.find(
+              (row) => row.name === item.category || row.name === item.name
+            );
+            if (category?.imageUrl) {
+              return { ...item, imageUrl: designAssetUrl(category.imageUrl) };
+            }
+            return item;
+          });
+        } catch {
+          /* keep saved item images */
+        }
+      }
+      setItems(nextItems);
       setSelected({});
     } catch (err) {
       setError(
@@ -613,16 +646,23 @@ export default function QuotationMaker({ quotationId }: { quotationId: string })
         quotationId: quotation.id,
         blocks: layoutBlocks,
         freeImages,
+        itemImageUrls: items.map((i) => i.imageUrl || ""),
       });
       setLayoutBlocks(media.blocks);
       setFreeImages(media.freeImages);
+      const savedItems = items.map((i, index) => ({
+        ...i,
+        imageUrl: media.itemImageUrls[index] || i.imageUrl,
+      }));
+      setItems(savedItems);
       await quotationsApi.update(quotation.id, {
-        items: items.map((i, index) => ({
+        items: savedItems.map((i, index) => ({
           description: i.description || i.name || `Item ${index + 1}`,
           unit: i.uom,
           qty: i.qty,
           rate: i.unitPrice,
           amount: itemBase(i),
+          imageUrl: i.imageUrl || null,
           sortOrder: index,
         })),
         amount: analysis.finalPrice,
