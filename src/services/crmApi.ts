@@ -1278,7 +1278,7 @@ export const hrApi = {
   listAttendance: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/attendance", query),
   upsertAttendance: (body: Record<string, unknown>) =>
-    api.post("/hr/attendance", body),
+    api.post<Record<string, unknown>>("/hr/attendance", body),
   listLeaves: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/leaves", query),
   createLeave: (body: Record<string, unknown>) => api.post("/hr/leaves", body),

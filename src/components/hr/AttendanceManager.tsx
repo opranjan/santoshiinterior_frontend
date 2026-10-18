@@ -280,14 +280,14 @@ export default function AttendanceManager({ employees = [] }: Props) {
           activeEmployees.forEach((emp) => {
             const key = recordKey(emp.id, date);
             const fetched = byEmployee.get(emp.id);
-            const row = fetched
+            const row: AttendanceRecord = fetched
               ? { ...fetched, date }
               : {
                   employeeId: emp.id,
                   date,
                   checkIn: "",
                   checkOut: "",
-                  status: emp.status === "On Leave" ? "Leave" : "Absent",
+                  status: (emp.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
                   note: "",
                 };
             next[key] = row;
@@ -319,7 +319,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
         date,
         checkIn: "",
         checkOut: "",
-        status: emp.status === "On Leave" ? "Leave" : "Absent",
+        status: (emp.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
         note: "",
       };
       return { emp, record: existing || fallback, key };
@@ -387,7 +387,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
       date,
       checkIn: "",
       checkOut: "",
-      status: emp?.status === "On Leave" ? "Leave" : "Absent",
+      status: (emp?.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
       note: "",
     };
   };
