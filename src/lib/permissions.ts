@@ -162,6 +162,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/customer-issues", permissions: ["issues.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/documents", permissions: ["documents.view", "documents.manage", "projects.view", "workorders.manage", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/hr", permissions: ["hr.manage", "hr.view", "hr.portal", "users.view", "users.manage"] },
+  { prefix: "/casual", permissions: ["casual.portal", "casual.manage", "users.manage"] },
   { prefix: "/calendar", permissions: ["calendar.view", "sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
   { prefix: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
   { prefix: "/franchisees", permissions: ["users.manage", "users.view"] },
@@ -195,6 +196,14 @@ export const canAccessRoute = (
       path === "/profile" ||
       path === "/hr" ||
       path.startsWith("/hr/")
+    );
+  }
+  if (isCasualPanelUser(user)) {
+    return (
+      path === "/" ||
+      path === "/profile" ||
+      path === "/casual" ||
+      path.startsWith("/casual/")
     );
   }
   if (isVendorPanelUser(user)) return vendorPanelOk;
@@ -346,6 +355,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
       { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view"] },
       { name: "HR Panel", path: "/users", permissions: ["users.manage", "users.view"] },
+      { name: "Casual Staff Panel", path: "/users", permissions: ["users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
     ],
   },
@@ -476,6 +486,16 @@ export const FRANCHISEE_NAV_ITEMS = VENDOR_NAV_ITEMS;
 
 const HR_PANEL_PERMS = ["hr.portal", "hr.manage", "hr.view"];
 
+const CASUAL_PANEL_PERMS = ["casual.portal", "casual.manage"];
+
+export const CASUAL_NAV_ITEMS: NavPermissionGroup[] = [
+  { name: "Home", path: "/", permissions: CASUAL_PANEL_PERMS },
+  { name: "Upload Update", path: "/casual/upload", permissions: CASUAL_PANEL_PERMS },
+  { name: "My Updates", path: "/casual/updates", permissions: CASUAL_PANEL_PERMS },
+  { name: "Messages", path: "/casual/messages", permissions: CASUAL_PANEL_PERMS },
+  { name: "Profile", path: "/casual/profile", permissions: CASUAL_PANEL_PERMS },
+];
+
 export const HR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Dashboard", path: "/", permissions: HR_PANEL_PERMS },
   { name: "Employees", path: "/hr/employees", permissions: HR_PANEL_PERMS },
@@ -559,6 +579,17 @@ export const isHrPanelUser = (user: AuthUser | null | undefined) => {
   );
 };
 
+export const isCasualPanelUser = (user: AuthUser | null | undefined) => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return false;
+  if (isHrPanelUser(user) || isVendorPanelUser(user)) return false;
+  if (user.accessRole?.key === "CASUAL_STAFF") return true;
+  return (
+    hasPermission(user, "casual.portal") &&
+    !hasAnyPermission(user, ["sales.full", "sales.manage", "users.manage"])
+  );
+};
+
 export const isIsolatedShellUser = (user: AuthUser | null | undefined) =>
-  isVendorPanelUser(user) || isHrPanelUser(user);
+  isVendorPanelUser(user) || isHrPanelUser(user) || isCasualPanelUser(user);
 

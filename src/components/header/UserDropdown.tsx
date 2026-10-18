@@ -4,7 +4,7 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { useAuth } from "@/context/AuthContext";
 import { designAssetUrl } from "@/lib/designAssets";
-import { isHrPanelUser } from "@/lib/permissions";
+import { isCasualPanelUser, isHrPanelUser } from "@/lib/permissions";
 
 export default function UserDropdown() {
   const { user, logout } = useAuth();
@@ -22,6 +22,7 @@ export default function UserDropdown() {
   const displayName = user?.name || "User";
   const email = user?.email || "";
   const hrPanel = isHrPanelUser(user);
+  const casualPanel = isCasualPanelUser(user);
 
   return (
     <div className="relative">
@@ -49,7 +50,11 @@ export default function UserDropdown() {
 
         <span className="mr-1 hidden min-w-0 lg:block">
           <span className="block truncate font-medium text-theme-sm text-[#1c1610] dark:text-white">{displayName}</span>
-          {hrPanel ? <span className="block text-[11px] font-normal text-[#8a7b68]">HR Admin</span> : null}
+          {casualPanel ? (
+            <span className="block text-[11px] font-normal text-[#8a7b68]">Casual Staff</span>
+          ) : hrPanel ? (
+            <span className="block text-[11px] font-normal text-[#8a7b68]">HR Admin</span>
+          ) : null}
         </span>
 
         <svg

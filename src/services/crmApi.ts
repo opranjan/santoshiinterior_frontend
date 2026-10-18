@@ -1359,6 +1359,67 @@ export const hrApi = {
     api.put<{ checkIn: string; checkOut: string }>("/hr/settings", body),
 };
 
+export type CasualUpdateFile = {
+  id: string;
+  kind: "PHOTO" | "VIDEO";
+  url: string;
+  fileName: string;
+  mimeType?: string | null;
+  durationSec?: number | null;
+};
+
+export type CasualUpdate = {
+  id: string;
+  title?: string | null;
+  note?: string | null;
+  managerNote?: string | null;
+  status: "SENT" | "REVIEWED";
+  createdAt: string;
+  files: CasualUpdateFile[];
+};
+
+export type CasualMessage = {
+  id: string;
+  body: string;
+  createdAt: string;
+  mine?: boolean;
+  sender?: { id: string; name: string; avatarUrl?: string | null };
+};
+
+export const casualApi = {
+  home: () =>
+    api.get<{
+      user: { id: string; name: string; email?: string; phone?: string | null; avatarUrl?: string | null; roleLabel?: string };
+      unreadMessages: number;
+      updates: CasualUpdate[];
+    }>("/casual/home"),
+  listUpdates: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<CasualUpdate>>("/casual/updates", query),
+  createUpdate: async (form: FormData) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const res = await fetch(`${base}/casual/updates`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Failed to submit update");
+    }
+    return json.data as CasualUpdate;
+  },
+  listMessages: () => api.get<{ items: CasualMessage[] }>("/casual/messages"),
+  sendMessage: (body: { body: string }) =>
+    api.post<CasualMessage>("/casual/messages", body),
+  updateProfile: (body: Record<string, unknown>) =>
+    api.put("/casual/profile", body),
+};
+
 export const usersApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<AuthUser>>("/users", query),

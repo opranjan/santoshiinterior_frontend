@@ -6,7 +6,9 @@ import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
 import {
   filterNavItems,
+  CASUAL_NAV_ITEMS,
   HR_NAV_ITEMS,
+  isCasualPanelUser,
   isHrPanelUser,
   isVendorPanelUser,
   NAV_ITEMS,
@@ -72,6 +74,11 @@ const ICONS: Record<string, React.ReactNode> = {
   Calendar: <CalenderIcon className="size-5 shrink-0" />,
   Admin: <UserCircleIcon className="size-5 shrink-0" />,
   "Vendor Panel": <GroupIcon className="size-5 shrink-0" />,
+  Home: <GridIcon className="size-5 shrink-0" />,
+  "Upload Update": <FileIcon className="size-5 shrink-0" />,
+  "My Updates": <DocsIcon className="size-5 shrink-0" />,
+  Messages: <ChatIcon className="size-5 shrink-0" />,
+  Profile: <UserCircleIcon className="size-5 shrink-0" />,
   Integrations: <PlugInIcon className="size-5 shrink-0" />,
   Communication: <ChatIcon className="size-5 shrink-0" />,
 };
@@ -84,22 +91,25 @@ const withIcons = (items: NavPermissionGroup[]): NavItem[] =>
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered, closeMobileSidebar } = useSidebar();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const pathname = usePathname();
   const vendorPanel = isVendorPanelUser(user);
   const hrPanel = isHrPanelUser(user);
-  const isolated = vendorPanel || hrPanel;
+  const casualPanel = isCasualPanelUser(user);
+  const isolated = vendorPanel || hrPanel || casualPanel;
 
   const navItems = useMemo(
     () =>
       withIcons(
-        hrPanel
+        casualPanel
+          ? CASUAL_NAV_ITEMS
+          : hrPanel
           ? HR_NAV_ITEMS
           : vendorPanel
             ? VENDOR_NAV_ITEMS
             : filterNavItems(NAV_ITEMS, user)
       ),
-    [user, vendorPanel, hrPanel]
+    [user, vendorPanel, hrPanel, casualPanel]
   );
   const othersItems = useMemo(
     () =>
@@ -330,7 +340,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`no-print fixed inset-y-0 left-0 top-16 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-white px-5 text-gray-900 transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 lg:top-0 lg:h-screen lg:z-[60]
-        ${isolated ? "vendor-sidebar" : "crm-sidebar"} ${hrPanel ? "hr-sidebar" : ""}
+        ${isolated ? "vendor-sidebar" : "crm-sidebar"} ${hrPanel || casualPanel ? "hr-sidebar" : ""} ${casualPanel ? "casual-sidebar" : ""}
         ${
           isExpanded || isMobileOpen
             ? "w-[290px]"
@@ -360,10 +370,10 @@ const AppSidebar: React.FC = () => {
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="sidebar-brand-title">
-                  {hrPanel ? "Santoshi Interiors" : vendorPanel ? "Vendor Panel" : "Santoshi Interiors"}
+                  {casualPanel || hrPanel ? "Santoshi Interiors" : vendorPanel ? "Vendor Panel" : "Santoshi Interiors"}
                 </span>
                 <span className="sidebar-brand-kicker">
-                  {hrPanel ? "Design Your Dream Space" : isolated ? "Santoshi Interiors" : "CRM"}
+                  {casualPanel || hrPanel ? "Design Your Dream Space" : isolated ? "Santoshi Interiors" : "CRM"}
                 </span>
               </span>
             </span>
@@ -383,7 +393,7 @@ const AppSidebar: React.FC = () => {
           <div className="flex flex-col gap-6">
             {navItems.length > 0 ? (
               <div>
-                {hrPanel ? null : (
+                {hrPanel || casualPanel ? null : (
                 <h2
                   className={`sidebar-kicker mb-3 flex items-center ${
                     !isExpanded && !isHovered
@@ -460,7 +470,9 @@ const AppSidebar: React.FC = () => {
           <span className="min-w-0">
             <span className="sidebar-foot-name">{user.name}</span>
             <span className="sidebar-foot-role">
-              {hrPanel
+              {casualPanel
+                  ? "Casual Staff Workspace"
+                  : hrPanel
                   ? "HR workspace"
                   : vendorPanel
                   ? "Vendor workspace"
@@ -468,6 +480,15 @@ const AppSidebar: React.FC = () => {
             </span>
           </span>
         </div>
+      ) : null}
+      {casualPanel && (isExpanded || isHovered || isMobileOpen) ? (
+        <button
+          type="button"
+          onClick={logout}
+          className="mb-4 mt-1 flex h-11 items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-[#d8cbb8] hover:bg-white/5 hover:text-white"
+        >
+          Logout
+        </button>
       ) : null}
     </aside>
   );

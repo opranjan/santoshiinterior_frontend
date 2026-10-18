@@ -4,7 +4,7 @@ import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
-import { isHrPanelUser, isIsolatedShellUser } from "@/lib/permissions";
+import { isCasualPanelUser, isHrPanelUser, isIsolatedShellUser } from "@/lib/permissions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useState ,useEffect,useRef} from "react";
@@ -14,6 +14,7 @@ const AppHeader: React.FC = () => {
   const { user } = useAuth();
   const partner = isIsolatedShellUser(user);
   const hrPanel = isHrPanelUser(user);
+  const casualPanel = isCasualPanelUser(user);
   const pathname = usePathname();
   const hrSearchPlaceholder = pathname.startsWith("/hr/payroll")
     ? "Search employees, salary slips, documents..."
@@ -58,7 +59,7 @@ const AppHeader: React.FC = () => {
   }, []);
 
   return (
-    <header className={`no-print sticky top-0 z-[80] flex w-full min-w-0 shrink-0 bg-white border-gray-200 dark:border-gray-800 dark:bg-gray-900 lg:border-b ${partner ? (hrPanel ? "vendor-header hr-header min-h-16 overflow-visible" : "vendor-header h-14") : "crm-header"}`}>
+    <header className={`no-print sticky top-0 z-[80] flex w-full min-w-0 shrink-0 bg-white border-gray-200 dark:border-gray-800 dark:bg-gray-900 lg:border-b ${partner ? (hrPanel || casualPanel ? "vendor-header hr-header min-h-16 overflow-visible" : "vendor-header h-14") : "crm-header"}`}>
       <div className="flex flex-col items-center justify-between grow min-w-0 lg:flex-row lg:px-6">
         <div className={`flex items-center justify-between w-full min-w-0 gap-2 px-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4 ${partner ? "py-2" : "py-3"}`}>
           <button
@@ -108,14 +109,14 @@ const AppHeader: React.FC = () => {
                 className="h-8 w-8 shrink-0 rounded-md object-contain"
               />
               <span className="truncate text-base font-semibold tracking-tight text-gray-900 dark:text-white sm:text-lg">
-                {hrPanel ? "HR Panel" : partner ? "Vendor Panel" : "Santoshi Interiors"}
+                {casualPanel ? "Casual Staff" : hrPanel ? "HR Panel" : partner ? "Vendor Panel" : "Santoshi Interiors"}
               </span>
             </span>
           </Link>
 
           {partner ? (
             <div className="flex shrink-0 items-center gap-0 lg:hidden">
-              {hrPanel ? null : <ThemeToggleButton />}
+              {hrPanel || casualPanel ? null : <ThemeToggleButton />}
               <NotificationDropdown />
               <UserDropdown />
             </div>
@@ -142,7 +143,19 @@ const AppHeader: React.FC = () => {
           )}
 
           <div className="hidden min-w-0 flex-1 lg:block">
-            {hrPanel ? (
+            {casualPanel ? (
+              <div className="relative max-w-xl">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8a7b68]">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M8.5 1.5a7 7 0 105.6 11.5l3.7 3.7 1.4-1.4-3.7-3.7A7 7 0 008.5 1.5zm0 2a5 5 0 110 10 5 5 0 010-10z"/></svg>
+                </span>
+                <input
+                  ref={inputRef}
+                  type="search"
+                  placeholder="Search updates, messages..."
+                  className="h-11 w-full rounded-full border border-[#eadfcf] bg-[#fbf8f3] py-2 pl-11 pr-4 text-sm text-[#1c1610] placeholder:text-[#b3a898] focus:border-[#c4a574] focus:outline-none"
+                />
+              </div>
+            ) : hrPanel ? (
               <div className="relative max-w-xl">
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8a7b68]">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M8.5 1.5a7 7 0 105.6 11.5l3.7 3.7 1.4-1.4-3.7-3.7A7 7 0 008.5 1.5zm0 2a5 5 0 110 10 5 5 0 010-10z"/></svg>
@@ -222,7 +235,7 @@ const AppHeader: React.FC = () => {
           } items-center justify-between w-full gap-4 px-5 py-4 shadow-theme-md lg:justify-end lg:px-0 lg:shadow-none`}
         >
           <div className="flex items-center gap-2 2xsm:gap-3">
-            {hrPanel ? null : <ThemeToggleButton />}
+            {hrPanel || casualPanel ? null : <ThemeToggleButton />}
            <NotificationDropdown /> 
             {/* <!-- Notification Menu Area --> */}
           </div>
