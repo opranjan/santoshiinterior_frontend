@@ -1353,6 +1353,10 @@ export const hrApi = {
     api.put(`/hr/documents/${id}`, body),
   removeDocument: (id: string, hard?: boolean) =>
     api.delete(`/hr/documents/${id}${hard ? "?hard=true" : ""}`),
+  getSettings: () =>
+    api.get<{ checkIn: string; checkOut: string }>("/hr/settings"),
+  saveSettings: (body: { checkIn: string; checkOut: string }) =>
+    api.put<{ checkIn: string; checkOut: string }>("/hr/settings", body),
 };
 
 export const usersApi = {

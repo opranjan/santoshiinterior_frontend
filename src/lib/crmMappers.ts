@@ -210,6 +210,7 @@ export function mapEmployee(dto: Record<string, unknown>) {
     department: enumToLabel(String(dto.department || "SALES")),
     role: String(dto.roleTitle || ""),
     store: mapStoreName(store),
+    employeeCode: String(dto.employeeCode || ""),
     joinDate: formatDate(dto.joinDate as string | null),
     status: enumToLabel(String(dto.status || "ACTIVE")),
   };

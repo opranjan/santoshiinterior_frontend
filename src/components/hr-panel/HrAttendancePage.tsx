@@ -24,6 +24,7 @@ export default function HrAttendancePage() {
               name: emp.name,
               store: emp.store || "Main Branch",
               department: emp.department,
+              employeeCode: String(row.employeeCode || ""),
               status: status === "On Leave" || status === "Inactive" ? status : "Active",
             };
           })

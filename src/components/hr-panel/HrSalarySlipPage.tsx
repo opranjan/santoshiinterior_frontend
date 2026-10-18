@@ -123,7 +123,9 @@ export default function HrSalarySlipPage() {
   const [bank, setBank] = useState({ employeeCode: "", bankName: "", accountNumber: "", ifscCode: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [releasing, setReleasing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
 
   const monthOptions = useMemo(
     () =>
@@ -200,25 +202,45 @@ export default function HrSalarySlipPage() {
     return { gross, deductions, net, ctc, paid };
   }, [form]);
 
+  const persist = async (status: "PENDING" | "PAID") => {
+    if (!employeeId) return null;
+    const row = await hrApi.saveSalarySlip({
+      employeeId,
+      month,
+      ...form,
+      ...bank,
+      status,
+      paymentDate: status === "PAID" ? new Date().toISOString() : slip?.paymentDate,
+    });
+    const data = row as unknown as Slip;
+    setSlip(data);
+    return data;
+  };
+
   const save = async () => {
     if (!employeeId) return;
     setSaving(true);
     setError("");
     try {
-      const row = await hrApi.saveSalarySlip({
-        employeeId,
-        month,
-        ...form,
-        ...bank,
-        status: slip?.status || "PENDING",
-        paymentDate: slip?.paymentDate,
-      });
-      const data = row as unknown as Slip;
-      setSlip(data);
+      await persist(slip?.status === "PAID" ? "PAID" : "PENDING");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save salary slip");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const releaseSalary = async () => {
+    if (!employeeId) return;
+    setReleasing(true);
+    setError("");
+    try {
+      await persist("PAID");
+      setConfirmRelease(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not release salary");
+    } finally {
+      setReleasing(false);
     }
   };
 
@@ -299,10 +321,18 @@ export default function HrSalarySlipPage() {
             <button
               type="button"
               onClick={() => void save()}
-              disabled={saving || !employeeId}
+              disabled={saving || releasing || !employeeId}
               className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#1c1610] disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save pay setup"}
+            </button>
+            <button
+              type="button"
+              onClick={() => (paid ? undefined : setConfirmRelease(true))}
+              disabled={releasing || !employeeId || paid}
+              className="inline-flex h-11 items-center rounded-xl bg-[#2f7a45] px-4 text-sm font-semibold text-white hover:bg-[#27653a] disabled:opacity-60"
+            >
+              {paid ? "Released" : releasing ? "Releasing…" : "Release salary"}
             </button>
             <button
               type="button"
@@ -375,7 +405,9 @@ export default function HrSalarySlipPage() {
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-[#8a7b68]">
-                  {paid ? "Credited to the employee bank account" : "Will credit on the payment date after you save"}
+                  {paid
+                    ? "Released — salary slip is now available in the employee payroll app"
+                    : "Save the pay setup, then Release salary to publish the slip in the employee app"}
                 </p>
               </div>
 
@@ -536,6 +568,34 @@ export default function HrSalarySlipPage() {
           </aside>
         </div>
       )}
+
+      {confirmRelease ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-[#1c1814]">
+            <h3 className="text-lg font-semibold text-[#1c1610] dark:text-white">Release salary</h3>
+            <p className="mt-2 text-sm text-[#5c5146] dark:text-gray-300">
+              Release {emp?.name || "this employee"}’s salary slip for {monthLabel(month)}? It will appear in the employee payroll app.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmRelease(false)}
+                className="inline-flex h-10 items-center rounded-xl border border-[#eadfcf] px-4 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void releaseSalary()}
+                disabled={releasing}
+                className="inline-flex h-10 items-center rounded-xl bg-[#2f7a45] px-4 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {releasing ? "Releasing…" : "Confirm release"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
