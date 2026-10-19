@@ -1,7 +1,5 @@
-import CasualStaffMessagesPage from "@/components/casual-staff/CasualStaffMessagesPage";
-
-export const metadata = { title: "Messages" };
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <CasualStaffMessagesPage />;
+  redirect("/");
 }

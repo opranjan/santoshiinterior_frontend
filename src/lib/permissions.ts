@@ -46,6 +46,9 @@ const IMPLIES: Record<string, string[]> = {
     "customers.manage",
     "messages.send",
     "messages.view.all",
+    "messages.whatsapp.leads",
+    "messages.whatsapp.projects",
+    "messages.whatsapp.campaigns",
     "calls.make",
     "calls.view",
     "chat.box",
@@ -59,8 +62,25 @@ const IMPLIES: Record<string, string[]> = {
     "procurement.manage",
   ],
   "reports.full": ["reports.store"],
-  "sales.manage": ["sales.view", "customers.manage", "chat.box"],
-  "leads.manage": ["customers.view"],
+  "sales.manage": [
+    "sales.view",
+    "customers.manage",
+    "chat.box",
+    "messages.whatsapp.leads",
+    "messages.whatsapp.projects",
+    "messages.whatsapp.campaigns",
+  ],
+  "leads.manage": [
+    "customers.view",
+    "messages.whatsapp.leads",
+    "messages.whatsapp.projects",
+    "messages.whatsapp.campaigns",
+  ],
+  "messages.view.all": [
+    "messages.whatsapp.leads",
+    "messages.whatsapp.projects",
+    "messages.whatsapp.campaigns",
+  ],
   "customers.manage": ["customers.view"],
   "projects.manage": ["projects.view"],
   "quotations.manage": ["quotations.create", "quotations.approve"],
@@ -115,6 +135,41 @@ export const hasAnyPermission = (
   return keys.some((key) => perms.has(key));
 };
 
+export const WHATSAPP_VIEW_PERMISSIONS = {
+  lead: "messages.whatsapp.leads",
+  project: "messages.whatsapp.projects",
+  campaign: "messages.whatsapp.campaigns",
+} as const;
+
+export type WhatsAppViewMode = keyof typeof WHATSAPP_VIEW_PERMISSIONS;
+
+export const canAccessWhatsAppView = (
+  user: AuthUser | null | undefined,
+  viewMode: WhatsAppViewMode
+): boolean => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN") return true;
+  const specific = Object.values(WHATSAPP_VIEW_PERMISSIONS);
+  if (hasAnyPermission(user, specific)) {
+    return hasPermission(user, WHATSAPP_VIEW_PERMISSIONS[viewMode]);
+  }
+  return hasAnyPermission(user, [
+    "messages.send",
+    "messages.view.all",
+    "sales.full",
+    "sales.manage",
+    "sales.view",
+    "leads.manage",
+  ]);
+};
+
+export const allowedWhatsAppViews = (
+  user: AuthUser | null | undefined
+): WhatsAppViewMode[] =>
+  (["lead", "project", "campaign"] as WhatsAppViewMode[]).filter((mode) =>
+    canAccessWhatsAppView(user, mode)
+  );
+
 export const canAccessAllStores = (user: AuthUser | null | undefined): boolean => {
   if (!user) return false;
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return true;
@@ -132,7 +187,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
-  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view", "users.manage", "chat.box"] },
+  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "calls.make", "calls.view", "users.manage", "chat.box"] },
   { prefix: "/chat-box", permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"] },
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
@@ -163,6 +218,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/documents", permissions: ["documents.view", "documents.manage", "projects.view", "workorders.manage", "sales.view", "sales.manage", "sales.full"] },
   { prefix: "/hr", permissions: ["hr.manage", "hr.view", "hr.portal", "users.view", "users.manage"] },
   { prefix: "/casual", permissions: ["casual.portal", "casual.manage", "users.manage"] },
+  { prefix: "/casual-staff", permissions: ["casual.manage", "users.manage"] },
   { prefix: "/calendar", permissions: ["calendar.view", "sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
   { prefix: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
   { prefix: "/franchisees", permissions: ["users.manage", "users.view"] },
@@ -276,12 +332,12 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Communication",
-    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "calls.make", "calls.view", "users.manage", "chat.box"],
+    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "calls.make", "calls.view", "users.manage", "chat.box"],
     subItems: [
       {
         name: "WhatsApp",
         path: "/communication/whatsapp",
-        permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all"],
+        permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns"],
       },
       {
         name: "Telephony",
@@ -355,7 +411,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
       { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view"] },
       { name: "HR Panel", path: "/users", permissions: ["users.manage", "users.view"] },
-      { name: "Casual Staff Panel", path: "/users", permissions: ["users.manage", "users.view"] },
+      { name: "Casual Staff Panel", path: "/casual-staff", permissions: ["casual.manage", "users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
     ],
   },
@@ -490,9 +546,8 @@ const CASUAL_PANEL_PERMS = ["casual.portal", "casual.manage"];
 
 export const CASUAL_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Home", path: "/", permissions: CASUAL_PANEL_PERMS },
-  { name: "Upload Update", path: "/casual/upload", permissions: CASUAL_PANEL_PERMS },
+  { name: "My Tasks", path: "/casual/tasks", permissions: CASUAL_PANEL_PERMS },
   { name: "My Updates", path: "/casual/updates", permissions: CASUAL_PANEL_PERMS },
-  { name: "Messages", path: "/casual/messages", permissions: CASUAL_PANEL_PERMS },
   { name: "Profile", path: "/casual/profile", permissions: CASUAL_PANEL_PERMS },
 ];
 

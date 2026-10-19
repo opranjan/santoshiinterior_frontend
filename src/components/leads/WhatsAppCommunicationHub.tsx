@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   leadsApi,
   type LeadMessageDto,
   type WhatsAppInboxItemDto,
 } from "@/services/crmApi";
 import { enumToLabel } from "@/lib/mappers";
+import { useAuth } from "@/context/AuthContext";
+import { allowedWhatsAppViews, type WhatsAppViewMode } from "@/lib/permissions";
 import LeadCommunicationPanel from "./LeadCommunicationPanel";
 
 type SelectedLead = {
@@ -31,7 +33,7 @@ type HubProps = {
   fullHeight?: boolean;
 };
 
-type ViewMode = "project" | "lead" | "campaign";
+type ViewMode = WhatsAppViewMode;
 
 const EMPTY_MESSAGES: LeadMessageDto[] = [];
 
@@ -133,12 +135,23 @@ export default function WhatsAppCommunicationHub({
   onRefresh,
   fullHeight = false,
 }: HubProps) {
+  const { user } = useAuth();
+  const viewModes = useMemo(() => allowedWhatsAppViews(user), [user]);
   const [inbox, setInbox] = useState<WhatsAppInboxItemDto[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("lead");
+
+  useEffect(() => {
+    if (!viewModes.length) return;
+    if (!viewModes.includes(viewMode)) {
+      setViewMode(viewModes[0]);
+      setStageFilter("");
+      setInbox([]);
+    }
+  }, [viewMode, viewModes]);
   const [stageFilter, setStageFilter] = useState("");
   const [activeLeadId, setActiveLeadId] = useState<string | null>(
     selectedLeadIdProp || selectedLeadProp?.id || null
@@ -156,6 +169,11 @@ export default function WhatsAppCommunicationHub({
   }, [search]);
 
   const loadInbox = useCallback(async (silent = false) => {
+    if (!viewModes.includes(viewMode)) {
+      setInbox([]);
+      setLoadingInbox(false);
+      return;
+    }
     const requestId = ++inboxRequestId.current;
     try {
       if (!silent) setLoadingInbox(true);
@@ -178,7 +196,7 @@ export default function WhatsAppCommunicationHub({
     } finally {
       if (requestId === inboxRequestId.current) setLoadingInbox(false);
     }
-  }, [debouncedSearch, viewMode, stageFilter]);
+  }, [debouncedSearch, viewMode, stageFilter, viewModes]);
 
   useEffect(() => {
     void loadInbox(false);
@@ -357,8 +375,9 @@ export default function WhatsAppCommunicationHub({
           </div>
 
           <div className="flex flex-wrap gap-1.5">
+            {viewModes.length ? (
             <div className="flex h-8 rounded-lg bg-[#f0f2f5] p-0.5 dark:bg-[#202c33]">
-              {(["lead", "project", "campaign"] as ViewMode[]).map((mode) => (
+              {viewModes.map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -377,6 +396,7 @@ export default function WhatsAppCommunicationHub({
                 </button>
               ))}
             </div>
+            ) : null}
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}

@@ -189,6 +189,14 @@ const SECTIONS: SettingsSection[] = [
         keywords: ["catalog", "items", "products"],
       },
       {
+        id: "modular-catalog",
+        label: "Modular Catalog",
+        desc: "Series, catalogues, and items for orders",
+        href: "/settings/modular-catalog",
+        icon: <IconCatalog />,
+        keywords: ["modular", "series", "signature", "kitchen", "wardrobe", "catalog"],
+      },
+      {
         id: "quotation-settings",
         label: "Quotation Settings",
         desc: "Templates, tax, and approval rules",
@@ -234,7 +242,7 @@ export default function SettingsHub() {
               Settings
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-[#c4b49a]">
-              {total} configuration areas for CRM, website, and quotations.
+              {total} configuration areas for CRM, website, quotations, and modular catalog.
             </p>
           </div>
           <div className="relative w-full sm:max-w-xs">

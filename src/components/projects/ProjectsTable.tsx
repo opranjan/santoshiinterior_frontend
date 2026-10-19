@@ -11,6 +11,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { customersApi, leadsApi, projectsApi, storesApi, usersApi } from "@/services/crmApi";
+import { useAuth } from "@/context/AuthContext";
+import { hasAnyPermission } from "@/lib/permissions";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
 import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
@@ -299,8 +301,10 @@ const labelClass = "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0
 const serif = { fontFamily: "Georgia, 'Times New Roman', serif" } as const;
 
 export default function ProjectsTable() {
+  const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const canDeleteProject = hasAnyPermission(user, ["projects.manage", "sales.full", "users.manage"]);
   const fromLeadHandled = useRef(false);
   const fromCustomerHandled = useRef(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -321,6 +325,8 @@ export default function ProjectsTable() {
   const [sourceLeadClientName, setSourceLeadClientName] = useState("");
   const [sourceCustomerId, setSourceCustomerId] = useState<string | null>(null);
   const [tasksProject, setTasksProject] = useState<Project | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [franchisees, setFranchisees] = useState<StaffOption[]>([]);
@@ -671,6 +677,21 @@ export default function ProjectsTable() {
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save project");
+    }
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    setError("");
+    try {
+      await projectsApi.remove(deleteTarget.id);
+      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -1137,6 +1158,15 @@ export default function ProjectsTable() {
                         >
                           Tasks{p.taskCount ? ` (${p.taskCount})` : ""}
                         </button>
+                        {canDeleteProject ? (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(p)}
+                            className="text-left text-sm font-semibold text-[#b4533a] hover:text-[#8a3424]"
+                          >
+                            Delete
+                          </button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1159,6 +1189,39 @@ export default function ProjectsTable() {
           </div>
         </div>
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-white p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3 className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]" style={serif}>
+              Delete project?
+            </h3>
+            <p className="mt-2 text-sm text-[#8a7b68]">
+              Remove <strong className="text-[#1c1610] dark:text-[#f3ece2]">{deleteTarget.name}</strong>{" "}
+              from the projects list? This is a soft delete — the record is hidden
+              but kept in the database.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => !deleteBusy && setDeleteTarget(null)}
+                disabled={deleteBusy}
+                className="rounded-md border border-[#eadfcf] px-4 py-2 text-sm font-semibold text-[#5c5044] hover:bg-[#fbf8f3] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteProject()}
+                disabled={deleteBusy}
+                className="rounded-md bg-[#8a3424] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6f291c] disabled:opacity-50"
+              >
+                {deleteBusy ? "Deleting…" : "Delete project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Add / Edit modal */}
       {showAdd && (

@@ -1376,6 +1376,8 @@ export type CasualUpdate = {
   status: "SENT" | "REVIEWED";
   createdAt: string;
   files: CasualUpdateFile[];
+  source?: "DAILY" | "TASK";
+  taskId?: string;
 };
 
 export type CasualMessage = {
@@ -1386,11 +1388,36 @@ export type CasualMessage = {
   sender?: { id: string; name: string; avatarUrl?: string | null };
 };
 
+export type CasualTaskStatus = "OPEN" | "IN_PROGRESS" | "DONE";
+
+export type CasualTaskUpdate = {
+  id: string;
+  note: string;
+  managerNote?: string;
+  createdAt: string;
+  files?: CasualUpdateFile[];
+  user?: { id: string; name: string } | null;
+};
+
+export type CasualTask = {
+  id: string;
+  title: string;
+  description: string;
+  dueAt?: string | null;
+  status: CasualTaskStatus;
+  createdAt: string;
+  assignee?: { id: string; name: string } | null;
+  createdBy?: { id: string; name: string } | null;
+  updates: CasualTaskUpdate[];
+};
+
 export const casualApi = {
   home: () =>
     api.get<{
       user: { id: string; name: string; email?: string; phone?: string | null; avatarUrl?: string | null; roleLabel?: string };
       unreadMessages: number;
+      openTaskCount?: number;
+      tasks?: CasualTask[];
       updates: CasualUpdate[];
     }>("/casual/home"),
   listUpdates: (query?: Record<string, string | number | undefined>) =>
@@ -1418,6 +1445,162 @@ export const casualApi = {
     api.post<CasualMessage>("/casual/messages", body),
   updateProfile: (body: Record<string, unknown>) =>
     api.put("/casual/profile", body),
+  listMyTasks: (query?: Record<string, string | undefined>) =>
+    api.get<{ items: CasualTask[] }>("/casual/tasks", query),
+  addTaskUpdate: async (id: string, form: FormData) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const res = await fetch(`${base}/casual/tasks/${id}/updates`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || "Failed to submit update");
+    }
+    return json.data as CasualTask;
+  },
+  listStaff: () =>
+    api.get<{ items: Array<{ id: string; name: string; email?: string }> }>("/casual/staff"),
+  listAllTasks: (query?: Record<string, string | undefined>) =>
+    api.get<{ items: CasualTask[] }>("/casual/admin/tasks", query),
+  createTask: (body: {
+    title: string;
+    description?: string;
+    assigneeId: string;
+    dueAt?: string;
+  }) => api.post<CasualTask>("/casual/admin/tasks", body),
+  updateTask: (id: string, body: Record<string, unknown>) =>
+    api.put<CasualTask>(`/casual/admin/tasks/${id}`, body),
+  deleteTask: (id: string) => api.delete<{ id: string }>(`/casual/admin/tasks/${id}`),
+};
+
+export type ModularSizeItem = {
+  id: string;
+  sizeId: string;
+  name: string;
+  code: string;
+  qty: number;
+  uom: string;
+  category: string;
+  subCategory: string;
+  description: string;
+  sortOrder: number;
+};
+
+export type ModularCatalogItem = {
+  id: string;
+  catalogId: string;
+  name: string;
+  code: string;
+  category: string;
+  subCategory: string;
+  uom: string;
+  areaSqFt: number;
+  price: number;
+  description: string;
+  sortOrder: number;
+  parts: ModularSizeItem[];
+};
+
+export type ModularCategory = {
+  id: string;
+  name: string;
+  description: string;
+  subCategories: string[];
+  sortOrder: number;
+};
+
+export type ModularUom = {
+  id: string;
+  name: string;
+  abbreviation: string;
+  sortOrder: number;
+};
+
+export type ModularCatalog = {
+  id: string;
+  seriesId: string;
+  name: string;
+  description: string;
+  inclusions: string;
+  sortOrder: number;
+  items: ModularCatalogItem[];
+};
+
+export type ModularSeries = {
+  id: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  catalogs: ModularCatalog[];
+};
+
+export const modularCatalogsApi = {
+  tree: () =>
+    api.get<{
+      series: ModularSeries[];
+      categories: ModularCategory[];
+      uoms: ModularUom[];
+    }>("/modular-catalogs/tree"),
+  seedSignature: () =>
+    api.post<{
+      series: ModularSeries[];
+      categories: ModularCategory[];
+      uoms: ModularUom[];
+    }>("/modular-catalogs/seed-signature"),
+  createCategory: (body: { name: string; description?: string; subCategories?: string[] }) =>
+    api.post<ModularCategory>("/modular-catalogs/categories", body),
+  updateCategory: (id: string, body: { name?: string; description?: string; subCategories?: string[] }) =>
+    api.put<ModularCategory>(`/modular-catalogs/categories/${id}`, body),
+  deleteCategory: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/categories/${id}`),
+  createUom: (body: { name: string; abbreviation?: string }) =>
+    api.post<ModularUom>("/modular-catalogs/uoms", body),
+  updateUom: (id: string, body: { name?: string; abbreviation?: string }) =>
+    api.put<ModularUom>(`/modular-catalogs/uoms/${id}`, body),
+  deleteUom: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/uoms/${id}`),
+  createSeries: (body: { name: string; description?: string }) =>
+    api.post<ModularSeries>("/modular-catalogs/series", body),
+  updateSeries: (id: string, body: { name?: string; description?: string }) =>
+    api.put<ModularSeries>(`/modular-catalogs/series/${id}`, body),
+  deleteSeries: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/series/${id}`),
+  createCatalog: (body: { seriesId: string; name: string; description?: string; inclusions?: string }) =>
+    api.post<ModularCatalog>("/modular-catalogs/catalogs", body),
+  updateCatalog: (id: string, body: { name?: string; description?: string; inclusions?: string }) =>
+    api.put<ModularCatalog>(`/modular-catalogs/catalogs/${id}`, body),
+  deleteCatalog: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/catalogs/${id}`),
+  createItem: (body: {
+    catalogId: string;
+    name: string;
+    code?: string;
+    category?: string;
+    subCategory?: string;
+    uom?: string;
+    areaSqFt?: number;
+    price?: number;
+    description?: string;
+  }) => api.post<ModularCatalogItem>("/modular-catalogs/items", body),
+  updateItem: (id: string, body: Record<string, unknown>) =>
+    api.put<ModularCatalogItem>(`/modular-catalogs/items/${id}`, body),
+  deleteItem: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/items/${id}`),
+  createSizeItem: (body: {
+    sizeId: string;
+    name: string;
+    code?: string;
+    qty?: number;
+    uom?: string;
+    category?: string;
+    subCategory?: string;
+    description?: string;
+  }) => api.post<ModularSizeItem>("/modular-catalogs/size-items", body),
+  updateSizeItem: (id: string, body: Record<string, unknown>) =>
+    api.put<ModularSizeItem>(`/modular-catalogs/size-items/${id}`, body),
+  deleteSizeItem: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/size-items/${id}`),
 };
 
 export const usersApi = {

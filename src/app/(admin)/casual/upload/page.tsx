@@ -1,7 +1,5 @@
-import CasualStaffHome from "@/components/casual-staff/CasualStaffHome";
-
-export const metadata = { title: "Upload Update" };
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <CasualStaffHome mode="upload" />;
+  redirect("/");
 }
