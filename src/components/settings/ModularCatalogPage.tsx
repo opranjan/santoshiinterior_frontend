@@ -142,7 +142,7 @@ export default function ModularCatalogPage() {
   const [confirm, setConfirm] = useState<{
     title: string;
     message: string;
-    onConfirm: () => Promise<void>;
+    onConfirm: () => Promise<unknown>;
   } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
@@ -499,7 +499,7 @@ export default function ModularCatalogPage() {
     }
   };
 
-  const askDelete = (title: string, message: string, run: () => Promise<void>) => {
+  const askDelete = (title: string, message: string, run: () => Promise<unknown>) => {
     setConfirm({
       title,
       message,
