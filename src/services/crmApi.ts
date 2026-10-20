@@ -193,6 +193,10 @@ export type LeadMessageDto = {
   } | null;
 };
 
+export type LeadSendMessageResult = LeadMessageDto & {
+  messages?: LeadMessageDto[];
+};
+
 export type LeadWorkspaceDto = {
   lead: LeadDto;
   quotations: Array<{
@@ -281,7 +285,7 @@ export const leadsApi = {
       file?: File;
       files?: File[];
     }
-  ) => {
+  ): Promise<LeadSendMessageResult> => {
     const files = (payload.files || []).filter(Boolean);
     if (payload.file) files.unshift(payload.file);
     if (files.length) {
@@ -305,9 +309,9 @@ export const leadsApi = {
           json?.error?.message || json?.message || "Failed to send attachment"
         );
       }
-      return json.data as LeadMessageDto & { messages?: LeadMessageDto[] };
+      return json.data as LeadSendMessageResult;
     }
-    return api.post<LeadMessageDto>(`/leads/${id}/messages`, payload);
+    return api.post<LeadSendMessageResult>(`/leads/${id}/messages`, payload);
   },
   deleteMessage: (leadId: string, messageId: string) =>
     api.delete<{ id: string }>(`/leads/${leadId}/messages/${messageId}`),
