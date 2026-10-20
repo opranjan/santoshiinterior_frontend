@@ -97,6 +97,11 @@ export type LeadDto = {
   scope?: string | null;
   budget?: string | null;
   source?: string | null;
+  campaignType?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  campaignUrl?: string | null;
+  createdFromWhatsApp?: boolean;
   status: string;
   salesOwnerId?: string | null;
   salesOwner?: { id: string; name: string } | null;
