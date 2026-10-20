@@ -155,6 +155,9 @@ export type WhatsAppInboxItemDto = {
   unreadCount: number;
   hasConversation: boolean;
   hasLead?: boolean;
+  contactId?: string | null;
+  isSalesLead?: boolean;
+  canAddToLeads?: boolean;
 };
 
 export type LeadMessageDto = {
@@ -246,6 +249,11 @@ export const leadsApi = {
     ),
   listMessages: (id: string) =>
     api.get<LeadMessageDto[]>(`/leads/${id}/messages`),
+  addToLeads: (body: { contactId?: string; leadId?: string }) =>
+    api.post<{ lead: LeadDto; alreadyLead?: boolean }>(
+      "/leads/messaging/add-to-leads",
+      body
+    ),
   getMessagingInbox: (query?: {
     search?: string;
     viewMode?: "project" | "lead" | "campaign";

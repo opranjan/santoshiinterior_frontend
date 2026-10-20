@@ -160,6 +160,7 @@ export default function WhatsAppCommunicationHub({
   const [loadedLead, setLoadedLead] = useState<SelectedLead | null>(selectedLeadProp || null);
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessagesProp);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const inboxRequestId = useRef(0);
 
@@ -281,6 +282,46 @@ export default function WhatsAppCommunicationHub({
       const url = new URL(window.location.href);
       url.searchParams.delete("lead");
       window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
+  };
+
+  const addCampaignToLeads = async (
+    event: React.MouseEvent,
+    item: WhatsAppInboxItemDto
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const key = item.contactId || item.id;
+    setPromotingId(key);
+    setChatError(null);
+    try {
+      const result = await leadsApi.addToLeads({
+        contactId: item.contactId || undefined,
+        leadId: item.id,
+      });
+      const lead = result.lead;
+      setInbox((prev) =>
+        prev.filter((row) => row.id !== item.id && row.contactId !== item.contactId)
+      );
+      if (viewModes.includes("lead") && lead?.id) {
+        setViewMode("lead");
+        setStageFilter("");
+        setActiveLeadId(lead.id);
+        setLoadedLead({
+          id: lead.id,
+          clientName: lead.clientName,
+          phone: lead.phone,
+          projectName: lead.projectName,
+          campaignName: lead.campaignName,
+          status: lead.status,
+        });
+      }
+      onRefresh?.();
+      void loadInbox(true);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Could not add to leads");
+    } finally {
+      setPromotingId(null);
     }
   };
 
@@ -455,39 +496,55 @@ export default function WhatsAppCommunicationHub({
               const time = formatListTime(item.lastMessage?.createdAt || item.updatedAt);
 
               return (
-                <button
+                <div
                   key={item.projectId || item.id}
-                  type="button"
-                  onClick={() => openLead(item)}
                   className={`flex w-full items-start gap-3 border-b border-gray-50 px-4 py-3.5 text-left transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.03] ${
                     active ? "bg-[#fce7ec] hover:bg-[#fce7ec] dark:bg-[#E85D75]/10" : ""
                   }`}
                 >
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${avatarColor(item.id)}`}
+                  <button
+                    type="button"
+                    onClick={() => openLead(item)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
                   >
-                    {initials(title)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[13.5px] font-semibold text-[#111b21] dark:text-white/90">
-                        {title}
-                      </p>
-                      {time ? (
-                        <span className="shrink-0 text-[11px] text-[#667781]">{time}</span>
-                      ) : null}
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${avatarColor(item.id)}`}
+                    >
+                      {initials(title)}
                     </div>
-                    <p className="truncate text-[12px] text-[#667781]">{subtitle}</p>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <p className="truncate text-[12px] text-[#8696a0]">{preview}</p>
-                      {item.unreadCount > 0 ? (
-                        <span className="flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-[#0096fb] px-1.5 text-[10px] font-semibold text-white">
-                          {item.unreadCount > 9 ? "9+" : item.unreadCount}
-                        </span>
-                      ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-[13.5px] font-semibold text-[#111b21] dark:text-white/90">
+                          {title}
+                        </p>
+                        {time ? (
+                          <span className="shrink-0 text-[11px] text-[#667781]">{time}</span>
+                        ) : null}
+                      </div>
+                      <p className="truncate text-[12px] text-[#667781]">{subtitle}</p>
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <p className="truncate text-[12px] text-[#8696a0]">{preview}</p>
+                        {item.unreadCount > 0 ? (
+                          <span className="flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-[#0096fb] px-1.5 text-[10px] font-semibold text-white">
+                            {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {viewMode === "campaign" && item.canAddToLeads !== false ? (
+                    <button
+                      type="button"
+                      disabled={promotingId === (item.contactId || item.id)}
+                      onClick={(event) => void addCampaignToLeads(event, item)}
+                      className="mt-0.5 shrink-0 rounded-md bg-[#128c7e] px-2 py-1 text-[11px] font-semibold text-white hover:bg-[#0e7368] disabled:opacity-60"
+                    >
+                      {promotingId === (item.contactId || item.id)
+                        ? "Adding…"
+                        : "Add to leads"}
+                    </button>
+                  ) : null}
+                </div>
               );
             })
           )}
