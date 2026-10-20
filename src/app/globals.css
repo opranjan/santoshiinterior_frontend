@@ -2987,6 +2987,25 @@ span.flatpickr-weekday,
     overflow: visible !important;
   }
 
+  html:has(.is-design-page),
+  body:has(.is-design-page) {
+    height: 100svh;
+    max-height: 100svh;
+    overflow: hidden;
+  }
+
+  .is-design-page {
+    height: 100svh !important;
+    max-height: 100svh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .is-design-page .admin-page-content {
+    padding: 0.85rem 1.1rem max(1rem, env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
+  }
+
   .chat-page,
   .is-chat-page .chat-page {
     position: fixed !important;

@@ -23,6 +23,9 @@ export default function AdminLayout({
   const hrPanel = isHrPanelUser(user);
   const casualPanel = isCasualPanelUser(user);
   const chatPage = pathname === "/chat";
+  const designPage =
+    pathname === "/design/designing" || pathname === "/design/elevation";
+  const lockedPage = chatPage || designPage;
 
   const mainContentMargin = isMobileOpen
     ? "ml-0"
@@ -35,21 +38,25 @@ export default function AdminLayout({
       <RoutePermissionGuard>
         <div
           className={`overflow-x-hidden xl:flex ${
-            chatPage ? "is-chat-page flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden" : "min-h-screen"
+            lockedPage
+              ? `${chatPage ? "is-chat-page" : "is-design-page"} flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden`
+              : "min-h-screen"
           } ${isMobileOpen ? "max-lg:h-dvh max-lg:overflow-hidden" : ""} ${partner ? "vendor-shell" : ""} ${hrPanel ? "hr-shell" : ""} ${casualPanel ? "hr-shell casual-shell" : ""}`}
         >
           <AppSidebar />
           <Backdrop />
           <div
             className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out admin-main-content ${mainContentMargin} ${
-              chatPage || isMobileOpen ? "max-lg:overflow-hidden" : ""
-            }`}
+              lockedPage || isMobileOpen ? "max-lg:overflow-hidden" : ""
+            } ${lockedPage ? "overflow-hidden" : ""}`}
           >
             <AppHeader />
             <div
               className={`admin-page-content min-w-0 flex-1 mx-auto w-full max-w-(--breakpoint-2xl) ${
                 chatPage
                   ? "flex min-h-0 flex-col overflow-hidden p-0 max-lg:max-w-none lg:p-6"
+                  : designPage
+                    ? "flex min-h-0 flex-col overflow-hidden px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4 md:p-6"
                   : partner
                     ? "overflow-x-hidden px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:p-6"
                     : "overflow-x-auto p-4 md:p-6"

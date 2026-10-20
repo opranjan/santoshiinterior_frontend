@@ -679,6 +679,7 @@ export type DesignGenerationDto = {
   sourceImageUrl?: string | null;
   sourceImageUrls?: string[] | null;
   resultImageUrl: string;
+  threadId?: string;
   createdAt: string;
 };
 
@@ -690,6 +691,7 @@ export const designApi = {
     scope?: string;
     prompt?: string;
     images: File[];
+    threadId?: string;
   }) => {
     const { tokenStorage } = await import("@/lib/auth");
     const base = (
@@ -701,6 +703,7 @@ export const designApi = {
     if (payload.style?.trim()) form.append("style", payload.style.trim());
     if (payload.scope?.trim()) form.append("scope", payload.scope.trim());
     if (payload.prompt?.trim()) form.append("prompt", payload.prompt.trim());
+    if (payload.threadId?.trim()) form.append("threadId", payload.threadId.trim());
     payload.images.forEach((file) => form.append("image", file));
 
     const res = await fetch(`${base}/design/generate`, {
