@@ -161,6 +161,7 @@ export default function WhatsAppCommunicationHub({
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessagesProp);
   const [loadingChat, setLoadingChat] = useState(false);
   const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [pendingPromote, setPendingPromote] = useState<WhatsAppInboxItemDto | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const inboxRequestId = useRef(0);
 
@@ -285,12 +286,7 @@ export default function WhatsAppCommunicationHub({
     }
   };
 
-  const addCampaignToLeads = async (
-    event: React.MouseEvent,
-    item: WhatsAppInboxItemDto
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const addCampaignToLeads = async (item: WhatsAppInboxItemDto) => {
     const key = item.contactId || item.id;
     setPromotingId(key);
     setChatError(null);
@@ -322,6 +318,7 @@ export default function WhatsAppCommunicationHub({
       setChatError(err instanceof Error ? err.message : "Could not add to leads");
     } finally {
       setPromotingId(null);
+      setPendingPromote(null);
     }
   };
 
@@ -536,7 +533,11 @@ export default function WhatsAppCommunicationHub({
                     <button
                       type="button"
                       disabled={promotingId === (item.contactId || item.id)}
-                      onClick={(event) => void addCampaignToLeads(event, item)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setPendingPromote(item);
+                      }}
                       className="mt-0.5 shrink-0 rounded-md bg-[#128c7e] px-2 py-1 text-[11px] font-semibold text-white hover:bg-[#0e7368] disabled:opacity-60"
                     >
                       {promotingId === (item.contactId || item.id)
@@ -600,6 +601,41 @@ export default function WhatsAppCommunicationHub({
           <EmptyChatState />
         )}
       </div>
+
+      {pendingPromote ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-white p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3 className="font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]">
+              Add to leads?
+            </h3>
+            <p className="mt-2 text-sm text-[#8a7b68]">
+              Move{" "}
+              <strong className="text-[#1c1610] dark:text-[#f3ece2]">
+                {pendingPromote.displayTitle || pendingPromote.clientName}
+              </strong>{" "}
+              from Campaign into the Lead inbox? This cannot be undone from Campaign.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={Boolean(promotingId)}
+                onClick={() => !promotingId && setPendingPromote(null)}
+                className="rounded-md border border-[#eadfcf] px-4 py-2 text-sm font-semibold text-[#5c5044] hover:bg-[#fbf8f3] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(promotingId)}
+                onClick={() => void addCampaignToLeads(pendingPromote)}
+                className="rounded-md bg-[#128c7e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0e7368] disabled:opacity-50"
+              >
+                {promotingId ? "Adding…" : "Add to leads"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -181,6 +181,7 @@ export type LeadMessageDto = {
   createdAt: string;
   updatedAt: string;
   warning?: string;
+  forwarded?: boolean;
   rawPayload?: {
     status?: string;
     errors?: Array<{
@@ -278,9 +279,12 @@ export const leadsApi = {
       bodyValues?: string[];
       useTemplate?: boolean;
       file?: File;
+      files?: File[];
     }
   ) => {
-    if (payload.file) {
+    const files = (payload.files || []).filter(Boolean);
+    if (payload.file) files.unshift(payload.file);
+    if (files.length) {
       const { tokenStorage } = await import("@/lib/auth");
       const base = (
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
@@ -288,7 +292,7 @@ export const leadsApi = {
       const token = tokenStorage.getAccessToken();
       const form = new FormData();
       if (payload.body?.trim()) form.append("body", payload.body.trim());
-      form.append("file", payload.file);
+      files.forEach((file) => form.append("file", file));
       const res = await fetch(`${base}/leads/${id}/messages`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -301,12 +305,18 @@ export const leadsApi = {
           json?.error?.message || json?.message || "Failed to send attachment"
         );
       }
-      return json.data as LeadMessageDto;
+      return json.data as LeadMessageDto & { messages?: LeadMessageDto[] };
     }
     return api.post<LeadMessageDto>(`/leads/${id}/messages`, payload);
   },
   deleteMessage: (leadId: string, messageId: string) =>
     api.delete<{ id: string }>(`/leads/${leadId}/messages/${messageId}`),
+  forwardMessage: (leadId: string, messageId: string, leadIds: string[]) =>
+    api.post<{
+      forwarded: number;
+      failed: Array<{ leadId: string; error: string }>;
+      targets: Array<{ leadId: string; clientName: string | null }>;
+    }>(`/leads/${leadId}/messages/${messageId}/forward`, { leadIds }),
 };
 
 export type WhatsAppStatusDto = {

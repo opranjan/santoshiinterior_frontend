@@ -6,11 +6,12 @@ import {
   messagingApi,
   telephonyApi,
   type LeadMessageDto,
+  type WhatsAppInboxItemDto,
   type WhatsAppStatusDto,
 } from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { hasAnyPermission } from "@/lib/permissions";
+import { allowedWhatsAppViews, hasAnyPermission } from "@/lib/permissions";
 
 type Props = {
   leadId: string;
@@ -234,6 +235,14 @@ function TrashIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
+function ForwardIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M6 12h12" />
+    </svg>
+  );
+}
+
 function SendIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -363,40 +372,49 @@ function MediaAttachment({
   );
 }
 
-function AttachmentPreview({
-  file,
-  previewUrl,
+type PendingAttachment = { file: File; previewUrl: string | null };
+
+function AttachmentPreviewList({
+  items,
   onRemove,
 }: {
-  file: File;
-  previewUrl: string | null;
-  onRemove: () => void;
+  items: PendingAttachment[];
+  onRemove: (index: number) => void;
 }) {
-  const isImage = file.type.startsWith("image/");
-
+  if (!items.length) return null;
   return (
-    <div className="mb-2 flex items-center gap-3 rounded-xl border border-[#25d366]/30 bg-white px-3 py-2 dark:bg-[#2a3942]">
-      {isImage && previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={previewUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
-      ) : (
-        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#25d366]/10 text-[#128c7e]">
-          <DocumentIcon />
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-[#111b21] dark:text-[#e9edef]">
-          {file.name}
-        </p>
-        <p className="text-[11px] text-[#667781]">{formatFileSize(file.size)}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="rounded-full px-2 py-1 text-xs text-[#667781] hover:bg-gray-100 dark:hover:bg-gray-700"
-      >
-        Remove
-      </button>
+    <div className="mb-2 flex flex-wrap gap-2">
+      {items.map((item, index) => {
+        const isImage = item.file.type.startsWith("image/");
+        return (
+          <div
+            key={`${item.file.name}-${index}`}
+            className="flex min-w-[180px] max-w-full flex-1 items-center gap-3 rounded-xl border border-[#25d366]/30 bg-white px-3 py-2 dark:bg-[#2a3942]"
+          >
+            {isImage && item.previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.previewUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#25d366]/10 text-[#128c7e]">
+                <DocumentIcon />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[#111b21] dark:text-[#e9edef]">
+                {item.file.name}
+              </p>
+              <p className="text-[11px] text-[#667781]">{formatFileSize(item.file.size)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemove(index)}
+              className="rounded-full px-2 py-1 text-xs text-[#667781] hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Remove
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -437,16 +455,45 @@ function templateCategorySuffix(status: WhatsAppStatusDto | null, name: string) 
   return category ? ` (${category})` : "";
 }
 
+function BubbleAction({
+  title,
+  onClick,
+  danger,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#667781] transition hover:bg-black/10 dark:hover:bg-white/10 ${
+        danger ? "hover:text-red-600" : "hover:text-[#111b21] dark:hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function ChatBubble({
   msg,
   clientName,
   canDelete,
+  canForward,
   onDelete,
+  onForward,
 }: {
   msg: LeadMessageDto;
   clientName: string;
   canDelete?: boolean;
+  canForward?: boolean;
   onDelete?: (msg: LeadMessageDto) => void;
+  onForward?: (msg: LeadMessageDto) => void;
 }) {
   const outbound = msg.direction === "OUTBOUND";
   const hasMedia = Boolean(msg.mediaUrl);
@@ -458,21 +505,30 @@ function ChatBubble({
   const showBody =
     body &&
     !(hasMedia && msg.mediaType === "document" && body === msg.mediaFilename);
+  const showActions = Boolean(canForward || canDelete);
+
+  const actions = showActions ? (
+    <div
+      className={`mb-1 flex shrink-0 flex-col gap-0.5 ${
+        failed ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      }`}
+    >
+      {canForward ? (
+        <BubbleAction title="Forward" onClick={() => onForward?.(msg)}>
+          <ForwardIcon />
+        </BubbleAction>
+      ) : null}
+      {canDelete ? (
+        <BubbleAction title="Delete message" danger onClick={() => onDelete?.(msg)}>
+          <TrashIcon />
+        </BubbleAction>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <div className={`group flex items-end gap-1 ${outbound ? "justify-end" : "justify-start"}`}>
-      {canDelete && outbound ? (
-        <button
-          type="button"
-          title="Delete message"
-          onClick={() => onDelete?.(msg)}
-          className={`mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#667781] transition hover:bg-black/10 hover:text-red-600 dark:hover:bg-white/10 ${
-            failed ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-        >
-          <TrashIcon />
-        </button>
-      ) : null}
+      {outbound ? actions : null}
       <div
         className={`relative max-w-[min(85%,560px)] rounded-lg px-3 py-1.5 shadow-sm ${
           failed
@@ -487,6 +543,13 @@ function ChatBubble({
             {clientName}
           </p>
         ) : null}
+
+          {msg.forwarded ? (
+            <p className="mb-0.5 flex items-center gap-1 text-[11px] italic text-[#667781] dark:text-white/60">
+              <ForwardIcon className="h-3 w-3" />
+              Forwarded
+            </p>
+          ) : null}
 
           {hasMedia ? <MediaAttachment msg={msg} outbound={outbound} /> : null}
 
@@ -522,18 +585,7 @@ function ChatBubble({
             {outbound ? <MessageStatus status={msg.status} /> : null}
           </div>
       </div>
-      {canDelete && !outbound ? (
-        <button
-          type="button"
-          title="Delete message"
-          onClick={() => onDelete?.(msg)}
-          className={`mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#667781] transition hover:bg-black/10 hover:text-red-600 dark:hover:bg-white/10 ${
-            failed ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-        >
-          <TrashIcon />
-        </button>
-      ) : null}
+      {!outbound ? actions : null}
     </div>
   );
 }
@@ -570,11 +622,19 @@ export default function LeadCommunicationPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
-  const [attachment, setAttachment] = useState<File | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const attachmentsRef = useRef<PendingAttachment[]>([]);
+  attachmentsRef.current = attachments;
   const [chatTemplate, setChatTemplate] = useState<ChatTemplateId>("start_chat_ut");
   const [templateName, setTemplateName] = useState(firstName(clientName));
   const [templateNeed, setTemplateNeed] = useState(projectName || "");
+  const [forwardMsg, setForwardMsg] = useState<LeadMessageDto | null>(null);
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [forwardChats, setForwardChats] = useState<WhatsAppInboxItemDto[]>([]);
+  const [forwardSelected, setForwardSelected] = useState<string[]>([]);
+  const [forwardLoading, setForwardLoading] = useState(false);
+  const [forwardSending, setForwardSending] = useState(false);
+  const [forwardError, setForwardError] = useState("");
 
   const canViewAll = hasAnyPermission(user, [
     "messages.view.all",
@@ -687,24 +747,129 @@ export default function LeadCommunicationPanel({
 
   useEffect(() => {
     return () => {
-      if (attachmentPreview) URL.revokeObjectURL(attachmentPreview);
+      attachmentsRef.current.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
     };
-  }, [attachmentPreview]);
+  }, []);
 
-  const clearAttachment = () => {
-    if (attachmentPreview) URL.revokeObjectURL(attachmentPreview);
-    setAttachment(null);
-    setAttachmentPreview(null);
+  const clearAttachments = () => {
+    setAttachments((prev) => {
+      prev.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
     if (imageInputRef.current) imageInputRef.current.value = "";
     if (docInputRef.current) docInputRef.current.value = "";
   };
 
-  const pickAttachment = (file: File | null) => {
-    clearAttachment();
-    if (!file) return;
-    setAttachment(file);
-    if (file.type.startsWith("image/")) {
-      setAttachmentPreview(URL.createObjectURL(file));
+  const pickAttachments = (list: FileList | null) => {
+    if (!list?.length) return;
+    setAttachments((prev) => {
+      const next = [...prev];
+      Array.from(list).forEach((file) => {
+        if (next.length >= 10) return;
+        next.push({
+          file,
+          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+        });
+      });
+      return next;
+    });
+    if (imageInputRef.current) imageInputRef.current.value = "";
+    if (docInputRef.current) docInputRef.current.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => {
+      const item = prev[index];
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const loadForwardChats = useCallback(async (search = "") => {
+    setForwardLoading(true);
+    setForwardError("");
+    try {
+      const views = allowedWhatsAppViews(user);
+      const batches = await Promise.all(
+        views.map(async (viewMode) => {
+          try {
+            return await leadsApi.getMessagingInbox({
+              search: search.trim() || undefined,
+              viewMode,
+            });
+          } catch {
+            return [] as WhatsAppInboxItemDto[];
+          }
+        })
+      );
+      const byId = new Map<string, WhatsAppInboxItemDto>();
+      batches.flat().forEach((row) => {
+        if (!row?.id || row.id === leadId || row.hasLead === false) return;
+        if (!byId.has(row.id)) byId.set(row.id, row);
+      });
+      setForwardChats(Array.from(byId.values()));
+    } catch (err) {
+      setForwardError(err instanceof Error ? err.message : "Could not load chats");
+    } finally {
+      setForwardLoading(false);
+    }
+  }, [leadId, user]);
+
+  const openForward = (msg: LeadMessageDto) => {
+    setForwardMsg(msg);
+    setForwardSelected([]);
+    setForwardSearch("");
+    setForwardError("");
+  };
+
+  useEffect(() => {
+    if (!forwardMsg) return;
+    const timer = setTimeout(() => {
+      void loadForwardChats(forwardSearch);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [forwardMsg, forwardSearch, loadForwardChats]);
+
+  const closeForward = () => {
+    if (forwardSending) return;
+    setForwardMsg(null);
+    setForwardSelected([]);
+    setForwardError("");
+  };
+
+  const toggleForwardChat = (id: string) => {
+    setForwardSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((row) => row !== id);
+      if (prev.length >= 10) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const submitForward = async () => {
+    if (!forwardMsg || !forwardSelected.length || forwardSending) return;
+    setForwardSending(true);
+    setForwardError("");
+    try {
+      const result = await leadsApi.forwardMessage(leadId, forwardMsg.id, forwardSelected);
+      const names = result.targets.map((row) => row.clientName).filter(Boolean).join(", ");
+      const failNote = result.failed.length
+        ? ` ${result.failed.length} chat${result.failed.length === 1 ? "" : "s"} could not receive it (24-hour window or send error).`
+        : "";
+      setNotice(`Forwarded to ${result.forwarded} chat${result.forwarded === 1 ? "" : "s"}${names ? `: ${names}` : ""}.${failNote}`);
+      setForwardMsg(null);
+      setForwardSelected([]);
+      if (result.targets.some((row) => row.leadId === leadId)) {
+        await loadMessages();
+      }
+      onRefresh?.();
+    } catch (err) {
+      setForwardError(err instanceof Error ? err.message : "Failed to forward");
+    } finally {
+      setForwardSending(false);
     }
   };
 
@@ -738,8 +903,8 @@ export default function LeadCommunicationPanel({
           isMarketingLimitFailure(msg) &&
           Date.now() - new Date(msg.createdAt).getTime() < 24 * 60 * 60 * 1000
       );
-    if ((!body && !attachment && inSession) || sending || !canSend) return;
-    if (!inSession && !attachment && blockedMarketing) {
+    if ((!body && !attachments.length && inSession) || sending || !canSend) return;
+    if (!inSession && !attachments.length && blockedMarketing) {
       setError(
         "WhatsApp already blocked marketing templates to this number (131049). Wait 24 hours, or recategorize this template as UTILITY in WhatsApp Manager."
       );
@@ -760,8 +925,8 @@ export default function LeadCommunicationPanel({
             : [];
       const created = await leadsApi.sendMessage(leadId, {
         body: body || undefined,
-        file: attachment || undefined,
-        ...( !inSession && !attachment
+        files: attachments.map((item) => item.file),
+        ...( !inSession && !attachments.length
           ? {
               templateName: chatTemplate,
               languageCode: "en",
@@ -770,9 +935,10 @@ export default function LeadCommunicationPanel({
             }
           : {}),
       });
-      setMessages((prev) => [...prev, created]);
+      const batch = created.messages?.length ? created.messages : [created];
+      setMessages((prev) => [...prev, ...batch]);
       setText("");
-      clearAttachment();
+      clearAttachments();
       if (created.warning) setNotice(created.warning);
       else setNotice("");
       void loadMessages();
@@ -838,8 +1004,8 @@ export default function LeadCommunicationPanel({
     <div
       className={
         embedded
-          ? "flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-[#111b21]"
-          : "flex max-h-[min(80vh,720px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-lg shadow-gray-200/50 dark:border-gray-800 dark:bg-[#111b21] dark:shadow-none"
+          ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-[#111b21]"
+          : "relative flex max-h-[min(80vh,720px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-lg shadow-gray-200/50 dark:border-gray-800 dark:bg-[#111b21] dark:shadow-none"
       }
     >
       {/* Header */}
@@ -967,7 +1133,9 @@ export default function LeadCommunicationPanel({
                         msg={msg}
                         clientName={clientName}
                         canDelete={canSend}
+                        canForward={canSend}
                         onDelete={(row) => void removeChatMessage(row)}
+                        onForward={openForward}
                       />
                     ))}
                   </div>
@@ -1006,13 +1174,7 @@ export default function LeadCommunicationPanel({
           </div>
         ) : (
           <>
-            {attachment ? (
-              <AttachmentPreview
-                file={attachment}
-                previewUrl={attachmentPreview}
-                onRemove={clearAttachment}
-              />
-            ) : null}
+            <AttachmentPreviewList items={attachments} onRemove={removeAttachment} />
 
             {!inSession ? (
               <div className="mb-2 space-y-2 rounded-2xl bg-white px-3 py-2.5 dark:bg-[#2a3942]">
@@ -1084,15 +1246,17 @@ export default function LeadCommunicationPanel({
               ref={imageInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
               className="hidden"
-              onChange={(e) => pickAttachment(e.target.files?.[0] || null)}
+              onChange={(e) => pickAttachments(e.target.files)}
             />
             <input
               ref={docInputRef}
               type="file"
               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,application/pdf"
+              multiple
               className="hidden"
-              onChange={(e) => pickAttachment(e.target.files?.[0] || null)}
+              onChange={(e) => pickAttachments(e.target.files)}
             />
 
             {inSession ? (
@@ -1100,7 +1264,7 @@ export default function LeadCommunicationPanel({
               <div className="flex shrink-0 items-center pb-0.5">
                 <button
                   type="button"
-                  title="Send image (customer must reply first, max 16 MB)"
+                  title="Send images (customer must reply first, max 16 MB each, up to 10 files)"
                   onClick={() => imageInputRef.current?.click()}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
@@ -1108,7 +1272,7 @@ export default function LeadCommunicationPanel({
                 </button>
                 <button
                   type="button"
-                  title="Send document (customer must reply first, max 16 MB)"
+                  title="Send documents (customer must reply first, max 16 MB each, up to 10 files)"
                   onClick={() => docInputRef.current?.click()}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
@@ -1124,7 +1288,7 @@ export default function LeadCommunicationPanel({
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={onKeyDown}
                   placeholder={
-                    attachment
+                    attachments.length
                       ? "Add a caption (optional)"
                       : "Type a message"
                   }
@@ -1140,7 +1304,7 @@ export default function LeadCommunicationPanel({
 
               <button
                 type="button"
-                disabled={sending || (!text.trim() && !attachment)}
+                disabled={sending || (!text.trim() && !attachments.length)}
                 onClick={() => void send()}
                 title="Send message"
                 className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600 sm:h-10 sm:w-10"
@@ -1173,6 +1337,93 @@ export default function LeadCommunicationPanel({
           </>
         )}
       </div>
+
+      {forwardMsg ? (
+        <div className="absolute inset-0 z-20 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+          <div className="flex max-h-[min(88vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-[#202c33]">
+            <div className="flex items-center justify-between border-b border-black/5 px-4 py-3 dark:border-white/10">
+              <div>
+                <p className="text-sm font-semibold text-[#111b21] dark:text-white">Forward message</p>
+                <p className="text-[12px] text-[#667781]">Select up to 10 chats</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeForward}
+                className="rounded-full px-2 py-1 text-sm text-[#667781] hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+            <div className="px-4 py-2">
+              <input
+                value={forwardSearch}
+                onChange={(e) => setForwardSearch(e.target.value)}
+                placeholder="Search chats"
+                className="w-full rounded-lg border border-black/10 bg-[#f0f2f5] px-3 py-2 text-sm outline-none focus:border-[#25d366] dark:border-white/10 dark:bg-[#111b21] dark:text-white"
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {forwardLoading ? (
+                <p className="px-3 py-6 text-center text-sm text-[#667781]">Loading chats…</p>
+              ) : forwardChats.length === 0 ? (
+                <p className="px-3 py-6 text-center text-sm text-[#667781]">No other chats found.</p>
+              ) : (
+                forwardChats.map((chat) => {
+                  const selected = forwardSelected.includes(chat.id);
+                  return (
+                    <button
+                      key={chat.id}
+                      type="button"
+                      onClick={() => toggleForwardChat(chat.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition ${
+                        selected
+                          ? "bg-[#d9fdd3] dark:bg-[#005c4b]/60"
+                          : "hover:bg-black/5 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${
+                          selected ? "bg-[#25d366]" : "bg-[#6b7c85]"
+                        }`}
+                      >
+                        {initials(chat.displayTitle || chat.clientName)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-[#111b21] dark:text-white">
+                          {chat.displayTitle || chat.clientName}
+                        </span>
+                        <span className="block truncate text-[12px] text-[#667781]">
+                          {chat.displaySubtitle || chat.phone}
+                        </span>
+                      </span>
+                      {selected ? (
+                        <span className="text-[12px] font-semibold text-[#25d366]">Selected</span>
+                      ) : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            {forwardError ? (
+              <p className="px-4 pb-2 text-[12px] text-red-600">{forwardError}</p>
+            ) : null}
+            <div className="flex items-center justify-between gap-2 border-t border-black/5 px-4 py-3 dark:border-white/10">
+              <span className="text-[12px] text-[#667781]">
+                {forwardSelected.length} selected
+              </span>
+              <button
+                type="button"
+                disabled={!forwardSelected.length || forwardSending}
+                onClick={() => void submitForward()}
+                className="flex items-center gap-2 rounded-full bg-[#25d366] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {forwardSending ? "Sending…" : "Forward"}
+                <ForwardIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
