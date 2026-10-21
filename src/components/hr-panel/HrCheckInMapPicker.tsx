@@ -66,7 +66,16 @@ export default function HrCheckInMapPicker({
 
     const start = async () => {
       const leaflet = await import("leaflet");
-      await import("leaflet/dist/leaflet.css");
+      if (typeof document !== "undefined") {
+        const href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        if (!document.querySelector(`link[data-leaflet-css="1"]`)) {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = href;
+          link.setAttribute("data-leaflet-css", "1");
+          document.head.appendChild(link);
+        }
+      }
       if (cancelled || !containerRef.current || mapRef.current) return;
       const L = leaflet.default;
 
