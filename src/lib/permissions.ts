@@ -211,6 +211,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
     ],
   },
   { prefix: "/payments", permissions: ["payments.manage", "finance.full", "finance.manage"] },
+  { prefix: "/accounting", permissions: ["payments.manage", "finance.full", "finance.manage"] },
   { prefix: "/franchisee-payments", permissions: ["payments.manage", "finance.full", "finance.manage", "vendor.payments"] },
   { prefix: "/vendor-payments", permissions: ["payments.manage", "finance.full", "finance.manage", "vendor.payments"] },
   { prefix: "/warranty-desk", permissions: ["warranty.manage", "projects.view", "workorders.manage", "workorders.update", "sales.view", "sales.manage", "sales.full"] },
@@ -375,6 +376,17 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     permissions: ["payments.manage", "finance.full", "finance.manage"],
   },
   {
+    name: "Accounting",
+    permissions: ["payments.manage", "finance.full", "finance.manage"],
+    subItems: [
+      {
+        name: "Invoice",
+        path: "/accounting/invoices",
+        permissions: ["payments.manage", "finance.full", "finance.manage"],
+      },
+    ],
+  },
+  {
     name: "Vendor Payment",
     path: "/vendor-payments",
     permissions: ["vendor.payments", "payments.manage", "finance.full", "finance.manage"],
@@ -472,6 +484,11 @@ export const OPERATIONS_NAV_ITEMS: NavPermissionGroup[] = [
       {
         name: "Orders",
         path: "/operations/procurement/orders",
+        permissions: OPERATIONS_PERMISSIONS,
+      },
+      {
+        name: "Modular Catalog Order",
+        path: "/operations/procurement/modular-catalog",
         permissions: OPERATIONS_PERMISSIONS,
       },
       {

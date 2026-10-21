@@ -60,6 +60,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Procurement: <FileIcon className="size-5 shrink-0" />,
   Vendors: <GroupIcon className="size-5 shrink-0" />,
   Payments: <BoxIconLine className="size-5 shrink-0" />,
+  Accounting: <DollarLineIcon className="size-5 shrink-0" />,
   "Vendor Payment": <DollarLineIcon className="size-5 shrink-0" />,
   "Warranty Desk": <CheckCircleIcon className="size-5 shrink-0" />,
   HR: <UserIcon className="size-5 shrink-0" />,

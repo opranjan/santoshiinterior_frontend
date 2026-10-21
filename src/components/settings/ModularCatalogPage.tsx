@@ -13,15 +13,16 @@ import {
 import { ApiError } from "@/lib/api";
 import {
   modularCatalogsApi,
+  vendorsApi,
   type ModularCatalog,
   type ModularCatalogItem,
-  type ModularCategory,
   type ModularSeries,
   type ModularSizeItem,
   type ModularUom,
+  type VendorDto,
 } from "@/services/crmApi";
 
-type TabId = "series" | "catalogs" | "categories" | "uoms";
+type TabId = "series" | "catalogs" | "uoms";
 
 const accent = {
   text: "text-[#E85D75]",
@@ -37,7 +38,6 @@ const fieldClass = `h-11 w-full rounded-lg border border-gray-300 bg-white px-4 
 const tabs: { id: TabId; label: string }[] = [
   { id: "series", label: "Series" },
   { id: "catalogs", label: "Catalogues" },
-  { id: "categories", label: "Categories" },
   { id: "uoms", label: "UOMs" },
 ];
 
@@ -113,16 +113,16 @@ export default function ModularCatalogPage() {
   const [tab, setTab] = useState<TabId>("series");
   const [search, setSearch] = useState("");
   const [series, setSeries] = useState<ModularSeries[]>([]);
-  const [categories, setCategories] = useState<ModularCategory[]>([]);
   const [uoms, setUoms] = useState<ModularUom[]>([]);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
-  const [subDrafts, setSubDrafts] = useState<Record<string, string>>({});
-  const [formSubCategories, setFormSubCategories] = useState<string[]>([""]);
   const [formAbbr, setFormAbbr] = useState("");
   const [formCategory, setFormCategory] = useState("");
   const [formSubCategory, setFormSubCategory] = useState("");
   const [formUom, setFormUom] = useState("NOS");
   const [formQty, setFormQty] = useState("1");
+  const [formAmount, setFormAmount] = useState("");
+  const [formVendorId, setFormVendorId] = useState("");
+  const [vendors, setVendors] = useState<VendorDto[]>([]);
+  const [drillSeriesId, setDrillSeriesId] = useState("");
   const [drillCatalogId, setDrillCatalogId] = useState("");
   const [drillSizeId, setDrillSizeId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -150,10 +150,13 @@ export default function ModularCatalogPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await modularCatalogsApi.tree();
+      const [data, vendorData] = await Promise.all([
+        modularCatalogsApi.tree(),
+        vendorsApi.list({ limit: 200 }).catch(() => ({ items: [] as VendorDto[] })),
+      ]);
       setSeries(data.series || []);
-      setCategories(data.categories || []);
       setUoms(data.uoms || []);
+      setVendors(vendorData.items || []);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -179,6 +182,7 @@ export default function ModularCatalogPage() {
     [series]
   );
 
+  const drillSeries = series.find((s) => s.id === drillSeriesId) || null;
   const drillCatalog = catalogs.find((c) => c.id === drillCatalogId) || null;
   const drillSizes = drillCatalog?.items || [];
   const drillSize = drillSizes.find((s) => s.id === drillSizeId) || null;
@@ -196,14 +200,17 @@ export default function ModularCatalogPage() {
   }, [series, q]);
 
   const filteredCatalogs = useMemo(() => {
-    if (!q) return catalogs;
-    return catalogs.filter(
+    const rows = drillSeriesId
+      ? catalogs.filter((row) => row.seriesId === drillSeriesId)
+      : catalogs;
+    if (!q) return rows;
+    return rows.filter(
       (row) =>
         row.name.toLowerCase().includes(q) ||
         (row.description || "").toLowerCase().includes(q) ||
         row.seriesName.toLowerCase().includes(q)
     );
-  }, [catalogs, q]);
+  }, [catalogs, q, drillSeriesId]);
 
   const filteredSizes = useMemo(() => {
     if (!q) return drillSizes;
@@ -220,18 +227,10 @@ export default function ModularCatalogPage() {
       (row) =>
         row.name.toLowerCase().includes(q) ||
         (row.code || "").toLowerCase().includes(q) ||
+        (row.vendorName || "").toLowerCase().includes(q) ||
         (row.category || "").toLowerCase().includes(q)
     );
   }, [drillParts, q]);
-
-  const filteredCategories = useMemo(() => {
-    if (!q) return categories;
-    return categories.filter(
-      (row) =>
-        row.name.toLowerCase().includes(q) ||
-        (row.subCategories || []).some((s) => s.toLowerCase().includes(q))
-    );
-  }, [categories, q]);
 
   const filteredUoms = useMemo(() => {
     if (!q) return uoms;
@@ -242,24 +241,22 @@ export default function ModularCatalogPage() {
     );
   }, [uoms, q]);
 
-  const selectedCategorySubs =
-    categories.find((c) => c.name === formCategory)?.subCategories || [];
-
   const resetForm = () => {
     setFormName("");
     setFormDescription("");
     setFormInclusions("");
-    setFormSeriesId(series[0]?.id || "");
+    setFormSeriesId(drillSeriesId || series[0]?.id || "");
     setFormCatalogId(series[0]?.catalogs[0]?.id || "");
     setFormCode("");
     setFormArea("");
     setFormPrice("");
-    setFormSubCategories([""]);
     setFormAbbr("");
-    setFormCategory(categories[0]?.name || "");
-    setFormSubCategory(categories[0]?.subCategories[0] || "");
+    setFormCategory("");
+    setFormSubCategory("");
     setFormUom(uoms.find((u) => u.name === "NOS")?.name || uoms[0]?.name || "NOS");
     setFormQty("1");
+    setFormAmount("");
+    setFormVendorId("");
   };
 
   const openCreate = () => {
@@ -299,17 +296,11 @@ export default function ModularCatalogPage() {
     setFormCode(row.code || "");
     setFormQty(row.qty ? String(row.qty) : "1");
     setFormUom(row.uom || "NOS");
+    setFormAmount(row.amount ? String(row.amount) : "");
+    setFormVendorId(row.vendorId || "");
     setFormCategory(row.category || "");
     setFormSubCategory(row.subCategory || "");
     setFormDescription(row.description || "");
-    setShowForm(true);
-  };
-
-  const openEditCategory = (row: ModularCategory) => {
-    setEditingId(row.id);
-    setFormName(row.name);
-    setFormDescription(row.description || "");
-    setFormSubCategories(row.subCategories?.length ? [...row.subCategories] : [""]);
     setShowForm(true);
   };
 
@@ -318,56 +309,6 @@ export default function ModularCatalogPage() {
     setFormName(row.name);
     setFormAbbr(row.abbreviation || "");
     setShowForm(true);
-  };
-
-  const toggleCategory = (id: string) => {
-    setExpandedCategories((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const addSubCategory = async (categoryId: string) => {
-    const value = (subDrafts[categoryId] || "").trim();
-    if (!value) return;
-    const row = categories.find((c) => c.id === categoryId);
-    if (!row) return;
-    if ((row.subCategories || []).some((s) => s.toLowerCase() === value.toLowerCase())) {
-      setSubDrafts((prev) => ({ ...prev, [categoryId]: "" }));
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await modularCatalogsApi.updateCategory(categoryId, {
-        subCategories: [...(row.subCategories || []), value],
-      });
-      setSubDrafts((prev) => ({ ...prev, [categoryId]: "" }));
-      await load();
-      flash("Sub category added");
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Could not add sub category"
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const removeSubCategory = (categoryId: string, sub: string) => {
-    const row = categories.find((c) => c.id === categoryId);
-    askDelete(
-      "Delete sub category?",
-      `Remove “${sub}” from “${row?.name || "category"}”?`,
-      async () => {
-        await modularCatalogsApi.updateCategory(categoryId, {
-          subCategories: (row?.subCategories || []).filter((s) => s !== sub),
-        });
-      }
-    );
   };
 
   const flash = (msg: string) => {
@@ -402,6 +343,8 @@ export default function ModularCatalogPage() {
             code: formCode.trim(),
             qty: Number(formQty) || 1,
             uom: formUom.trim() || "NOS",
+            amount: Number(formAmount) || 0,
+            vendorId: formVendorId.trim() || null,
             category: formCategory.trim(),
             subCategory: formSubCategory.trim(),
             description: formDescription.trim(),
@@ -413,6 +356,8 @@ export default function ModularCatalogPage() {
             code: formCode.trim(),
             qty: Number(formQty) || 1,
             uom: formUom.trim() || "NOS",
+            amount: Number(formAmount) || 0,
+            vendorId: formVendorId.trim() || null,
             category: formCategory.trim(),
             subCategory: formSubCategory.trim(),
             description: formDescription.trim(),
@@ -453,21 +398,6 @@ export default function ModularCatalogPage() {
             name: formName.trim(),
             description: formDescription.trim(),
             inclusions: formInclusions.trim(),
-          });
-        }
-      } else if (tab === "categories") {
-        const subs = formSubCategories.map((s) => s.trim()).filter(Boolean);
-        if (editingId) {
-          await modularCatalogsApi.updateCategory(editingId, {
-            name: formName.trim(),
-            description: formDescription.trim(),
-            subCategories: subs,
-          });
-        } else {
-          await modularCatalogsApi.createCategory({
-            name: formName.trim(),
-            description: formDescription.trim(),
-            subCategories: subs,
           });
         }
       } else if (tab === "uoms") {
@@ -549,21 +479,17 @@ export default function ModularCatalogPage() {
   const formTitle =
     tab === "series"
       ? "Series"
-      : tab === "categories"
-        ? "Category"
-        : tab === "uoms"
-          ? "UOM"
-          : drillSizeId
-            ? "Item"
-            : drillCatalogId
-              ? "Size"
-              : "Catalogue";
+      : tab === "uoms"
+        ? "UOM"
+        : drillSizeId
+          ? "Item"
+          : drillCatalogId
+            ? "Size"
+            : "Catalogue";
 
   const createLabel =
-    tab === "categories"
-      ? "+ Category"
-      : tab === "uoms"
-        ? "+ UOM"
+    tab === "uoms"
+      ? "+ UOM"
         : drillSizeId
           ? "Create Item"
           : drillCatalogId
@@ -597,6 +523,11 @@ export default function ModularCatalogPage() {
                   e.preventDefault();
                   setDrillCatalogId("");
                   setSearch("");
+                } else if (drillSeriesId) {
+                  e.preventDefault();
+                  setDrillSeriesId("");
+                  setTab("series");
+                  setSearch("");
                 }
               }}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-white/[0.06]"
@@ -617,7 +548,9 @@ export default function ModularCatalogPage() {
                 ? `${drillCatalog?.name} · ${drillSize.code || drillSize.name}`
                 : drillCatalog
                   ? drillCatalog.name
-                  : "Modular Catalog"}
+                  : drillSeries
+                    ? drillSeries.name
+                    : "Modular Catalog"}
             </h1>
           </div>
 
@@ -629,6 +562,7 @@ export default function ModularCatalogPage() {
                 onClick={() => {
                   setTab(t.id);
                   setSearch("");
+                  setDrillSeriesId("");
                   setDrillCatalogId("");
                   setDrillSizeId("");
                 }}
@@ -720,11 +654,18 @@ export default function ModularCatalogPage() {
                 {filteredSeries.map((row, index) => (
                   <TableRow
                     key={row.id}
-                    className={`transition hover:bg-[#E85D75]/5 ${
+                    className={`cursor-pointer transition hover:bg-[#E85D75]/5 ${
                       index % 2 === 0
                         ? "bg-white dark:bg-transparent"
                         : "bg-gray-50/70 dark:bg-white/[0.02]"
                     }`}
+                    onClick={() => {
+                      setDrillSeriesId(row.id);
+                      setTab("catalogs");
+                      setDrillCatalogId("");
+                      setDrillSizeId("");
+                      setSearch("");
+                    }}
                   >
                     <TableCell className="px-4 py-3.5 text-sm text-gray-600 dark:text-gray-400">
                       {index + 1}
@@ -743,7 +684,7 @@ export default function ModularCatalogPage() {
                     <TableCell className="px-4 py-3.5 text-end text-sm text-gray-700 dark:text-gray-300">
                       {row.catalogs?.length ?? 0}
                     </TableCell>
-                    <TableCell className="px-4 py-3.5">
+                    <TableCell className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                       <MoreMenu
                         onEdit={() => openEditSeries(row)}
                         onDelete={() =>
@@ -775,12 +716,12 @@ export default function ModularCatalogPage() {
             <Table>
               <TableHeader className="border-b border-gray-100 bg-gray-50 dark:border-white/[0.05] dark:bg-white/[0.02]">
                 <TableRow>
-                  {["S.No.", "Name", "Qty", "UOM", "Category", "Actions"].map((h) => (
+                  {["S.No.", "Name", "Qty", "UOM", "Amount", "Vendor", "Actions"].map((h) => (
                     <TableCell
                       key={h}
                       isHeader
                       className={`px-4 py-3 text-theme-xs font-medium text-gray-500 ${
-                        h === "Qty" || h === "Actions" ? "text-end" : "text-start"
+                        h === "Qty" || h === "Amount" || h === "Actions" ? "text-end" : "text-start"
                       }`}
                     >
                       {h}
@@ -804,9 +745,11 @@ export default function ModularCatalogPage() {
                       {row.qty}
                     </TableCell>
                     <TableCell className="px-4 py-3.5 text-sm text-gray-700">{row.uom}</TableCell>
-                    <TableCell className="px-4 py-3.5 text-sm text-gray-500">
-                      {row.category || "—"}
-                      {row.subCategory ? ` / ${row.subCategory}` : ""}
+                    <TableCell className="px-4 py-3.5 text-end text-sm text-gray-700">
+                      {money(row.amount || 0)}
+                    </TableCell>
+                    <TableCell className="px-4 py-3.5 text-sm text-gray-700">
+                      {row.vendorName || "—"}
                     </TableCell>
                     <TableCell className="px-4 py-3.5">
                       <MoreMenu
@@ -975,187 +918,6 @@ export default function ModularCatalogPage() {
             </Table>
           </div>
         </div>
-      ) : tab === "categories" ? (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-          <div className="max-w-full overflow-x-auto">
-            <Table>
-              <TableHeader className="border-b border-gray-100 bg-white dark:border-white/[0.05]">
-                <TableRow>
-                  <TableCell isHeader className="w-10 px-3 py-3 text-start text-theme-xs font-medium text-gray-500">
-                    {" "}
-                  </TableCell>
-                  <TableCell isHeader className="px-3 py-3 text-start text-theme-xs font-medium text-gray-500">
-                    Name
-                  </TableCell>
-                  <TableCell isHeader className="px-3 py-3 text-start text-theme-xs font-medium text-gray-500">
-                    Sub Categories
-                  </TableCell>
-                  <TableCell isHeader className="px-3 py-3 text-end text-theme-xs font-medium text-gray-500">
-                    Action
-                  </TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCategories.map((row) => {
-                  const expanded = expandedCategories.includes(row.id);
-                  const subs = row.subCategories || [];
-                  return (
-                    <React.Fragment key={row.id}>
-                      <TableRow className="border-b border-gray-100 dark:border-white/[0.04]">
-                        <TableCell className="px-3 py-3.5">
-                          <button
-                            type="button"
-                            onClick={() => toggleCategory(row.id)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                            aria-label={expanded ? "Collapse" : "Expand"}
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              className={`transition ${expanded ? "rotate-90" : ""}`}
-                            >
-                              <path
-                                d="M9 6l6 6-6 6"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </button>
-                        </TableCell>
-                        <TableCell className="px-3 py-3.5 text-start">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                              {row.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => openEditCategory(row)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                              aria-label={`Edit ${row.name}`}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                <path
-                                  d="M4 20h4l10.5-10.5a2.121 2.121 0 00-3-3L5 17v3z"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                                <path
-                                  d="M13.5 6.5l3 3"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-3 py-3.5 text-sm text-gray-600 dark:text-gray-400">
-                          {subs.length} Sub Categor{subs.length === 1 ? "y" : "ies"}
-                        </TableCell>
-                        <TableCell className="px-3 py-3.5 text-end">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              askDelete(
-                                "Delete category?",
-                                `Delete “${row.name}” and its sub categories?`,
-                                () => modularCatalogsApi.deleteCategory(row.id)
-                              )
-                            }
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-error-500 hover:bg-error-50"
-                            aria-label={`Delete ${row.name}`}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                              <path
-                                d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
-                                stroke="currentColor"
-                                strokeWidth="1.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </button>
-                        </TableCell>
-                      </TableRow>
-                      {expanded && (
-                        <TableRow className="bg-gray-50/80 dark:bg-white/[0.02]">
-                          <TableCell className="px-3 py-3" />
-                          <TableCell className="px-3 py-4" colSpan={3}>
-                            <div className="space-y-3">
-                              {subs.length === 0 ? (
-                                <p className="text-xs text-gray-400">No sub categories yet.</p>
-                              ) : (
-                                <div className="space-y-2">
-                                  {subs.map((sub) => (
-                                    <div
-                                      key={sub}
-                                      className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200"
-                                    >
-                                      <span className="truncate text-sm font-medium text-gray-700">
-                                        {sub}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeSubCategory(row.id, sub)}
-                                        className="text-xs font-medium text-error-500 hover:underline"
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              <div className="flex max-w-md gap-2">
-                                <input
-                                  type="text"
-                                  value={subDrafts[row.id] || ""}
-                                  onChange={(e) =>
-                                    setSubDrafts((prev) => ({
-                                      ...prev,
-                                      [row.id]: e.target.value,
-                                    }))
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      void addSubCategory(row.id);
-                                    }
-                                  }}
-                                  placeholder="Add sub category"
-                                  className={`h-9 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:ring-3 ${accent.ring}`}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => void addSubCategory(row.id)}
-                                  className={`inline-flex h-9 items-center rounded-lg ${accent.bg} px-3 text-sm font-medium text-white ${accent.bgHover}`}
-                                >
-                                  Add
-                                </button>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-                {filteredCategories.length === 0 && (
-                  <TableRow>
-                    <TableCell className="px-4 py-12 text-center text-sm text-gray-500">
-                      No categories yet. Click + Category to add one.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto">
@@ -1244,9 +1006,7 @@ export default function ModularCatalogPage() {
       {showForm ? (
         <div className="fixed inset-0 z-[100001] flex items-center justify-center bg-black/40 p-4">
           <div
-            className={`w-full rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900 ${
-              tab === "categories" ? "max-w-2xl" : "max-w-md"
-            }`}
+            className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
           >
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -1263,7 +1023,7 @@ export default function ModularCatalogPage() {
             </div>
 
             <div className="space-y-4">
-              {tab === "catalogs" && !editingId && !drillCatalogId ? (
+              {tab === "catalogs" && !editingId && !drillCatalogId && !drillSeriesId ? (
                 <div>
                   <Label>
                     Series<span className={accent.text}>*</span>
@@ -1309,7 +1069,7 @@ export default function ModularCatalogPage() {
                 />
               </div>
 
-              {tab === "series" || (tab === "catalogs" && !drillCatalogId) || tab === "categories" ? (
+              {tab === "series" || (tab === "catalogs" && !drillCatalogId) ? (
                 <div>
                   <Label>Description</Label>
                   <input
@@ -1335,77 +1095,6 @@ export default function ModularCatalogPage() {
                 </div>
               ) : null}
 
-              {tab === "categories" ? (
-                <div>
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-700">Add Sub Category</span>
-                    <button
-                      type="button"
-                      onClick={() => setFormSubCategories((prev) => [...prev, ""])}
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${accent.bg} text-lg font-semibold text-white ${accent.bgHover}`}
-                      aria-label="Add sub category"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="overflow-hidden rounded-xl border border-gray-200">
-                    <table className="min-w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">S.No.</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                            Sub Categories
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formSubCategories.map((sub, index) => (
-                          <tr key={`sub-row-${index}`} className="border-t border-gray-100">
-                            <td className="px-4 py-3 text-sm text-gray-600">{index + 1}</td>
-                            <td className="px-4 py-2">
-                              <input
-                                type="text"
-                                value={sub}
-                                onChange={(e) =>
-                                  setFormSubCategories((prev) =>
-                                    prev.map((v, i) => (i === index ? e.target.value : v))
-                                  )
-                                }
-                                placeholder="Enter sub category"
-                                className="h-10 w-full rounded-lg border border-transparent bg-transparent px-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-200 focus:outline-hidden"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setFormSubCategories((prev) =>
-                                    prev.length <= 1 ? [""] : prev.filter((_, i) => i !== index)
-                                  )
-                                }
-                                className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${accent.text} hover:bg-[#E85D75]/10`}
-                                aria-label="Remove sub category"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                  <path
-                                    d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
-                                    stroke="currentColor"
-                                    strokeWidth="1.8"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : null}
-
               {tab === "catalogs" && !drillCatalogId ? (
                 <div>
                   <Label>Inclusions</Label>
@@ -1420,67 +1109,60 @@ export default function ModularCatalogPage() {
               ) : null}
 
               {tab === "catalogs" && drillSizeId ? (
-                <div className="grid grid-cols-2 gap-3">
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Qty</Label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formQty}
+                        onChange={(e) => setFormQty(e.target.value)}
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div>
+                      <Label>UOM</Label>
+                      <select
+                        value={formUom}
+                        onChange={(e) => setFormUom(e.target.value)}
+                        className={fieldClass}
+                      >
+                        {uoms.map((u) => (
+                          <option key={u.id} value={u.name}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div>
-                    <Label>Qty</Label>
+                    <Label>Amount</Label>
                     <input
                       type="number"
                       min="0"
-                      value={formQty}
-                      onChange={(e) => setFormQty(e.target.value)}
+                      value={formAmount}
+                      onChange={(e) => setFormAmount(e.target.value)}
                       className={fieldClass}
+                      placeholder="0"
                     />
                   </div>
                   <div>
-                    <Label>Category</Label>
+                    <Label>Vendor</Label>
                     <select
-                      value={formCategory}
-                      onChange={(e) => {
-                        setFormCategory(e.target.value);
-                        const next =
-                          categories.find((c) => c.name === e.target.value)?.subCategories[0] || "";
-                        setFormSubCategory(next);
-                      }}
+                      value={formVendorId}
+                      onChange={(e) => setFormVendorId(e.target.value)}
                       className={fieldClass}
                     >
-                      <option value="">Select category</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
+                      <option value="">Select vendor</option>
+                      {vendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
                         </option>
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <Label>Sub category</Label>
-                    <select
-                      value={formSubCategory}
-                      onChange={(e) => setFormSubCategory(e.target.value)}
-                      className={fieldClass}
-                    >
-                      <option value="">Select sub category</option>
-                      {selectedCategorySubs.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>UOM</Label>
-                    <select
-                      value={formUom}
-                      onChange={(e) => setFormUom(e.target.value)}
-                      className={fieldClass}
-                    >
-                      {uoms.map((u) => (
-                        <option key={u.id} value={u.name}>
-                          {u.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                </>
               ) : null}
 
               {tab === "catalogs" && drillCatalogId && !drillSizeId ? (

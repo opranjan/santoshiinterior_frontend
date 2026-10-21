@@ -842,6 +842,52 @@ export const paymentsApi = {
   remove: (id: string) => api.delete(`/payments/${id}`),
 };
 
+export type InvoiceItemDto = {
+  id?: string;
+  sortOrder?: number;
+  name: string;
+  hsn?: string;
+  qty: number;
+  uom?: string;
+  rate: number;
+  discountPct?: number;
+  taxPct?: number;
+};
+
+export type InvoiceDto = {
+  id: string;
+  seq: number;
+  code: string;
+  projectId?: string | null;
+  project?: { id: string; name: string; clientName?: string | null; address?: string | null } | null;
+  projectName?: string;
+  clientName: string;
+  billTo?: string;
+  shipTo?: string;
+  invoiceDate: string;
+  dueDate?: string | null;
+  status: string;
+  template?: string;
+  notes?: string;
+  additionalCharge?: number;
+  additionalDiscount?: number;
+  amount: number;
+  createdBy?: { id: string; name: string } | null;
+  items?: InvoiceItemDto[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const invoicesApi = {
+  list: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<InvoiceDto>>("/invoices", query),
+  get: (id: string) => api.get<InvoiceDto>(`/invoices/${id}`),
+  create: (body: Record<string, unknown>) => api.post<InvoiceDto>("/invoices", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<InvoiceDto>(`/invoices/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/invoices/${id}`),
+};
+
 export const workOrdersApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/work-orders", query),
@@ -906,6 +952,7 @@ export type PurchaseOrderDto = {
   paymentTerms?: string | null;
   termsAndConditions?: string | null;
   remark?: string | null;
+  source?: string | null;
   isAdhoc?: boolean;
   orderComplete?: boolean;
   acceptanceStatus?: "PENDING" | "PARTIAL" | "ACCEPTED";
@@ -1558,6 +1605,9 @@ export type ModularSizeItem = {
   code: string;
   qty: number;
   uom: string;
+  amount: number;
+  vendorId?: string | null;
+  vendorName?: string;
   category: string;
   subCategory: string;
   description: string;
@@ -1665,6 +1715,8 @@ export const modularCatalogsApi = {
     code?: string;
     qty?: number;
     uom?: string;
+    amount?: number;
+    vendorId?: string | null;
     category?: string;
     subCategory?: string;
     description?: string;
