@@ -555,6 +555,7 @@ export const HR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Dashboard", path: "/", permissions: HR_PANEL_PERMS },
   { name: "Employees", path: "/hr/employees", permissions: HR_PANEL_PERMS },
   { name: "Attendance", path: "/hr/attendance", permissions: HR_PANEL_PERMS },
+  { name: "Check-in Requests", path: "/hr/check-in-requests", permissions: HR_PANEL_PERMS },
   { name: "Leave Requests", path: "/hr/leaves", permissions: HR_PANEL_PERMS },
   {
     name: "Payroll",

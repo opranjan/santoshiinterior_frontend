@@ -218,18 +218,33 @@ export function mapEmployee(dto: Record<string, unknown>) {
 
 export function mapLeave(dto: Record<string, unknown>) {
   const employee = dto.employee as
-    | { id?: string; name?: string }
+    | {
+        id?: string;
+        name?: string;
+        department?: string;
+        email?: string;
+        phone?: string;
+        employeeCode?: string;
+        roleTitle?: string;
+      }
     | null
     | undefined;
   return {
     id: String(dto.id),
     employeeId: String(employee?.id || dto.employeeId || ""),
     name: String(employee?.name || ""),
+    department: employee?.department ? enumToLabel(String(employee.department)) : "",
+    email: String(employee?.email || ""),
+    phone: String(employee?.phone || ""),
+    employeeCode: String(employee?.employeeCode || ""),
+    roleTitle: String(employee?.roleTitle || ""),
     type: String(dto.type || ""),
     from: formatDate(dto.fromDate as string | null),
     to: formatDate(dto.toDate as string | null),
     days: Number(dto.days || 1),
     reason: String(dto.reason || ""),
     status: enumToLabel(String(dto.status || "PENDING")),
+    statusKey: String(dto.status || "PENDING").toUpperCase(),
+    requestedOn: formatDate(dto.createdAt as string | null),
   };
 }

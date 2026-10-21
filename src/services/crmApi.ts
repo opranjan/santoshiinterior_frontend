@@ -1296,6 +1296,42 @@ export const warrantyApi = {
   remove: (id: string) => api.delete(`/warranty/${id}`),
 };
 
+export type HrCheckInLocation = {
+  id: string;
+  storeId?: string | null;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+};
+
+export type HrHoliday = {
+  id: string;
+  date: string;
+  name: string;
+};
+
+export type HrLeaveType = {
+  id: string;
+  name: string;
+  days: number;
+};
+
+export type HrWorkingHours = {
+  checkIn: string;
+  checkOut: string;
+  graceMinutes?: number;
+  fullDayHours?: number;
+  halfDayHours?: number;
+  belowHalfDay?: "HALF_DAY" | "ABSENT";
+  locations?: HrCheckInLocation[];
+  weeklyOffs?: number[];
+  holidays?: HrHoliday[];
+  leaveQuotaDays?: number;
+  leaveTypes?: HrLeaveType[];
+};
+
 export const hrApi = {
   summary: () => api.get<Record<string, unknown>>("/hr/summary"),
   listEmployees: (query?: Record<string, string | number | undefined>) =>
@@ -1309,6 +1345,10 @@ export const hrApi = {
     api.get<Paginated<Record<string, unknown>>>("/hr/attendance", query),
   upsertAttendance: (body: Record<string, unknown>) =>
     api.post<Record<string, unknown>>("/hr/attendance", body),
+  listAttendanceRequests: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<Record<string, unknown>>>("/hr/attendance-requests", query),
+  reviewAttendanceRequest: (id: string, body: Record<string, unknown>) =>
+    api.put<Record<string, unknown>>(`/hr/attendance-requests/${id}`, body),
   listLeaves: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/leaves", query),
   createLeave: (body: Record<string, unknown>) => api.post("/hr/leaves", body),
@@ -1384,9 +1424,10 @@ export const hrApi = {
   removeDocument: (id: string, hard?: boolean) =>
     api.delete(`/hr/documents/${id}${hard ? "?hard=true" : ""}`),
   getSettings: () =>
-    api.get<{ checkIn: string; checkOut: string }>("/hr/settings"),
-  saveSettings: (body: { checkIn: string; checkOut: string }) =>
-    api.put<{ checkIn: string; checkOut: string }>("/hr/settings", body),
+    api.get<HrWorkingHours>("/hr/settings"),
+  saveSettings: (body: Partial<HrWorkingHours>) =>
+    api.put<HrWorkingHours>("/hr/settings", body),
+  listBranches: () => api.get<{ items: StoreDto[] }>("/hr/branches"),
 };
 
 export type CasualUpdateFile = {
