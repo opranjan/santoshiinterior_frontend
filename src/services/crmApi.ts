@@ -1390,6 +1390,26 @@ export const hrApi = {
   removeEmployee: (id: string) => api.delete(`/hr/employees/${id}`),
   listAttendance: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/attendance", query),
+  getAttendanceRecording: (id: string) =>
+    api.get<{
+      id: string;
+      status: string;
+      mimeType: string;
+      durationSec: number;
+      chunkCount: number;
+      transcript: string;
+      transcriptStatus: string;
+      transcriptError: string;
+      transcriptLanguage: string;
+      chunks: {
+        id: string;
+        seq: number;
+        durationSec: number;
+        status: string;
+        transcript: string;
+        transcriptStatus: string;
+      }[];
+    }>(`/hr/attendance-recordings/${id}`),
   upsertAttendance: (body: Record<string, unknown>) =>
     api.post<Record<string, unknown>>("/hr/attendance", body),
   listAttendanceRequests: (query?: Record<string, string | number | undefined>) =>

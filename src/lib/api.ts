@@ -109,6 +109,10 @@ export async function apiRequest<T>(
   return success.data;
 }
 
+export function apiAbsoluteUrl(path: string) {
+  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export const api = {
   get: <T>(path: string, query?: RequestOptions["query"], auth = true) =>
     apiRequest<T>(path, { method: "GET", query, auth }),

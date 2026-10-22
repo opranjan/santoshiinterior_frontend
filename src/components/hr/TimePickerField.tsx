@@ -21,7 +21,7 @@ const RADIUS = 88;
 function parseTime(value: string): Parsed | null {
   const match = String(value || "")
     .trim()
-    .match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+    .match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i);
   if (!match) return null;
   let hours = Number(match[1]);
   const minutes = Number(match[2]);

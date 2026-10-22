@@ -4,6 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import TimePickerField from "@/components/hr/TimePickerField";
+import AttendanceRecordingPlayer from "@/components/hr/AttendanceRecordingPlayer";
+import AttendanceSessionsModal, {
+  type DutySession,
+  formatHms,
+  sessionDurationSec,
+} from "@/components/hr/AttendanceSessionsModal";
 import { hrApi } from "@/services/crmApi";
 import {
   Table,
@@ -36,6 +42,8 @@ type AttendanceRecord = {
   checkOut: string;
   status: AttendanceStatus;
   note: string;
+  recordingId?: string;
+  sessions: DutySession[];
 };
 
 type Props = {
@@ -87,35 +95,61 @@ function shiftIso(iso: string, days: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
 function nowTime24() {
   const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+function parseClock(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "—") return null;
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if (match) {
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const seconds = Number(match[3] || 0);
+    const mer = (match[4] || "").toUpperCase();
+    if (mer === "PM" && hours < 12) hours += 12;
+    if (mer === "AM" && hours === 12) hours = 0;
+    if (hours > 23 || minutes > 59 || seconds > 59) return null;
+    return { hours, minutes, seconds };
+  }
+  if (/\d{4}-\d{2}-\d{2}|T/.test(raw)) {
+    const iso = new Date(raw);
+    if (!Number.isNaN(iso.getTime())) {
+      return {
+        hours: iso.getHours(),
+        minutes: iso.getMinutes(),
+        seconds: iso.getSeconds(),
+      };
+    }
+  }
+  return null;
+}
+
+function formatClock(parts: { hours: number; minutes: number; seconds: number }) {
+  const hours = parts.hours % 12 || 12;
+  const ampm = parts.hours >= 12 ? "PM" : "AM";
+  if (parts.seconds) {
+    return `${hours}:${pad2(parts.minutes)}:${pad2(parts.seconds)} ${ampm}`;
+  }
+  return `${hours}:${pad2(parts.minutes)} ${ampm}`;
 }
 
 function to24h(value: string) {
-  if (!value || value === "—") return "";
-  const match = String(value)
-    .trim()
-    .match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
-  if (!match) return "";
-  let hours = Number(match[1]);
-  const minutes = match[2];
-  const mer = (match[3] || "").toUpperCase();
-  if (mer === "PM" && hours < 12) hours += 12;
-  if (mer === "AM" && hours === 12) hours = 0;
-  if (hours > 23) return "";
-  return `${String(hours).padStart(2, "0")}:${minutes}`;
+  const parts = parseClock(value);
+  if (!parts) return "";
+  return `${pad2(parts.hours)}:${pad2(parts.minutes)}`;
 }
 
-function to12h(time24: string) {
-  const normalized = to24h(time24);
-  if (!normalized) return "—";
-  const [hStr, mStr] = normalized.split(":");
-  let h = Number(hStr);
-  const m = mStr || "00";
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
+function to12h(value: string) {
+  const parts = parseClock(value);
+  if (!parts) return "—";
+  return formatClock(parts);
 }
 
 function isLate(checkIn: string, officeStart: string) {
@@ -126,16 +160,102 @@ function isLate(checkIn: string, officeStart: string) {
 }
 
 function workHours(checkIn: string, checkOut: string) {
-  const inTime = to24h(checkIn);
-  const outTime = to24h(checkOut);
-  if (!inTime || !outTime) return "—";
-  const [ih, im] = inTime.split(":").map(Number);
-  const [oh, om] = outTime.split(":").map(Number);
-  const mins = oh * 60 + om - (ih * 60 + im);
-  if (mins <= 0) return "—";
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}h ${m}m`;
+  return formatHms(sessionDurationSec(checkIn, checkOut, 0));
+}
+
+function clockLabel(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parts = parseClock(raw);
+  return parts ? formatClock(parts) : raw;
+}
+
+function sameClock(a: string, b: string) {
+  return Boolean(to24h(a) && to24h(a) === to24h(b));
+}
+
+function mapSessions(row: Record<string, unknown>): DutySession[] {
+  const punches = Array.isArray(row.punches)
+    ? row.punches
+        .map((item) => {
+          const punch = item as { in?: string; out?: string; checkIn?: string; checkOut?: string };
+          return {
+            checkIn: clockLabel(punch.in || punch.checkIn || ""),
+            checkOut: clockLabel(punch.out || punch.checkOut || ""),
+          };
+        })
+        .filter((item) => item.checkIn)
+    : [];
+  const recordings = Array.isArray(row.recordings)
+    ? [...row.recordings]
+        .map((item) => item as Record<string, unknown>)
+        .sort((a, b) => String(a.startedAt || "").localeCompare(String(b.startedAt || "")))
+    : [];
+  if (!punches.length && (row.checkIn || recordings.length)) {
+    punches.push({
+      checkIn: clockLabel(row.checkIn || recordings[0]?.checkInAt || recordings[0]?.startedAt || ""),
+      checkOut: clockLabel(
+        row.checkOut || recordings[recordings.length - 1]?.checkOutAt || recordings[recordings.length - 1]?.endedAt || ""
+      ),
+    });
+  }
+  const used = new Set<number>();
+  const fromPunches: DutySession[] = punches.map((punch, index) => {
+    let recIndex = recordings.findIndex(
+      (item, i) => !used.has(i) && sameClock(String(item.checkInAt || ""), punch.checkIn)
+    );
+    if (recIndex < 0) recIndex = recordings.findIndex((_, i) => !used.has(i));
+    const rec = recIndex >= 0 ? recordings[recIndex] : undefined;
+    if (recIndex >= 0) used.add(recIndex);
+    const durationSec = Number(rec?.durationSec || 0);
+    return {
+      index: index + 1,
+      checkIn: punch.checkIn || clockLabel(rec?.checkInAt || rec?.startedAt || ""),
+      checkOut: punch.checkOut || clockLabel(rec?.checkOutAt || rec?.endedAt || ""),
+      durationSec,
+      recordingId: rec?.id ? String(rec.id) : undefined,
+      recordingStatus: rec?.status ? String(rec.status) : undefined,
+      transcript: rec?.transcript ? String(rec.transcript) : "",
+      transcriptStatus: rec?.transcriptStatus ? String(rec.transcriptStatus) : undefined,
+      transcriptLanguage: rec?.transcriptLanguage ? String(rec.transcriptLanguage) : undefined,
+      chunkCount: Number(rec?.chunkCount || 0),
+    };
+  });
+  recordings.forEach((rec, i) => {
+    if (used.has(i) || !rec?.id) return;
+    fromPunches.push({
+      index: fromPunches.length + 1,
+      checkIn: clockLabel(rec.checkInAt || rec.startedAt || ""),
+      checkOut: clockLabel(rec.checkOutAt || rec.endedAt || ""),
+      durationSec: Number(rec.durationSec || 0),
+      recordingId: String(rec.id),
+      recordingStatus: rec.status ? String(rec.status) : undefined,
+      transcript: rec.transcript ? String(rec.transcript) : "",
+      transcriptStatus: rec.transcriptStatus ? String(rec.transcriptStatus) : undefined,
+      transcriptLanguage: rec.transcriptLanguage ? String(rec.transcriptLanguage) : undefined,
+      chunkCount: Number(rec.chunkCount || 0),
+    });
+  });
+  return fromPunches;
+}
+
+function joinedTranscript(sessions: DutySession[]) {
+  return sessions
+    .map((row) => String(row.transcript || "").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function needsTranscriptPoll(sessions: DutySession[]) {
+  return sessions.some(
+    (row) =>
+      row.chunkCount > 0 &&
+      row.transcriptStatus !== "FAILED" &&
+      (row.transcriptStatus === "PENDING" ||
+        row.transcriptStatus === "PROCESSING" ||
+        !row.transcriptStatus ||
+        row.transcriptLanguage !== "latn")
+  );
 }
 
 function recordKey(employeeId: string, date: string) {
@@ -188,6 +308,7 @@ function seedForDate(employees: EmployeeLite[], date: string): AttendanceRecord[
       checkOut: "",
       status: (e.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
       note: "",
+      sessions: [],
     }));
 }
 
@@ -214,6 +335,13 @@ export default function AttendanceManager({ employees = [] }: Props) {
   const [pickerNonce, setPickerNonce] = useState(0);
   const [officeStart, setOfficeStart] = useState(DEFAULT_CHECK_IN);
   const [officeEnd, setOfficeEnd] = useState(DEFAULT_CHECK_OUT);
+  const [listening, setListening] = useState<{ id: string; name: string } | null>(null);
+  const [sessionView, setSessionView] = useState<{
+    emp: EmployeeLite;
+    dateLabel: string;
+    status: string;
+    sessions: DutySession[];
+  } | null>(null);
 
   const askConfirm = (title: string, message: string, onYes: () => void) => {
     setConfirm({ title, message, onYes });
@@ -267,13 +395,19 @@ export default function AttendanceManager({ employees = [] }: Props) {
             const employeeId = String(row.employeeId || employee?.id || "");
             if (!employeeId) return;
             const rowDate = apiDateKey(row.date) || date;
+            const sessions = mapSessions(row);
+            const rec = sessions.find((item) => item.recordingId);
             byEmployee.set(employeeId, {
               employeeId,
               date: rowDate,
-              checkIn: to24h(String(row.checkIn || "")),
-              checkOut: to24h(String(row.checkOut || "")),
+              checkIn: clockLabel(row.checkIn || sessions[0]?.checkIn || ""),
+              checkOut: clockLabel(
+                row.checkOut || sessions.filter((item) => item.checkOut).at(-1)?.checkOut || ""
+              ),
               status: mapApiStatus(row.status),
               note: String(row.remark || ""),
+              recordingId: rec?.recordingId,
+              sessions,
             });
           });
           const snap: Record<string, AttendanceRecord> = {};
@@ -289,6 +423,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
                   checkOut: "",
                   status: (emp.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
                   note: "",
+                  sessions: [],
                 };
             next[key] = row;
             snap[key] = { ...row };
@@ -310,6 +445,51 @@ export default function AttendanceManager({ employees = [] }: Props) {
     };
   }, [date, activeEmployees]);
 
+  const waitingOnText = useMemo(
+    () => Object.values(records).some((row) => needsTranscriptPoll(row.sessions || [])),
+    [records]
+  );
+
+  useEffect(() => {
+    if (!waitingOnText) return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      try {
+        const data = await hrApi.listAttendance({ date, limit: 100 });
+        if (cancelled) return;
+        const items = Array.isArray(data.items) ? data.items : [];
+        setRecords((prev) => {
+          const next = { ...prev };
+          items.forEach((row) => {
+            const employee = row.employee as { id?: string } | undefined;
+            const employeeId = String(row.employeeId || employee?.id || "");
+            if (!employeeId) return;
+            const key = recordKey(employeeId, date);
+            const existing = next[key];
+            if (!existing) return;
+            next[key] = { ...existing, sessions: mapSessions(row) };
+          });
+          return next;
+        });
+      } catch {
+        /* keep last known text */
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [date, waitingOnText]);
+
+  useEffect(() => {
+    setSessionView((prev) => {
+      if (!prev) return prev;
+      const rec = records[recordKey(prev.emp.id, date)];
+      if (!rec) return prev;
+      return { ...prev, sessions: rec.sessions, status: rec.status };
+    });
+  }, [records, date]);
+
   const dayRows = useMemo(() => {
     return activeEmployees.map((emp) => {
       const key = recordKey(emp.id, date);
@@ -321,6 +501,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
         checkOut: "",
         status: (emp.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
         note: "",
+        sessions: [],
       };
       return { emp, record: existing || fallback, key };
     });
@@ -389,6 +570,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
       checkOut: "",
       status: (emp?.status === "On Leave" ? "Leave" : "Absent") as AttendanceStatus,
       note: "",
+      sessions: [],
     };
   };
 
@@ -807,7 +989,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="max-w-full overflow-x-auto">
-          <div className="min-w-[1100px]">
+          <div className="min-w-[1400px]">
             <Table>
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
@@ -827,6 +1009,8 @@ export default function AttendanceManager({ employees = [] }: Props) {
                     "Check In",
                     "Check Out",
                     "Hours",
+                    "Sessions",
+                    "Duty text",
                     "Note",
                     "Actions",
                   ].map((h) => (
@@ -959,7 +1143,48 @@ export default function AttendanceManager({ employees = [] }: Props) {
                       </TableCell>
 
                       <TableCell className="px-3 py-3 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                        {workHours(record.checkIn, record.checkOut)}
+                        {formatHms(
+                          (record.sessions || []).reduce(
+                            (sum, row) => sum + sessionDurationSec(row.checkIn, row.checkOut, row.durationSec || 0),
+                            0
+                          ) || sessionDurationSec(record.checkIn, record.checkOut, 0)
+                        )}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-3 whitespace-nowrap">
+                        {(record.sessions || []).length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSessionView({
+                                emp,
+                                dateLabel: formatDisplayDate(date),
+                                status: record.status,
+                                sessions: record.sessions,
+                              })
+                            }
+                            className="inline-flex h-9 items-center rounded-lg bg-[#8C6239] px-3 text-sm font-medium text-white hover:bg-[#5C3D2E]"
+                          >
+                            View {(record.sessions || []).length} session
+                            {(record.sessions || []).length === 1 ? "" : "s"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">No sessions</span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-3">
+                        {joinedTranscript(record.sessions || []) ? (
+                          <div className="max-h-28 max-w-[280px] overflow-y-auto pr-1">
+                            <p className="whitespace-pre-wrap text-xs leading-5 text-gray-700 dark:text-gray-300">
+                              {joinedTranscript(record.sessions || [])}
+                            </p>
+                          </div>
+                        ) : needsTranscriptPoll(record.sessions || []) ? (
+                          <span className="text-xs text-gray-400">Converting…</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </TableCell>
 
                       <TableCell className="px-3 py-3">
@@ -1023,6 +1248,27 @@ export default function AttendanceManager({ employees = [] }: Props) {
         start are marked Late · click a summary card or Status to filter · Reset
         restores the last saved check in / check out
       </p>
+
+      {sessionView ? (
+        <AttendanceSessionsModal
+          employee={sessionView.emp}
+          dateLabel={sessionView.dateLabel}
+          status={sessionView.status}
+          sessions={sessionView.sessions}
+          onListen={(id, label) =>
+            setListening({ id, name: `${sessionView.emp.name} · ${label}` })
+          }
+          onClose={() => setSessionView(null)}
+        />
+      ) : null}
+
+      {listening ? (
+        <AttendanceRecordingPlayer
+          recordingId={listening.id}
+          employeeName={listening.name}
+          onClose={() => setListening(null)}
+        />
+      ) : null}
 
       {confirm ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
