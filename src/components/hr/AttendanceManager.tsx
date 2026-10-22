@@ -719,6 +719,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
         const current = next[key] || ensureRecord(emp.id);
         if (current.status === "Leave") return;
         next[key] = {
+          ...current,
           employeeId: emp.id,
           date,
           checkIn: "",
