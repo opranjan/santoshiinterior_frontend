@@ -6,7 +6,7 @@ import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
-import { parseMoney, splitProjectValue } from "@/lib/dlpHolding";
+import { parseMoney, splitVendorPayout } from "@/lib/dlpHolding";
 
 type ProjectRow = {
   id: string;
@@ -14,6 +14,9 @@ type ProjectRow = {
   clientName?: string | null;
   address?: string | null;
   budget?: string | null;
+  vendorBudget?: string | null;
+  retentionAmount?: number | string | null;
+  retentionPercent?: number;
   dlpHoldingPercent?: number | string | null;
 };
 
@@ -36,6 +39,7 @@ type PaymentRow = {
     clientName?: string | null;
     address?: string | null;
     budget?: string | null;
+    vendorBudget?: string | null;
     dlpHoldingPercent?: number | string | null;
   } | null;
   createdBy?: { id: string; name: string } | null;
@@ -60,8 +64,8 @@ function money(value: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function budgetOf(project?: { budget?: string | null } | null) {
-  return parseMoney(project?.budget);
+function budgetOf(project?: { budget?: string | null; vendorBudget?: string | null } | null) {
+  return parseMoney(project?.vendorBudget || project?.budget);
 }
 
 function codeFromId(prefix: string, id: string) {
@@ -73,6 +77,12 @@ function methodLabel(method?: string) {
   const key = String(method || "").toUpperCase();
   if (key === "BANK_TRANSFER") return "NEFT";
   return enumToLabel(method || "UPI");
+}
+
+function projectPayStatus(row: ProjectPay) {
+  if (row.paid > 0 && row.pending <= 0) return { label: "Paid", color: "success" as const };
+  if (row.paid > 0) return { label: "Partially Paid", color: "warning" as const };
+  return { label: "Unpaid", color: "error" as const };
 }
 
 function txnStatus(row: PaymentRow) {
@@ -93,7 +103,12 @@ type ProjectPay = {
   id: string;
   name: string;
   location: string;
-  projectAmount: number;
+  vendorBudget: number;
+  dlpPercent: number;
+  dlpHold: number;
+  retention: number;
+  retentionPercent: number;
+  payable: number;
   paid: number;
   pending: number;
   lastPaidAt: string | null;
@@ -175,14 +190,21 @@ export default function FranchiseePayments() {
   const byProject = useMemo(() => {
     const map = new Map<string, ProjectPay>();
     for (const project of projects) {
+      const split = splitVendorPayout(
+        budgetOf(project),
+        Number(project.dlpHoldingPercent ?? 20),
+        Number(project.retentionAmount || 0)
+      );
       map.set(project.id, {
         id: project.id,
         name: project.name,
         location: project.address || "",
-        projectAmount: splitProjectValue(
-          budgetOf(project),
-          Number(project.dlpHoldingPercent ?? 20)
-        ).payable,
+        vendorBudget: split.value,
+        dlpPercent: split.percent,
+        dlpHold: split.dlp,
+        retention: split.retention,
+        retentionPercent: Number(project.retentionPercent || 0),
+        payable: split.payable,
         paid: 0,
         pending: 0,
         lastPaidAt: null,
@@ -199,7 +221,7 @@ export default function FranchiseePayments() {
     }
     return [...map.values()].map((item) => ({
       ...item,
-      pending: Math.max(0, item.projectAmount - item.paid),
+      pending: Math.max(0, item.payable - item.paid),
     }));
   }, [projects, rangedPayments]);
 
@@ -213,13 +235,17 @@ export default function FranchiseePayments() {
   }, [byProject, statusFilter]);
 
   const totals = useMemo(() => {
-    const projectAmount = byProject.reduce((sum, row) => sum + row.projectAmount, 0);
+    const vendorBudget = byProject.reduce((sum, row) => sum + row.vendorBudget, 0);
+    const dlpHold = byProject.reduce((sum, row) => sum + row.dlpHold, 0);
+    const payable = byProject.reduce((sum, row) => sum + row.payable, 0);
     const paid = byProject.reduce((sum, row) => sum + row.paid, 0);
     return {
       projects: byProject.length,
-      projectAmount,
+      vendorBudget,
+      dlpHold,
+      payable,
       paid,
-      pending: Math.max(0, projectAmount - paid),
+      pending: Math.max(0, payable - paid),
     };
   }, [byProject]);
 
@@ -232,6 +258,30 @@ export default function FranchiseePayments() {
 
   const downloadCsv = () => {
     const header = [
+      "Project",
+      "Vendor budget",
+      "DLP hold %",
+      "DLP hold",
+      "Payable now",
+      "Paid",
+      "Pending",
+      "Status",
+    ];
+    const summaryLines = filteredProjects.map((row) =>
+      [
+        row.name,
+        row.vendorBudget,
+        row.dlpPercent,
+        row.dlpHold,
+        row.payable,
+        row.paid,
+        row.pending,
+        projectPayStatus(row).label,
+      ]
+        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+        .join(",")
+    );
+    const txnHeader = [
       "Project",
       "Transaction ID",
       "Amount",
@@ -255,21 +305,18 @@ export default function FranchiseePayments() {
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
         .join(",")
     );
-    const blob = new Blob([[header.join(","), ...lines].join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob(
+      [[header.join(","), ...summaryLines, "", txnHeader.join(","), ...lines].join("\n")],
+      {
+        type: "text/csv;charset=utf-8;",
+      }
+    );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = "franchisee-payments.csv";
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const payStatus = (row: ProjectPay) => {
-    if (row.paid > 0 && row.pending <= 0) return { label: "Paid", color: "success" as const };
-    if (row.paid > 0) return { label: "Partially Paid", color: "warning" as const };
-    return { label: "Unpaid", color: "error" as const };
   };
 
   return (
@@ -279,8 +326,10 @@ export default function FranchiseePayments() {
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
           <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">Payments</h1>
           <div className="vendor-gold-rule mt-3" />
-          <p className="mt-3 max-w-xl text-sm text-[#6b645b]">
-            These are payouts from Santoshi Interior to you for assigned projects, after DLP holding. DLP (held amount) is shown under DLP Payment.
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6b645b]">
+            Vendor budget is the full amount for your work. DLP is a holding payment — a percent of that
+            budget is kept until the DLP period ends (see DLP Payment). This page is the rest, which can be
+            paid now. Example: budget ₹1,50,000 with 20% DLP hold → ₹30,000 held, ₹1,20,000 payable here.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -290,26 +339,31 @@ export default function FranchiseePayments() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Link href="/projects" className={`${card} vendor-rise`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Total Projects</p>
-          <p className="vendor-serif mt-2 text-3xl text-[#111]">{loading ? "—" : totals.projects}</p>
-          <p className="mt-2 text-xs font-medium text-[#9a7748]">View Projects</p>
-        </Link>
-        <div className={`${card} vendor-rise vendor-rise-delay-1`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Payable after DLP</p>
-          <p className="vendor-serif mt-2 text-3xl text-success-600">{formatINR(totals.projectAmount)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+        <div className={`${card} vendor-rise`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Vendor budget</p>
+          <p className="vendor-serif mt-2 text-3xl text-[#111]">{loading ? "—" : formatINR(totals.vendorBudget)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">{totals.projects} assigned project{totals.projects === 1 ? "" : "s"}</p>
         </div>
+        <Link href="/dlp-payment" className={`${card} vendor-rise vendor-rise-delay-1`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">DLP holding</p>
+          <p className="vendor-serif mt-2 text-3xl text-warning-600">{loading ? "—" : formatINR(totals.dlpHold)}</p>
+          <p className="mt-2 text-xs font-medium text-[#9a7748]">Held until DLP · View</p>
+        </Link>
         <div className={`${card} vendor-rise vendor-rise-delay-2`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Total Paid by Company</p>
-          <p className="vendor-serif mt-2 text-3xl text-[#9a7748]">{formatINR(totals.paid)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Payable now</p>
+          <p className="vendor-serif mt-2 text-3xl text-success-600">{loading ? "—" : formatINR(totals.payable)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">Budget minus DLP hold</p>
         </div>
         <div className={`${card} vendor-rise vendor-rise-delay-3`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Pending Receivable</p>
-          <p className="vendor-serif mt-2 text-3xl text-warning-600">{formatINR(totals.pending)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">View Details</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Paid by company</p>
+          <p className="vendor-serif mt-2 text-3xl text-[#9a7748]">{loading ? "—" : formatINR(totals.paid)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">Against payable now</p>
+        </div>
+        <div className={`${card} vendor-rise vendor-rise-delay-4`}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Pending receivable</p>
+          <p className="vendor-serif mt-2 text-3xl text-warning-600">{loading ? "—" : formatINR(totals.pending)}</p>
+          <p className="mt-2 text-xs text-[#8a8175]">Still due on payable now</p>
         </div>
       </div>
 
@@ -318,6 +372,9 @@ export default function FranchiseePayments() {
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Assigned payouts</p>
             <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payment by Project</h2>
+            <p className="mt-1 text-xs text-[#8a8175]">
+              Payable now = vendor budget − DLP holding. The held amount is paid later from DLP Payment.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -345,16 +402,19 @@ export default function FranchiseePayments() {
                 <th className="px-5 py-2.5">Sr. No.</th>
                 <th className="px-4 py-2.5">Site / Project Name</th>
                 <th className="px-4 py-2.5">Project ID</th>
-                <th className="px-4 py-2.5">Payable after DLP (₹)</th>
-                <th className="px-4 py-2.5">Total Paid by Company</th>
-                <th className="px-4 py-2.5">Pending Amount (₹)</th>
-                <th className="px-4 py-2.5">Last Payment Date</th>
+                <th className="px-4 py-2.5">Vendor budget (₹)</th>
+                <th className="px-4 py-2.5">DLP hold</th>
+                <th className="px-4 py-2.5">Retention</th>
+                <th className="px-4 py-2.5">Payable now (₹)</th>
+                <th className="px-4 py-2.5">Paid by company</th>
+                <th className="px-4 py-2.5">Pending (₹)</th>
+                <th className="px-4 py-2.5">Last payment</th>
                 <th className="px-4 py-2.5">Status</th>
               </tr>
             </thead>
             <tbody>
               {pagedProjects.map((row, index) => {
-                const status = payStatus(row);
+                const status = projectPayStatus(row);
                 return (
                   <tr key={row.id} className="border-t border-[#eee6d8] dark:border-[var(--vendor-line)]">
                     <td className="px-5 py-3 text-[#8a8175]">
@@ -365,7 +425,16 @@ export default function FranchiseePayments() {
                       {row.location ? <p className="text-xs text-[#8a8175]">{row.location}</p> : null}
                     </td>
                     <td className="px-4 py-3 text-[#6b645b]">{codeFromId("PROJ", row.id)}</td>
-                    <td className="px-4 py-3 vendor-serif text-lg text-[#111]">{formatAmount(row.projectAmount)}</td>
+                    <td className="px-4 py-3 vendor-serif text-lg text-[#111]">{formatAmount(row.vendorBudget)}</td>
+                    <td className="px-4 py-3 text-[#6b645b]">
+                      <p className="font-medium text-[#111]">{formatAmount(row.dlpHold)}</p>
+                      <p className="text-[11px] text-[#8a8175]">{row.dlpPercent}% held</p>
+                    </td>
+                    <td className="px-4 py-3 text-[#6b645b]">
+                      <p className="font-medium text-[#111]">{formatAmount(row.retention)}</p>
+                      <p className="text-[11px] text-[#8a8175]">{row.retentionPercent || 0}% deducted</p>
+                    </td>
+                    <td className="px-4 py-3 vendor-serif text-lg text-success-600">{formatAmount(row.payable)}</td>
                     <td className="px-4 py-3 font-medium text-success-600">{formatAmount(row.paid)}</td>
                     <td className="px-4 py-3 font-medium text-error-500">
                       {row.pending ? formatAmount(row.pending) : "0"}
@@ -383,7 +452,7 @@ export default function FranchiseePayments() {
               })}
               {!loading && !pagedProjects.length ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-[#8a8175]">
+                  <td colSpan={11} className="px-5 py-10 text-center text-[#8a8175]">
                     No project payments yet.
                   </td>
                 </tr>

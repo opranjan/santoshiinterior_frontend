@@ -13,6 +13,7 @@ type ProjectRow = {
   name: string;
   clientName?: string | null;
   budget?: string | null;
+  vendorBudget?: string | null;
   dlpHoldingPercent?: number | string | null;
 };
 
@@ -88,6 +89,8 @@ type ProjectDlp = {
   id: string;
   name: string;
   customer: string;
+  vendorBudget: number;
+  dlpPercent: number;
   dlpAmount: number;
   paid: number;
   pending: number;
@@ -158,7 +161,7 @@ export default function FranchiseeDlpPayments() {
     const rows: ProjectDlp[] = [];
     for (const project of projects) {
       const split = splitProjectValue(
-        parseMoney(project.budget),
+        parseMoney(project.vendorBudget || project.budget),
         Number(project.dlpHoldingPercent ?? 20)
       );
       const paidInfo = paidByProject.get(project.id);
@@ -169,6 +172,8 @@ export default function FranchiseeDlpPayments() {
         id: project.id,
         name: project.name,
         customer: project.clientName || "",
+        vendorBudget: split.value,
+        dlpPercent: split.percent,
         dlpAmount: dlpAmount || paid,
         paid,
         pending: Math.max(0, (dlpAmount || paid) - paid),
@@ -216,7 +221,9 @@ export default function FranchiseeDlpPayments() {
       "Project",
       "Customer",
       "Project ID",
-      "DLP Amount",
+      "Vendor budget",
+      "Hold %",
+      "DLP held",
       "Paid by Company",
       "Pending",
       "DLP Date",
@@ -227,6 +234,8 @@ export default function FranchiseeDlpPayments() {
         row.name,
         row.customer,
         codeFromId("PROJ", row.id),
+        row.vendorBudget,
+        row.dlpPercent,
         row.dlpAmount,
         row.paid,
         row.pending,
@@ -275,8 +284,10 @@ export default function FranchiseeDlpPayments() {
         <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
         <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">DLP Payment</h1>
         <div className="vendor-gold-rule mt-3" />
-        <p className="mt-3 max-w-xl text-sm text-[#6b645b]">
-          View DLP holding (retention) on your project value. Example: project 100 with 20% holding → ₹20 DLP, remaining ₹80 in Payments.
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6b645b]">
+          DLP is a holding payment: a percent of your vendor budget is kept until the DLP period ends, then
+          released here. The rest is paid from Payments. Example: vendor budget ₹1,50,000 with 20% DLP →
+          ₹30,000 held on this page, ₹1,20,000 payable on Payments.
         </p>
       </div>
 
@@ -335,7 +346,9 @@ export default function FranchiseeDlpPayments() {
                 <th className="px-4 py-2">Sr. No.</th>
                 <th className="px-4 py-2">Site / Project Name</th>
                 <th className="px-4 py-2">Project ID</th>
-                <th className="px-4 py-2">DLP Amount (₹)</th>
+                <th className="px-4 py-2">Vendor budget (₹)</th>
+                <th className="px-4 py-2">Hold %</th>
+                <th className="px-4 py-2">DLP held (₹)</th>
                 <th className="px-4 py-2">Paid by Company (₹)</th>
                 <th className="px-4 py-2">Pending Amount (₹)</th>
                 <th className="px-4 py-2">DLP Date</th>
@@ -356,7 +369,9 @@ export default function FranchiseeDlpPayments() {
                       {row.customer ? <p className="text-xs text-[#8a8175]">{row.customer}</p> : null}
                     </td>
                     <td className="px-4 py-3 text-[#6b645b]">{codeFromId("PROJ", row.id)}</td>
-                    <td className="px-4 py-3 vendor-serif text-lg text-[#111]">{formatAmount(row.dlpAmount)}</td>
+                    <td className="px-4 py-3 vendor-serif text-lg text-[#111]">{formatAmount(row.vendorBudget)}</td>
+                    <td className="px-4 py-3 text-[#6b645b]">{row.dlpPercent}%</td>
+                    <td className="px-4 py-3 vendor-serif text-lg text-warning-600">{formatAmount(row.dlpAmount)}</td>
                     <td className="px-4 py-3 font-medium text-success-600">{formatAmount(row.paid)}</td>
                     <td className="px-4 py-3 font-medium text-error-500">
                       {row.pending ? formatAmount(row.pending) : "0"}
@@ -379,7 +394,7 @@ export default function FranchiseeDlpPayments() {
               })}
               {!loading && !pagedProjects.length ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-[#8a8175]">
+                  <td colSpan={11} className="px-5 py-10 text-center text-[#8a8175]">
                     No DLP holding yet. Holding is a percent of the vendor project value, kept until DLP is released.
                   </td>
                 </tr>

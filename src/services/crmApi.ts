@@ -755,6 +755,7 @@ export type ProjectTaskDto = {
 export const projectsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/projects", query),
+  get: (id: string) => api.get<Record<string, unknown>>(`/projects/${id}`),
   create: (body: Record<string, unknown>) => api.post("/projects", body),
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/projects/${id}`, body),
@@ -1234,6 +1235,13 @@ export type VendorProjectTotals = {
 export type VendorProjectAssignment = {
   id: string;
   assignedAt: string;
+  budget?: string | null;
+  customerBudget?: string | null;
+  deadline?: string | null;
+  retentionPerDay?: number | string | null;
+  delayDays?: number;
+  retentionPercent?: number;
+  retentionAmount?: number;
   estimatedExpenses: number;
   totalPayables: number;
   totalDisbursed: number;
@@ -1295,12 +1303,26 @@ export const vendorsApi = {
       items: VendorProjectAssignment[];
       totals: VendorProjectTotals;
     }>(`/vendors/${id}/projects`),
-  assignProject: (id: string, projectId: string) =>
+  assignProject: (
+    id: string,
+    projectId: string,
+    payload?: { budget?: string; deadline?: string; retentionPerDay?: number | string }
+  ) =>
     api.post<{
       vendor: VendorDto;
       items: VendorProjectAssignment[];
       totals: VendorProjectTotals;
-    }>(`/vendors/${id}/projects`, { projectId }),
+    }>(`/vendors/${id}/projects`, { projectId, ...payload }),
+  updateProjectBudget: (
+    id: string,
+    projectId: string,
+    payload: { budget?: string; deadline?: string | null; retentionPerDay?: number | string }
+  ) =>
+    api.put<{
+      vendor: VendorDto;
+      items: VendorProjectAssignment[];
+      totals: VendorProjectTotals;
+    }>(`/vendors/${id}/projects/${projectId}`, payload),
   unassignProject: (id: string, projectId: string) =>
     api.delete<{
       vendor: VendorDto;

@@ -14,6 +14,7 @@ type ProjectRow = {
   projectType?: string | null;
   address?: string | null;
   budget?: string | null;
+  vendorBudget?: string | null;
 };
 
 export default function VendorAssignedProjects() {
@@ -51,8 +52,8 @@ export default function VendorAssignedProjects() {
                 <p className="mt-1 text-[#111] dark:text-[var(--vendor-ink)]">{row.clientName || "—"}</p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-[#9a7748]">Budget</p>
-                <p className="mt-1 text-[#111] dark:text-[var(--vendor-ink)]">{row.budget ? `₹ ${row.budget}` : "—"}</p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[#9a7748]">Vendor budget</p>
+                <p className="mt-1 text-[#111] dark:text-[var(--vendor-ink)]">{row.vendorBudget ? `₹ ${row.vendorBudget}` : "—"}</p>
               </div>
             </div>
           </article>

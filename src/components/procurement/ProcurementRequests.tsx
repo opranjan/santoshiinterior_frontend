@@ -239,6 +239,8 @@ export default function ProcurementRequests() {
     };
   }, [items]);
   const menuRow = menu ? items.find((item) => item.id === menu.id) : null;
+  const canMutate = (row: ProcurementRequestDto) =>
+    !vendorPanel || Boolean(user?.id && row.createdBy?.id === user.id);
 
   return (
     <div className="space-y-5">
@@ -254,10 +256,11 @@ export default function ProcurementRequests() {
             Requests
           </h1>
           <p className="mt-1 text-sm text-[#8a7b68]">
-            {vendorPanel ? "Requests for your assigned projects." : "Raise material and service needs, then send them to RFQ or order."}
+            {vendorPanel
+              ? "Raise a request for your assigned projects. It will show in CRM procurement for review."
+              : "Raise material and service needs, then send them to RFQ or order."}
           </p>
         </div>
-        {vendorPanel ? null : (
         <button
           type="button"
           onClick={openCreate}
@@ -265,7 +268,6 @@ export default function ProcurementRequests() {
         >
           + Raise request
         </button>
-        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
@@ -407,10 +409,10 @@ export default function ProcurementRequests() {
                       {tab === "review"
                         ? "New requests that need approval will show up here."
                         : vendorPanel
-                          ? "No requests are assigned to your projects yet."
+                          ? "Raise a request to send a material or service need to CRM."
                           : "Raise a request to start procurement for a project."}
                     </p>
-                    {tab === "all" && !vendorPanel ? (
+                    {tab === "all" ? (
                       <button
                         type="button"
                         onClick={openCreate}
@@ -487,7 +489,7 @@ export default function ProcurementRequests() {
                         className="relative px-4 py-3.5"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        {vendorPanel ? null : (
+                        {canMutate(row) ? (
                         <button
                           type="button"
                           data-request-actions
@@ -498,7 +500,7 @@ export default function ProcurementRequests() {
                             }
                             const rect = event.currentTarget.getBoundingClientRect();
                             const width = 188;
-                            const height = tab === "review" ? 140 : 268;
+                            const height = vendorPanel ? 96 : tab === "review" ? 140 : 268;
                             const openUp = window.innerHeight - rect.bottom < height + 16;
                             setMenu({
                               id: row.id,
@@ -511,7 +513,7 @@ export default function ProcurementRequests() {
                         >
                           ⋮
                         </button>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   );
@@ -529,7 +531,27 @@ export default function ProcurementRequests() {
               style={{ top: menu.top, left: menu.left }}
               className="fixed z-[100000] w-48 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 text-sm shadow-xl dark:border-[#3a342c] dark:bg-[#161411]"
             >
-              {tab === "review" ? (
+              {vendorPanel ? (
+                <>
+                  <MenuItem
+                    onClick={() => {
+                      setMenu(null);
+                      router.push(`/operations/procurement/requests/${menuRow.id}?edit=1`);
+                    }}
+                  >
+                    Edit request
+                  </MenuItem>
+                  <MenuItem
+                    danger
+                    onClick={() => {
+                      setMenu(null);
+                      setDeleteTarget(menuRow);
+                    }}
+                  >
+                    Delete request
+                  </MenuItem>
+                </>
+              ) : tab === "review" ? (
                 <>
                   <MenuItem onClick={() => void copyRow(menuRow)}>Copy request</MenuItem>
                   <MenuItem onClick={() => void setReview(menuRow, "APPROVED")}>Approve request</MenuItem>

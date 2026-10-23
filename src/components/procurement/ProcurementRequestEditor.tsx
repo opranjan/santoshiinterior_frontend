@@ -52,6 +52,8 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     try {
@@ -73,8 +75,9 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
   }, [id]);
 
   const isDraft = Boolean(row?.isDraft);
-  const editing = !vendorPanel && (isDraft || searchParams.get("edit") === "1");
   const createdByYou = Boolean(user?.id && row?.createdBy?.id === user.id);
+  const canEditRequest = !vendorPanel || createdByYou;
+  const editing = canEditRequest && (isDraft || searchParams.get("edit") === "1");
   const createdByLabel = createdByYou ? "You" : row?.createdBy?.name || "Procurement";
 
   const patchItem = (index: number, patch: Partial<ProcurementRequestItemDto>) => {
@@ -189,6 +192,18 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
     router.replace(`/operations/procurement/requests/${id}`);
   };
 
+  const deleteRequest = async () => {
+    try {
+      setDeleting(true);
+      await procurementRequestsApi.remove(id);
+      toastSuccess("Request deleted.");
+      router.push("/operations/procurement/requests");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to delete request");
+      setDeleting(false);
+    }
+  };
+
   const uploadDocs = async (files: FileList | null) => {
     if (!files?.length) return;
     try {
@@ -199,6 +214,41 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
       toastError(err instanceof Error ? err.message : "Failed to upload documents");
     }
   };
+
+  const deleteModal = (
+    <Modal
+      isOpen={deleteOpen}
+      onClose={() => {
+        if (!deleting) setDeleteOpen(false);
+      }}
+      className="w-full max-w-md p-6"
+      showCloseButton={false}
+    >
+      <h3 className="text-lg font-semibold text-gray-800">Delete this request?</h3>
+      <p className="mt-1 text-sm text-gray-500">
+        {row?.code} · {row?.name}
+      </p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={() => setDeleteOpen(false)}
+          className="h-10 rounded-lg border border-gray-200 px-4 text-sm"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={() => void deleteRequest()}
+          className="h-10 rounded-lg px-4 text-sm font-medium text-white disabled:opacity-50"
+          style={{ backgroundColor: PINK }}
+        >
+          {deleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+    </Modal>
+  );
 
   if (loading) return <p className="text-sm text-gray-500">Loading request...</p>;
   if (!row) return <p className="text-sm text-gray-500">Request not found</p>;
@@ -251,8 +301,8 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
               <span className="text-gray-700">{row.notes || "—"}</span>
             </p>
           </div>
-          {vendorPanel ? null : (
-          <div className="flex shrink-0 flex-col items-center justify-center px-3">
+          {canEditRequest ? (
+          <div className="flex shrink-0 flex-col items-center justify-center gap-3 px-3">
             <button
               type="button"
               onClick={() => router.push(`/operations/procurement/requests/${id}?edit=1`)}
@@ -264,8 +314,15 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
               <br />
               Request
             </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="text-xs font-semibold text-[#E85D75] hover:underline"
+            >
+              Delete request
+            </button>
           </div>
-          )}
+          ) : null}
         </div>
 
         {vendorPanel ? null : (
@@ -406,6 +463,7 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
           )}
           onClose={() => setOrderOpen(false)}
         />
+        {deleteModal}
       </div>
     );
   }
@@ -517,6 +575,15 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
           <button type="button" onClick={() => void cancel()} className="text-sm text-gray-500">
             Cancel
           </button>
+          {canEditRequest ? (
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="text-xs font-semibold text-[#E85D75] hover:underline"
+            >
+              Delete request
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -654,6 +721,7 @@ export default function ProcurementRequestEditor({ id }: { id: string }) {
           </button>
         </div>
       </Modal>
+      {deleteModal}
     </div>
   );
 }

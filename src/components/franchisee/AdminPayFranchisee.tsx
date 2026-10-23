@@ -11,9 +11,9 @@ import {
   paymentLabelClass,
   paymentSerif,
 } from "@/components/payments/paymentMoney";
-import { paymentsApi, projectsApi, usersApi } from "@/services/crmApi";
+import { paymentsApi, projectsApi, usersApi, vendorsApi } from "@/services/crmApi";
 import type { AuthUser } from "@/lib/auth";
-import { parseMoney, splitProjectValue } from "@/lib/dlpHolding";
+import { parseMoney, splitVendorPayout } from "@/lib/dlpHolding";
 
 type Kind = "FRANCHISEE_PAYOUT" | "DLP";
 
@@ -147,6 +147,9 @@ export default function AdminPayFranchisee() {
     remark: "",
     markPaid: true,
   });
+  const [vendorBudgets, setVendorBudgets] = useState<
+    Record<string, { budget: number; retention: number }>
+  >({});
 
   const load = async (nextKind: Kind) => {
     setLoading(true);
@@ -200,19 +203,59 @@ export default function AdminPayFranchisee() {
     void load(kind);
   }, [kind]);
 
+  useEffect(() => {
+    const payee = franchisees.find((row) => row.id === form.payeeUserId);
+    if (!payee?.vendorId) {
+      setVendorBudgets({});
+      return;
+    }
+    let cancelled = false;
+    vendorsApi
+      .projects(payee.vendorId)
+      .then((res) => {
+        if (cancelled) return;
+        const next: Record<string, { budget: number; retention: number }> = {};
+        for (const row of res.items || []) {
+          next[row.project.id] = {
+            budget: parseMoney(row.budget),
+            retention: Number(row.retentionAmount || 0),
+          };
+        }
+        setVendorBudgets(next);
+      })
+      .catch(() => {
+        if (!cancelled) setVendorBudgets({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.payeeUserId, franchisees]);
+
+  const vendorValueOf = (projectId?: string | null) =>
+    projectId ? vendorBudgets[projectId]?.budget || 0 : 0;
+  const vendorRetentionOf = (projectId?: string | null) =>
+    projectId ? vendorBudgets[projectId]?.retention || 0 : 0;
+
   const assignedProjects = useMemo(() => {
     if (!form.payeeUserId) return [];
-    return projects.filter((project) =>
+    const assigned = projects.filter((project) =>
       projectFranchiseeIds(project).includes(form.payeeUserId)
     );
-  }, [projects, form.payeeUserId]);
+    const extra = projects.filter(
+      (project) =>
+        vendorBudgets[project.id] != null &&
+        !assigned.some((row) => row.id === project.id)
+    );
+    return [...assigned, ...extra];
+  }, [projects, form.payeeUserId, vendorBudgets]);
 
   const selectedSplit = useMemo(() => {
     const project = projects.find((row) => row.id === form.projectId);
     if (!project) return null;
-    const split = splitProjectValue(
-      parseMoney(project.budget),
-      Number(form.holdingPercent)
+    const split = splitVendorPayout(
+      vendorValueOf(project.id),
+      Number(form.holdingPercent),
+      vendorRetentionOf(project.id)
     );
     const payoutPaid = payouts
       .filter(
@@ -237,7 +280,16 @@ export default function AdminPayFranchisee() {
       payoutRemaining: Math.max(0, split.payable - payoutPaid),
       dlpRemaining: Math.max(0, split.dlp - dlpPaid),
     };
-  }, [projects, form.projectId, form.holdingPercent, form.payeeUserId, payouts, dlpRows, editingId]);
+  }, [
+    projects,
+    form.projectId,
+    form.holdingPercent,
+    form.payeeUserId,
+    payouts,
+    dlpRows,
+    editingId,
+    vendorBudgets,
+  ]);
 
   const totals = useMemo(() => {
     const amount = payments.reduce((sum, row) => sum + money(row.amount), 0);
@@ -272,7 +324,11 @@ export default function AdminPayFranchisee() {
         ? String(Number(project.dlpHoldingPercent))
         : form.holdingPercent || "20");
     const split = project
-      ? splitProjectValue(parseMoney(project.budget), Number(pct))
+      ? splitVendorPayout(
+          vendorValueOf(projectId),
+          Number(pct),
+          vendorRetentionOf(projectId)
+        )
       : null;
     const payoutPaid = payouts
       .filter(
@@ -301,6 +357,13 @@ export default function AdminPayFranchisee() {
       amount: keepAmount ? f.amount : remaining ? String(remaining) : "",
     }));
   };
+
+  useEffect(() => {
+    if (!formOpen || editingId || !form.projectId) return;
+    applyProject(form.projectId, form.holdingPercent, false);
+    // Refresh payable amount once vendor budget loads for the selected project.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorBudgets]);
 
   const closeForm = () => {
     setFormOpen(false);
@@ -473,7 +536,7 @@ export default function AdminPayFranchisee() {
             Vendor Payment
           </h1>
           <p className="mt-1 max-w-xl text-sm text-[#8a7b68]">
-            Pay vendors after DLP holding. Example: value 100 with 20% holding → ₹20 DLP, ₹80 payout.
+            Pay against the vendor budget set on Vendor Projects, after DLP holding. Example: vendor budget ₹1,50,000 with 20% DLP → ₹30,000 held, ₹1,20,000 payable.
           </p>
         </div>
         <button
@@ -824,9 +887,14 @@ export default function AdminPayFranchisee() {
             {selectedSplit ? (
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: "Project value", value: formatINR(selectedSplit.value) },
+                  { label: "Vendor budget", value: formatINR(selectedSplit.value) },
                   { label: "Holding", value: `${selectedSplit.percent}%` },
                   { label: "DLP held", value: formatINR(selectedSplit.dlp), tone: "gold" },
+                  {
+                    label: "Delay retention",
+                    value: formatINR(selectedSplit.retention || 0),
+                    tone: "gold",
+                  },
                   { label: "Vendor payable", value: formatINR(selectedSplit.payable), tone: "olive" },
                 ].map((item) => (
                   <div
@@ -851,8 +919,9 @@ export default function AdminPayFranchisee() {
                   </div>
                 ))}
                 <p className="col-span-2 text-xs text-[#8a7b68]">
-                  DLP pending {formatINR(selectedSplit.dlpRemaining)} · Payment pending{" "}
-                  {formatINR(selectedSplit.payoutRemaining)}
+                  {selectedSplit.value
+                    ? `DLP pending ${formatINR(selectedSplit.dlpRemaining)} · Payment pending ${formatINR(selectedSplit.payoutRemaining)}`
+                    : "Set a vendor budget on Operations → Vendors → Vendor Projects before paying."}
                 </p>
               </div>
             ) : null}

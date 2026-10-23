@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 import { projectsApi } from "@/services/crmApi";
 import { enumToLabel } from "@/lib/mappers";
@@ -13,6 +14,10 @@ type ProjectRow = {
   projectType?: string | null;
   address?: string | null;
   budget?: string | null;
+  vendorBudget?: string | null;
+  delayDays?: number;
+  retentionPercent?: number;
+  retentionAmount?: number;
 };
 
 function statusTone(status?: string) {
@@ -61,7 +66,7 @@ export default function FranchiseeProjectsList({
         <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
         <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">{title}</h1>
         <div className="vendor-gold-rule mt-3" />
-        <p className="mt-3 max-w-xl text-sm text-[#6b645b]">{subtitle}</p>
+        <p className="mt-3 max-w-xl text-sm text-[#6b645b]">{subtitle} Open a card to see the full project detail.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -80,9 +85,10 @@ export default function FranchiseeProjectsList({
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((row, index) => (
-          <article
+          <Link
             key={row.id}
-            className={`vendor-card vendor-rise p-4 sm:p-5 vendor-rise-delay-${(index % 6) + 1}`}
+            href={`/projects/${row.id}`}
+            className={`vendor-card vendor-rise block p-4 sm:p-5 vendor-rise-delay-${(index % 6) + 1} hover:border-[#c4a574]`}
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">
@@ -98,14 +104,21 @@ export default function FranchiseeProjectsList({
               <div>
                 <p className="text-[10px] uppercase tracking-[0.14em] text-[#9a7748]">Customer</p>
                 <p className="mt-1 text-sm font-medium text-[#111]">{row.clientName || "—"}</p>
-                {row.phone ? <p className="text-xs text-[#8a8175]">{row.phone}</p> : null}
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-[0.14em] text-[#9a7748]">Budget</p>
-                <p className="mt-1 text-sm font-medium text-[#111]">{row.budget ? `₹ ${row.budget}` : "—"}</p>
+                <p className="text-[10px] uppercase tracking-[0.14em] text-[#9a7748]">Vendor budget</p>
+                <p className="mt-1 text-sm font-medium text-[#111]">{row.vendorBudget ? `₹ ${row.vendorBudget}` : "—"}</p>
+                {row.retentionPercent ? (
+                  <p className="mt-1 text-xs text-[#8a8175]">
+                    Retention {row.retentionPercent}%
+                    {row.delayDays ? ` · ${row.delayDays}d late` : ""}
+                    {row.retentionAmount ? ` · ₹ ${row.retentionAmount}` : ""}
+                  </p>
+                ) : null}
               </div>
             </div>
-          </article>
+            <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">View details →</p>
+          </Link>
         ))}
         {!loading && !items.length ? (
           <p className="vendor-card p-10 text-center text-sm text-[#8a8175] md:col-span-2 xl:col-span-3">

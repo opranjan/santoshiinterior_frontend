@@ -71,6 +71,19 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
     );
   }, [items, search]);
 
+  const saveAssignment = async (
+    projectId: string,
+    payload: { budget?: string; deadline?: string | null; retentionPerDay?: number | string }
+  ) => {
+    try {
+      const data = await vendorsApi.updateProjectBudget(vendorId, projectId, payload);
+      setItems(data.items || []);
+      setTotals(data.totals || emptyTotals());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save vendor project");
+    }
+  };
+
   const unassign = async (projectId: string) => {
     try {
       const data = await vendorsApi.unassignProject(vendorId, projectId);
@@ -103,7 +116,7 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
             ?
             {helpOpen ? (
               <span className="absolute left-6 top-0 z-20 w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                Assign CRM projects to this vendor to track expenses, payables, and dues.
+                Assign CRM projects to this vendor. Set vendor budget, deadline, and delay retention (1% of vendor budget per late day by default).
               </span>
             ) : null}
           </button>
@@ -205,14 +218,75 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
                   {row.project.clientName || "No client"}
                   {row.project.store?.name ? ` · ${row.project.store.name}` : ""}
                 </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Customer budget: {row.customerBudget ? `₹ ${row.customerBudget}` : "—"}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void unassign(row.project.id)}
-                className="text-sm font-medium text-[#E85D75]"
-              >
-                Unassign
-              </button>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="text-xs text-gray-500">
+                  Vendor budget
+                  <input
+                    defaultValue={row.budget || ""}
+                    key={`${row.id}-budget-${row.budget || ""}`}
+                    placeholder="e.g. 150000"
+                    className="mt-1 block h-9 w-32 rounded-lg border border-gray-200 px-2 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+                    onBlur={(event) => {
+                      const next = event.target.value.trim();
+                      if (next === String(row.budget || "")) return;
+                      void saveAssignment(row.project.id, { budget: next });
+                    }}
+                  />
+                </label>
+                <label className="text-xs text-gray-500">
+                  Deadline
+                  <input
+                    type="date"
+                    defaultValue={String(row.deadline || "").slice(0, 10)}
+                    key={`${row.id}-deadline-${row.deadline || ""}`}
+                    className="mt-1 block h-9 w-36 rounded-lg border border-gray-200 px-2 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+                    onBlur={(event) => {
+                      const next = event.target.value || null;
+                      if (next === String(row.deadline || "").slice(0, 10) || (!next && !row.deadline)) {
+                        return;
+                      }
+                      void saveAssignment(row.project.id, { deadline: next });
+                    }}
+                  />
+                </label>
+                <label className="text-xs text-gray-500">
+                  % / late day
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.5"
+                    defaultValue={String(row.retentionPerDay ?? 1)}
+                    key={`${row.id}-perday-${row.retentionPerDay ?? 1}`}
+                    className="mt-1 block h-9 w-20 rounded-lg border border-gray-200 px-2 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+                    onBlur={(event) => {
+                      const next = event.target.value.trim() || "1";
+                      if (next === String(row.retentionPerDay ?? 1)) return;
+                      void saveAssignment(row.project.id, { retentionPerDay: next });
+                    }}
+                  />
+                </label>
+                <div className="min-w-[7rem] rounded-lg bg-[#fff7f8] px-2 py-1">
+                  <p className="text-[10px] uppercase tracking-wide text-[#E85D75]">Retention</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {Number(row.retentionPercent || 0)}%
+                    {row.delayDays ? ` · ${row.delayDays}d late` : ""}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {row.retentionAmount ? `₹ ${row.retentionAmount}` : "₹ 0"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void unassign(row.project.id)}
+                  className="text-sm font-medium text-[#E85D75]"
+                >
+                  Unassign
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -222,8 +296,8 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
         isOpen={assignOpen}
         onClose={() => setAssignOpen(false)}
         assignedIds={items.map((row) => row.project.id)}
-        onAssign={async (projectId) => {
-          const data = await vendorsApi.assignProject(vendorId, projectId);
+        onAssign={async (projectId, payload) => {
+          const data = await vendorsApi.assignProject(vendorId, projectId, payload);
           setItems(data.items || []);
           setTotals(data.totals || emptyTotals());
         }}
@@ -258,9 +332,15 @@ function AssignProjectModal({
   isOpen: boolean;
   onClose: () => void;
   assignedIds: string[];
-  onAssign: (projectId: string) => Promise<void>;
+  onAssign: (
+    projectId: string,
+    payload?: { budget?: string; deadline?: string; retentionPerDay?: string }
+  ) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
+  const [budget, setBudget] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [retentionPerDay, setRetentionPerDay] = useState("1");
   const [options, setOptions] = useState<Array<{ id: string; name: string; clientName?: string | null }>>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -270,6 +350,9 @@ function AssignProjectModal({
   useEffect(() => {
     if (!isOpen) return;
     setSelected([]);
+    setBudget("");
+    setDeadline("");
+    setRetentionPerDay("1");
     setError("");
     const timer = setTimeout(() => {
       void (async () => {
@@ -297,7 +380,13 @@ function AssignProjectModal({
     try {
       setSaving(true);
       setError("");
-      for (const id of selected) await onAssign(id);
+      for (const id of selected) {
+        await onAssign(id, {
+          budget: budget.trim() || undefined,
+          deadline: deadline || undefined,
+          retentionPerDay: retentionPerDay || "1",
+        });
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to assign project");
@@ -326,6 +415,32 @@ function AssignProjectModal({
         placeholder="Search projects"
         className="mb-3 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
       />
+      <input
+        value={budget}
+        onChange={(e) => setBudget(e.target.value)}
+        placeholder="Vendor budget (customer project budget stays unchanged)"
+        className="mb-3 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+      />
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <input
+          type="date"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+          className="h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+        />
+        <input
+          type="number"
+          min={0}
+          step="0.5"
+          value={retentionPerDay}
+          onChange={(e) => setRetentionPerDay(e.target.value)}
+          placeholder="% deducted per late day"
+          className="h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+        />
+      </div>
+      <p className="mb-3 text-xs text-gray-500">
+        If the vendor misses the deadline, 1% of vendor budget is deducted for each late day (or the % you set).
+      </p>
       {error ? <p className="mb-3 text-sm text-error-500">{error}</p> : null}
       <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
         {loading ? (

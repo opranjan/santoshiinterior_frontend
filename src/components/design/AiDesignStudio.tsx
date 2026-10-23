@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { designApi, type DesignGenerationDto } from "@/services/crmApi";
 import { designAssetUrl } from "@/lib/designAssets";
 import DesignGeneratingLoader from "@/components/design/DesignGeneratingLoader";
+import { useAuth } from "@/context/AuthContext";
+import { isVendorPanelUser } from "@/lib/permissions";
 
 export type AiStudioMode = "designing" | "elevation";
 
@@ -135,6 +138,9 @@ function IconSparkle({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 export default function AiDesignStudio({ mode }: Props) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const vendorPanel = isVendorPanelUser(user);
   const isDesign = mode === "designing";
   const fileRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -157,6 +163,12 @@ export default function AiDesignStudio({ mode }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
 
   promptRef.current = prompt;
+
+  useEffect(() => {
+    if (vendorPanel && mode === "elevation") {
+      router.replace("/design/designing");
+    }
+  }, [vendorPanel, mode, router]);
 
   const threads = useMemo(() => buildThreads(history), [history]);
   const activeThread = threads.find((row) => row.threadId === activeThreadId) || null;
@@ -488,24 +500,26 @@ export default function AiDesignStudio({ mode }: Props) {
             describe what you want, or get inspired with examples.
           </p>
         </div>
-        <div className="flex shrink-0 items-center rounded-xl border border-[#eceae6] bg-white p-0.5 shadow-sm sm:p-1">
-          <Link
-            href="/design/designing"
-            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3.5 sm:text-sm ${
-              isDesign ? "bg-[#111111] text-white" : "text-[#6b6560] hover:text-[#111111]"
-            }`}
-          >
-            Designing
-          </Link>
-          <Link
-            href="/design/elevation"
-            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3.5 sm:text-sm ${
-              !isDesign ? "bg-[#111111] text-white" : "text-[#6b6560] hover:text-[#111111]"
-            }`}
-          >
-            Elevation
-          </Link>
-        </div>
+        {vendorPanel ? null : (
+          <div className="flex shrink-0 items-center rounded-xl border border-[#eceae6] bg-white p-0.5 shadow-sm sm:p-1">
+            <Link
+              href="/design/designing"
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3.5 sm:text-sm ${
+                isDesign ? "bg-[#111111] text-white" : "text-[#6b6560] hover:text-[#111111]"
+              }`}
+            >
+              Designing
+            </Link>
+            <Link
+              href="/design/elevation"
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3.5 sm:text-sm ${
+                !isDesign ? "bg-[#111111] text-white" : "text-[#6b6560] hover:text-[#111111]"
+              }`}
+            >
+              Elevation
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-4">

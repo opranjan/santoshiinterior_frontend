@@ -16,3 +16,17 @@ export function splitProjectValue(projectValue: number, percent: number) {
   const payable = Math.round((value - dlp) * 100) / 100;
   return { value, percent: pct, dlp, payable };
 }
+
+export function splitVendorPayout(
+  projectValue: number,
+  dlpPercent: number,
+  retentionAmount = 0
+) {
+  const split = splitProjectValue(projectValue, dlpPercent);
+  const retention = Math.max(0, parseMoney(retentionAmount));
+  return {
+    ...split,
+    retention,
+    payable: Math.max(0, Math.round((split.payable - retention) * 100) / 100),
+  };
+}

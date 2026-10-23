@@ -391,7 +391,7 @@ export default function FranchiseeDashboardHome() {
               {projects.map((row) => {
                 const label = bucketStatus(row.status);
                 return (
-                  <Link key={row.id} href="/projects" className="vendor-project-row mx-3 mb-2 block rounded-xl bg-[#fbf8f2] px-3.5 py-3 last:mb-3 dark:bg-white/[0.03]">
+                  <Link key={row.id} href={`/projects/${row.id}`} className="vendor-project-row mx-3 mb-2 block rounded-xl bg-[#fbf8f2] px-3.5 py-3 last:mb-3 dark:bg-white/[0.03]">
                     <div className="flex items-start justify-between gap-2">
                       <p className="min-w-0 font-medium leading-snug text-[#111]">{row.name}</p>
                       <Badge size="sm" color={statusColor(label)}>
@@ -436,7 +436,7 @@ export default function FranchiseeDashboardHome() {
                           {row.endDate ? formatDate(row.endDate) : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <Link href="/projects" className="text-xs uppercase tracking-[0.14em] text-[#9a7748]">
+                          <Link href={`/projects/${row.id}`} className="text-xs uppercase tracking-[0.14em] text-[#9a7748]">
                             View
                           </Link>
                         </td>

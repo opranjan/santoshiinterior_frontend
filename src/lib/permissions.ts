@@ -530,14 +530,7 @@ const VENDOR_PANEL_PERMS = [
 
 export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Dashboard", path: "/", permissions: VENDOR_PANEL_PERMS },
-  {
-    name: "Design",
-    permissions: VENDOR_PANEL_PERMS,
-    subItems: [
-      { name: "Designing", path: "/design/designing", permissions: VENDOR_PANEL_PERMS },
-      { name: "Elevation", path: "/design/elevation", permissions: VENDOR_PANEL_PERMS },
-    ],
-  },
+  { name: "Design", path: "/design/designing", permissions: VENDOR_PANEL_PERMS },
   { name: "Projects", path: "/projects", permissions: VENDOR_PANEL_PERMS },
   {
     name: "Procurement",
