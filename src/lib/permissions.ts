@@ -184,14 +184,14 @@ export const canAccessAllStores = (user: AuthUser | null | undefined): boolean =
 
 /** Route prefix → any one of these permissions grants access */
 export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
-  { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full"] },
+  { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full", "procurement.manage", "purchaseorders.manage", "vendors.manage"] },
   { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
   { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "calls.make", "calls.view", "users.manage", "chat.box"] },
   { prefix: "/chat-box", permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"] },
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
-  { prefix: "/design", permissions: ["design.manage", "design.view", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage", "vendor.portal", "franchisee.portal"] },
+  { prefix: "/design", permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage", "vendor.portal", "franchisee.portal"] },
   { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal", "vendor.portal"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
   { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage", "procurement.manage"] },
@@ -222,8 +222,15 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/casual-staff", permissions: ["casual.manage", "users.manage"] },
   { prefix: "/calendar", permissions: ["calendar.view", "sales.view", "sales.manage", "sales.full", "projects.view", "hr.manage"] },
   { prefix: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
-  { prefix: "/franchisees", permissions: ["users.manage", "users.view"] },
-  { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "website.manage", "integrations.manage"] },
+  { prefix: "/franchisees", permissions: ["users.manage", "users.view", "procurement.manage"] },
+  { prefix: "/settings/modular-catalog", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "procurement.manage", "purchaseorders.manage"] },
+  { prefix: "/settings/quotations", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create"] },
+  { prefix: "/settings/website", permissions: ["settings.manage", "settings.view", "website.manage", "quotations.manage"] },
+  { prefix: "/settings/integrations", permissions: ["settings.manage", "settings.view", "integrations.manage"] },
+  { prefix: "/settings/general", permissions: ["settings.manage", "settings.view"] },
+  { prefix: "/settings/projects", permissions: ["settings.manage", "settings.view", "projects.manage"] },
+  { prefix: "/settings/team", permissions: ["settings.manage", "settings.view", "users.manage"] },
+  { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "website.manage", "integrations.manage", "procurement.manage"] },
 ];
 
 export const canAccessRoute = (
@@ -311,7 +318,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   {
     name: "Dashboard",
     path: "/",
-    permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full"],
+    permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full", "procurement.manage", "purchaseorders.manage", "vendors.manage"],
   },
   {
     name: "Stores",
@@ -359,10 +366,10 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Design",
-    permissions: ["design.manage", "design.view", "projects.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"],
+    permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage"],
     subItems: [
-      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "design.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
-      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "design.view", "documents.manage", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
+      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
+      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
     ],
   },
   {
@@ -421,17 +428,16 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     permissions: ["users.manage", "users.view", "settings.manage", "settings.view", "roles.manage"],
     subItems: [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
-      { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view"] },
+      { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view", "procurement.manage"] },
       { name: "HR Panel", path: "/users", permissions: ["users.manage", "users.view"] },
       { name: "Casual Staff Panel", path: "/casual-staff", permissions: ["casual.manage", "users.manage", "users.view"] },
-      { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage"] },
+      { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "procurement.manage"] },
     ],
   },
   {
     name: "Web & App",
     permissions: [
       "customers.manage",
-      "customers.view",
       "sales.full",
       "sales.manage",
       "sales.view",
@@ -445,7 +451,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       {
         name: "Customer",
         path: "/customers",
-        permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"],
+        permissions: ["customers.manage", "sales.full", "sales.manage", "sales.view"],
       },
       {
         name: "Catalogue",

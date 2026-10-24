@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { hasAnyPermission } from "@/lib/permissions";
 
 type SettingsCard = {
   id: string;
@@ -209,23 +211,40 @@ const SECTIONS: SettingsSection[] = [
 ];
 
 export default function SettingsHub() {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
+  const fullSettings = hasAnyPermission(user, [
+    "settings.manage",
+    "settings.view",
+    "quotations.manage",
+    "quotations.create",
+  ]);
+
+  const visibleSections = useMemo(() => {
+    if (fullSettings) return SECTIONS;
+    return SECTIONS.map((section) => ({
+      ...section,
+      cards: section.cards.filter((card) => card.id === "modular-catalog"),
+    })).filter((section) => section.cards.length > 0);
+  }, [fullSettings]);
 
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SECTIONS;
-    return SECTIONS.map((section) => ({
-      ...section,
-      cards: section.cards.filter((card) => {
-        const hay = [card.label, card.desc, ...(card.keywords || [])]
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(q);
-      }),
-    })).filter((section) => section.cards.length > 0);
-  }, [query]);
+    if (!q) return visibleSections;
+    return visibleSections
+      .map((section) => ({
+        ...section,
+        cards: section.cards.filter((card) => {
+          const hay = [card.label, card.desc, ...(card.keywords || [])]
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(q);
+        }),
+      }))
+      .filter((section) => section.cards.length > 0);
+  }, [query, visibleSections]);
 
-  const total = SECTIONS.reduce((n, s) => n + s.cards.length, 0);
+  const total = visibleSections.reduce((n, s) => n + s.cards.length, 0);
 
   return (
     <div className="vendor-form space-y-7">
