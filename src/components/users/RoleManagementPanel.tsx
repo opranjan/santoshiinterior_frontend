@@ -372,7 +372,7 @@ export default function RoleManagementPanel() {
   const deleteRole = async (role: AccessRoleDto) => {
     if (role.isSystem) return;
     const ok = window.confirm(
-      `Delete role "${role.label}"? Users must be reassigned first.`
+      `Delete role "${role.label}"? Deactivated users will be unassigned. Active users must be reassigned first.`
     );
     if (!ok) return;
     try {
