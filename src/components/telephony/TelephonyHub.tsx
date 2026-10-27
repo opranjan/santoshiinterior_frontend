@@ -39,6 +39,8 @@ export default function TelephonyHub() {
   const [phone, setPhone] = useState("");
   const [extension, setExtension] = useState(user?.sipExtension || "");
   const [agentNumber, setAgentNumber] = useState(user?.phone || "");
+  const [exophone, setExophone] = useState("");
+  const [savingExophone, setSavingExophone] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +51,8 @@ export default function TelephonyHub() {
       ]);
       setStatus(st);
       setCalls(list.items || []);
+      const liveId = st.exotelLive?.callerId || st.exotelCallerId || "";
+      if (liveId) setExophone(liveId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load telephony");
     } finally {
@@ -69,6 +73,22 @@ export default function TelephonyHub() {
   }, [user?.phone, agentNumber]);
 
   const isExotel = (status?.provider || "exotel").toLowerCase() === "exotel";
+
+  const saveExophone = async () => {
+    if (!exophone.trim() || savingExophone) return;
+    setSavingExophone(true);
+    setError("");
+    setNotice("");
+    try {
+      const st = await telephonyApi.saveExotel({ exophone: exophone.trim() });
+      setStatus(st);
+      setNotice("ExoPhone saved. You can click-to-call now.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save ExoPhone");
+    } finally {
+      setSavingExophone(false);
+    }
+  };
 
   const clickToCall = async () => {
     if (!phone.trim() || dialing) return;
@@ -168,10 +188,35 @@ export default function TelephonyHub() {
           <p className="mt-3 text-sm text-error-600">{status.exotelLive.message}</p>
         ) : null}
 
+        {status?.exotelLive?.authOk && status.exotelLive.message ? (
+          <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">{status.exotelLive.message}</p>
+        ) : null}
+
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+          <div>
+            <Label>ExoPhone (Caller ID)</Label>
+            <Input
+              value={exophone}
+              onChange={(e) => setExophone(e.target.value)}
+              placeholder="080xxxxxx or 0xxxxxxxxxx"
+            />
+          </div>
+          <div className="flex items-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void saveExophone()}
+              disabled={savingExophone || !exophone.trim()}
+            >
+              {savingExophone ? "Saving…" : "Save ExoPhone"}
+            </Button>
+          </div>
+        </div>
+
         <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-          Trial outbound API calls need KYC submitted in the Exotel dashboard. Also
-          whitelist the agent mobile and the customer mobile (Settings → Whitelist
-          Numbers, max 10).
+          Exotel click-to-call needs a virtual ExoPhone. Copy it from Exotel → Manage →
+          ExoPhones. Also whitelist the agent mobile and the customer mobile (Settings →
+          Whitelist Numbers, max 10).
         </p>
       </div>
 

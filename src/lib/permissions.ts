@@ -93,6 +93,7 @@ const IMPLIES: Record<string, string[]> = {
   "hr.manage": ["hr.view"],
   "hr.portal": ["hr.view", "hr.manage"],
   "stores.manage": ["stores.view"],
+  "inventory.manage": ["inventory.view"],
   "vendor.chat.all": ["chat.box"],
 };
 
@@ -186,6 +187,18 @@ export const canAccessAllStores = (user: AuthUser | null | undefined): boolean =
 export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
   { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full", "procurement.manage", "purchaseorders.manage", "vendors.manage"] },
   { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
+  {
+    prefix: "/inventory",
+    permissions: [
+      "inventory.manage",
+      "inventory.view",
+      "stores.manage",
+      "stores.view",
+      "procurement.manage",
+      "purchaseorders.manage",
+      "users.manage",
+    ],
+  },
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
   { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "calls.make", "calls.view", "users.manage", "chat.box"] },
   { prefix: "/chat-box", permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"] },
@@ -326,6 +339,19 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     subItems: [
       { name: "All Stores", path: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
       { name: "Add Store", path: "/stores/new", permissions: ["stores.manage"] },
+    ],
+  },
+  {
+    name: "Inventory",
+    path: "/inventory",
+    permissions: [
+      "inventory.manage",
+      "inventory.view",
+      "stores.manage",
+      "stores.view",
+      "procurement.manage",
+      "purchaseorders.manage",
+      "users.manage",
     ],
   },
   {

@@ -51,6 +51,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Documents: <DocsIcon className="size-5 shrink-0" />,
   "Profile Settings": <UserCircleIcon className="size-5 shrink-0" />,
   Stores: <BoxCubeIcon className="size-5 shrink-0" />,
+  Inventory: <BoxIconLine className="size-5 shrink-0" />,
   Sales: <DollarLineIcon className="size-5 shrink-0" />,
   Quotations: <FileIcon className="size-5 shrink-0" />,
   "Web & App": <GroupIcon className="size-5 shrink-0" />,

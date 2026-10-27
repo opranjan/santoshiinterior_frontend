@@ -374,47 +374,160 @@ function MediaAttachment({
 
 type PendingAttachment = { file: File; previewUrl: string | null };
 
+type FileSendProgress = {
+  index: number;
+  total: number;
+  name: string;
+  size: number;
+  percent: number;
+  phase: "upload" | "whatsapp";
+};
+
+const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+const DOC_EXTS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"];
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const DOC_MAX_BYTES = 100 * 1024 * 1024;
+
+function fileExtension(name: string) {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot).toLowerCase() : "";
+}
+
+function isImageFile(file: File) {
+  const type = (file.type || "").toLowerCase();
+  return type.startsWith("image/") || IMAGE_EXTS.includes(fileExtension(file.name));
+}
+
+function isDocumentFile(file: File) {
+  const type = (file.type || "").toLowerCase();
+  if (DOC_EXTS.includes(fileExtension(file.name))) return true;
+  return (
+    type === "application/pdf" ||
+    type === "text/plain" ||
+    type.includes("msword") ||
+    type.includes("officedocument") ||
+    type.includes("ms-excel") ||
+    type.includes("ms-powerpoint")
+  );
+}
+
 function AttachmentPreviewList({
   items,
   onRemove,
+  sendProgress,
 }: {
   items: PendingAttachment[];
   onRemove: (index: number) => void;
+  sendProgress?: FileSendProgress | null;
 }) {
   if (!items.length) return null;
   return (
     <div className="mb-2 flex flex-wrap gap-2">
       {items.map((item, index) => {
-        const isImage = item.file.type.startsWith("image/");
+        const isImage = isImageFile(item.file);
+        const active = sendProgress?.index === index;
         return (
           <div
             key={`${item.file.name}-${index}`}
-            className="flex min-w-[180px] max-w-full flex-1 items-center gap-3 rounded-xl border border-[#25d366]/30 bg-white px-3 py-2 dark:bg-[#2a3942]"
+            className={`min-w-[180px] max-w-full flex-1 rounded-xl border px-3 py-2 dark:bg-[#2a3942] ${
+              active ? "border-[#25d366] bg-[#d9fdd3]/60" : "border-[#25d366]/30 bg-white"
+            }`}
           >
-            {isImage && item.previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.previewUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#25d366]/10 text-[#128c7e]">
-                <DocumentIcon />
+            <div className="flex items-center gap-3">
+              {isImage && item.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.previewUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#25d366]/10 text-[#128c7e]">
+                  <DocumentIcon />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[#111b21] dark:text-[#e9edef]">
+                  {item.file.name}
+                </p>
+                <p className="text-[11px] text-[#667781]">
+                  {active
+                    ? sendProgress.phase === "whatsapp"
+                      ? "Sending to WhatsApp…"
+                      : `Uploading ${sendProgress.percent}%`
+                    : formatFileSize(item.file.size)}
+                </p>
               </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[#111b21] dark:text-[#e9edef]">
-                {item.file.name}
-              </p>
-              <p className="text-[11px] text-[#667781]">{formatFileSize(item.file.size)}</p>
+              {sendProgress ? (
+                active ? (
+                  <RefreshIcon className="h-4 w-4 shrink-0 text-[#128c7e]" spinning />
+                ) : (
+                  <span className="shrink-0 text-[10px] text-[#667781]">Waiting</span>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onRemove(index)}
+                  className="rounded-full px-2 py-1 text-xs text-[#667781] hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Remove
+                </button>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => onRemove(index)}
-              className="rounded-full px-2 py-1 text-xs text-[#667781] hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Remove
-            </button>
+            {active ? (
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e9edef] dark:bg-[#111b21]">
+                <div
+                  className={`h-full rounded-full bg-[#25d366] ${
+                    sendProgress.phase === "whatsapp" ? "w-full animate-pulse" : "transition-[width] duration-150"
+                  }`}
+                  style={
+                    sendProgress.phase === "upload" ? { width: `${Math.max(4, sendProgress.percent)}%` } : undefined
+                  }
+                />
+              </div>
+            ) : null}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function FileSendOverlay({ progress }: { progress: FileSendProgress }) {
+  const uploading = progress.phase === "upload";
+  const label = uploading
+    ? `Uploading ${progress.percent}%`
+    : "Sending to WhatsApp…";
+  return (
+    <div
+      className="absolute inset-0 z-20 flex items-end justify-center bg-[#111b21]/35 p-3 backdrop-blur-[2px] sm:items-center sm:p-6"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="mb-[max(0.25rem,env(safe-area-inset-bottom))] w-full max-w-[min(100%,22rem)] rounded-2xl bg-white p-4 shadow-2xl dark:bg-[#202c33] sm:mb-0 sm:p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25d366]/15 text-[#128c7e]">
+            <RefreshIcon className="h-5 w-5" spinning />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#111b21] dark:text-white">Sending file</p>
+            <p className="truncate text-[13px] text-[#667781] dark:text-gray-300">{progress.name}</p>
+            <p className="mt-0.5 text-[11px] text-[#8696a0]">
+              {formatFileSize(progress.size)}
+              {progress.total > 1 ? ` · File ${progress.index + 1} of ${progress.total}` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e9edef] dark:bg-[#111b21]">
+          <div
+            className={`h-full rounded-full bg-[#25d366] ${
+              uploading ? "transition-[width] duration-150" : "w-full animate-pulse"
+            }`}
+            style={uploading ? { width: `${Math.max(6, progress.percent)}%` } : undefined}
+          />
+        </div>
+        <p className="mt-2 text-[12px] font-medium text-[#128c7e]">{label}</p>
+        <p className="mt-1 text-[11px] leading-snug text-[#667781] dark:text-gray-400">
+          Large files can take a minute. Keep this screen open until it finishes.
+        </p>
+      </div>
     </div>
   );
 }
@@ -610,6 +723,7 @@ export default function LeadCommunicationPanel({
   const [messages, setMessages] = useState<LeadMessageDto[]>(initialMessages);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [fileSend, setFileSend] = useState<FileSendProgress | null>(null);
   const [calling, setCalling] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState("");
@@ -764,19 +878,49 @@ export default function LeadCommunicationPanel({
     if (docInputRef.current) docInputRef.current.value = "";
   };
 
-  const pickAttachments = (list: FileList | null) => {
+  const pickAttachments = (list: FileList | null, kind: "image" | "document") => {
     if (!list?.length) return;
+    const problems: string[] = [];
     setAttachments((prev) => {
       const next = [...prev];
       Array.from(list).forEach((file) => {
-        if (next.length >= 10) return;
+        if (next.length >= 10) {
+          if (!problems.includes("You can attach up to 10 files.")) {
+            problems.push("You can attach up to 10 files.");
+          }
+          return;
+        }
+        const image = isImageFile(file);
+        const document = isDocumentFile(file);
+        if (kind === "image" && !image) {
+          problems.push(`${file.name} is not an image WhatsApp can send.`);
+          return;
+        }
+        if (kind === "document" && !document && !image) {
+          problems.push(
+            `${file.name} is not a supported document. Use PDF, Word, Excel, PowerPoint, or text.`
+          );
+          return;
+        }
+        const tooBig = image
+          ? file.size > IMAGE_MAX_BYTES
+          : file.size > DOC_MAX_BYTES;
+        if (tooBig) {
+          problems.push(
+            image
+              ? `${file.name} is larger than WhatsApp’s 5 MB image limit.`
+              : `${file.name} is larger than WhatsApp’s 100 MB document limit.`
+          );
+          return;
+        }
         next.push({
           file,
-          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+          previewUrl: image ? URL.createObjectURL(file) : null,
         });
       });
       return next;
     });
+    setError(problems[0] || "");
     if (imageInputRef.current) imageInputRef.current.value = "";
     if (docInputRef.current) docInputRef.current.value = "";
   };
@@ -923,24 +1067,78 @@ export default function LeadCommunicationPanel({
           : selectedSpec?.params === 1
             ? [nameValue]
             : [];
-      const created = await leadsApi.sendMessage(leadId, {
-        body: body || undefined,
-        files: attachments.map((item) => item.file),
-        ...( !inSession && !attachments.length
-          ? {
-              templateName: chatTemplate,
-              languageCode: "en",
-              useTemplate: true,
-              bodyValues: followupValues,
-            }
-          : {}),
-      });
-      const batch = created.messages?.length ? created.messages : [created];
-      setMessages((prev) => [...prev, ...batch]);
-      setText("");
-      clearAttachments();
-      if (created.warning) setNotice(created.warning);
-      else setNotice("");
+      if (attachments.length) {
+        const sent: LeadMessageDto[] = [];
+        const leftover: PendingAttachment[] = [];
+        const failures: string[] = [];
+        for (let i = 0; i < attachments.length; i += 1) {
+          const item = attachments[i];
+          setFileSend({
+            index: i,
+            total: attachments.length,
+            name: item.file.name,
+            size: item.file.size,
+            percent: 0,
+            phase: "upload",
+          });
+          try {
+            const created = await leadsApi.sendMessage(leadId, {
+              body: i === 0 ? body || undefined : undefined,
+              files: [item.file],
+              onUploadProgress: (percent) => {
+                setFileSend((prev) =>
+                  prev && prev.index === i
+                    ? {
+                        ...prev,
+                        percent,
+                        phase: percent >= 100 ? "whatsapp" : "upload",
+                      }
+                    : prev
+                );
+              },
+            });
+            const rows = created.messages?.length ? created.messages : [created];
+            sent.push(...rows);
+            if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+          } catch (err) {
+            leftover.push(item);
+            failures.push(`${item.file.name}: ${formatSendError(err)}`);
+          }
+        }
+        if (sent.length) {
+          setMessages((prev) => [...prev, ...sent]);
+        }
+        setAttachments(leftover);
+        if (imageInputRef.current) imageInputRef.current.value = "";
+        if (docInputRef.current) docInputRef.current.value = "";
+        if (failures.length) {
+          setError(
+            leftover.length && sent.length
+              ? `Sent ${sent.length} file(s). Could not send: ${failures.join(" ")}`
+              : failures.join(" ")
+          );
+        } else {
+          setText("");
+          setNotice("");
+        }
+      } else {
+        const created = await leadsApi.sendMessage(leadId, {
+          body: body || undefined,
+          ...( !inSession
+            ? {
+                templateName: chatTemplate,
+                languageCode: "en",
+                useTemplate: true,
+                bodyValues: followupValues,
+              }
+            : {}),
+        });
+        const batch = created.messages?.length ? created.messages : [created];
+        setMessages((prev) => [...prev, ...batch]);
+        setText("");
+        if (created.warning) setNotice(created.warning);
+        else setNotice("");
+      }
       void loadMessages();
       onRefresh?.();
       inputRef.current?.focus();
@@ -948,6 +1146,7 @@ export default function LeadCommunicationPanel({
       setError(formatSendError(err));
     } finally {
       setSending(false);
+      setFileSend(null);
     }
   };
 
@@ -1152,6 +1351,7 @@ export default function LeadCommunicationPanel({
             </div>
           )}
         </div>
+        {fileSend ? <FileSendOverlay progress={fileSend} /> : null}
       </div>
 
       {/* Composer */}
@@ -1174,7 +1374,21 @@ export default function LeadCommunicationPanel({
           </div>
         ) : (
           <>
-            <AttachmentPreviewList items={attachments} onRemove={removeAttachment} />
+            {fileSend ? (
+              <div className="mb-2 flex items-center gap-2 rounded-xl bg-[#d9fdd3] px-3 py-2 text-[12px] text-[#075e54] dark:bg-[#005c4b]/50 dark:text-[#d9fdd3]">
+                <RefreshIcon className="h-4 w-4 shrink-0" spinning />
+                <span className="min-w-0 truncate">
+                  {fileSend.phase === "whatsapp"
+                    ? `Sending ${fileSend.name} to WhatsApp…`
+                    : `Uploading ${fileSend.name} · ${fileSend.percent}%`}
+                </span>
+              </div>
+            ) : null}
+            <AttachmentPreviewList
+              items={attachments}
+              onRemove={removeAttachment}
+              sendProgress={fileSend}
+            />
 
             {!inSession ? (
               <div className="mb-2 space-y-2 rounded-2xl bg-white px-3 py-2.5 dark:bg-[#2a3942]">
@@ -1245,18 +1459,18 @@ export default function LeadCommunicationPanel({
             <input
               ref={imageInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp"
               multiple
               className="hidden"
-              onChange={(e) => pickAttachments(e.target.files)}
+              onChange={(e) => pickAttachments(e.target.files, "image")}
             />
             <input
               ref={docInputRef}
               type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,application/pdf"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
               multiple
               className="hidden"
-              onChange={(e) => pickAttachments(e.target.files)}
+              onChange={(e) => pickAttachments(e.target.files, "document")}
             />
 
             {inSession ? (
@@ -1264,17 +1478,19 @@ export default function LeadCommunicationPanel({
               <div className="flex shrink-0 items-center pb-0.5">
                 <button
                   type="button"
-                  title="Send images (customer must reply first, max 16 MB each, up to 10 files)"
+                  title="Send images (customer must reply first, max 5 MB each, up to 10 files)"
+                  disabled={sending}
                   onClick={() => imageInputRef.current?.click()}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white disabled:opacity-40 dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
                   <ImageIcon />
                 </button>
                 <button
                   type="button"
-                  title="Send documents (customer must reply first, max 16 MB each, up to 10 files)"
+                  title="Send documents (customer must reply first, PDF/Word/Excel, max 100 MB each, up to 10 files)"
+                  disabled={sending}
                   onClick={() => docInputRef.current?.click()}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white disabled:opacity-40 dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
                   <AttachIcon />
                 </button>
@@ -1285,12 +1501,15 @@ export default function LeadCommunicationPanel({
                   ref={inputRef}
                   rows={1}
                   value={text}
+                  disabled={sending}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={onKeyDown}
                   placeholder={
-                    attachments.length
-                      ? "Add a caption (optional)"
-                      : "Type a message"
+                    sending && fileSend
+                      ? "Sending file…"
+                      : attachments.length
+                        ? "Add a caption (optional)"
+                        : "Type a message"
                   }
                   className="max-h-32 min-h-[22px] w-full resize-none bg-transparent text-[15px] leading-snug text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
                   style={{ height: "auto" }}

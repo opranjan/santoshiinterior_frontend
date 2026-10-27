@@ -197,6 +197,55 @@ export type LeadSendMessageResult = LeadMessageDto & {
   messages?: LeadMessageDto[];
 };
 
+function postLeadMessageWithProgress(
+  url: string,
+  form: FormData,
+  token: string | null,
+  onUploadProgress?: (percent: number) => void
+): Promise<LeadSendMessageResult> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.timeout = 10 * 60 * 1000;
+    xhr.upload.onprogress = (event) => {
+      if (!onUploadProgress) return;
+      if (event.lengthComputable && event.total > 0) {
+        onUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        return;
+      }
+      onUploadProgress(0);
+    };
+    xhr.upload.onload = () => onUploadProgress?.(100);
+    xhr.onload = () => {
+      let json: { data?: LeadSendMessageResult; error?: { message?: string }; message?: string } | null =
+        null;
+      try {
+        json = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        json = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve((json?.data || json) as LeadSendMessageResult);
+        return;
+      }
+      reject(
+        new Error(
+          json?.error?.message ||
+            json?.message ||
+            (xhr.status === 413
+              ? "File is too large to upload."
+              : "Failed to send attachment")
+        )
+      );
+    };
+    xhr.onerror = () => reject(new Error("Network error while sending the file. Check your connection and try again."));
+    xhr.ontimeout = () =>
+      reject(new Error("Upload timed out. Large files can take a few minutes — try again on a stable connection."));
+    xhr.send(form);
+  });
+}
+
 export type LeadWorkspaceDto = {
   lead: LeadDto;
   quotations: Array<{
@@ -284,10 +333,12 @@ export const leadsApi = {
       useTemplate?: boolean;
       file?: File;
       files?: File[];
+      onUploadProgress?: (percent: number) => void;
     }
   ): Promise<LeadSendMessageResult> => {
-    const files = (payload.files || []).filter(Boolean);
-    if (payload.file) files.unshift(payload.file);
+    const { onUploadProgress, ...rest } = payload;
+    const files = (rest.files || []).filter(Boolean);
+    if (rest.file) files.unshift(rest.file);
     if (files.length) {
       const { tokenStorage } = await import("@/lib/auth");
       const base = (
@@ -295,23 +346,16 @@ export const leadsApi = {
       ).replace(/\/$/, "");
       const token = tokenStorage.getAccessToken();
       const form = new FormData();
-      if (payload.body?.trim()) form.append("body", payload.body.trim());
-      files.forEach((file) => form.append("file", file));
-      const res = await fetch(`${base}/leads/${id}/messages`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-      });
-      const text = await res.text();
-      const json = text ? JSON.parse(text) : null;
-      if (!res.ok) {
-        throw new Error(
-          json?.error?.message || json?.message || "Failed to send attachment"
-        );
-      }
-      return json.data as LeadSendMessageResult;
+      if (rest.body?.trim()) form.append("body", rest.body.trim());
+      files.forEach((file) => form.append("file", file, file.name || "document"));
+      return postLeadMessageWithProgress(
+        `${base}/leads/${id}/messages`,
+        form,
+        token,
+        onUploadProgress
+      );
     }
-    return api.post<LeadSendMessageResult>(`/leads/${id}/messages`, payload);
+    return api.post<LeadSendMessageResult>(`/leads/${id}/messages`, rest);
   },
   deleteMessage: (leadId: string, messageId: string) =>
     api.delete<{ id: string }>(`/leads/${leadId}/messages/${messageId}`),
@@ -448,6 +492,11 @@ export const telephonyApi = {
       call: CallLogDto;
       originate: { mode: string; dialFallback?: string; message?: string };
     }>("/telephony/calls", body),
+  saveExotel: (body: { exophone?: string; agentNumber?: string }) =>
+    api.put<TelephonyStatusDto & { saved?: { exophone?: string; agentNumber?: string } }>(
+      "/telephony/exotel",
+      body
+    ),
 };
 
 export type CustomerWebsiteShop = {
@@ -2309,4 +2358,250 @@ export const vendorChatApi = {
   },
   edit: (id: string, body: { body: string; mentionIds?: string[] }) =>
     api.patch<VendorChatMessageDto>(`/vendor-chat/messages/${id}`, body),
+};
+
+export type WarehouseKind = "COMPANY" | "PROJECT";
+export type InventoryGoodsType =
+  | "RAW_MATERIAL"
+  | "FINISHED_GOOD"
+  | "CONSUMABLE"
+  | "SERVICE";
+export type StockInKind = "PURCHASE" | "DELIVERY" | "EXPENSE";
+export type StockInStatus = "DRAFT" | "CONFIRMED";
+
+export type WarehouseDto = {
+  id: string;
+  name: string;
+  kind: WarehouseKind;
+  projectId?: string | null;
+  project?: { id: string; name: string; status?: string } | null;
+  archived: boolean;
+  notes?: string;
+  goodsValue?: number;
+  lastStockIn?: string | null;
+  lastStockOut?: string | null;
+  stockOutQty?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InventoryItemDto = {
+  id: string;
+  name: string;
+  description: string;
+  aliases: string[];
+  imageUrl?: string | null;
+  category: string;
+  goodsType: InventoryGoodsType;
+  brand: string;
+  primaryUom: string;
+  itemCode: string;
+  hsnSac: string;
+  taxPercent: number;
+  mrp: number;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WarehouseStockDto = {
+  id: string;
+  warehouseId: string;
+  itemId: string;
+  quantity: number;
+  lastPurchasedPrice: number;
+  item: InventoryItemDto;
+};
+
+export type StockInLineDto = {
+  id: string;
+  stockInId: string;
+  itemId?: string | null;
+  item?: InventoryItemDto | null;
+  itemName: string;
+  hsnSac: string;
+  category: string;
+  quantity: number;
+  uom: string;
+  unitRate: number;
+  gstPercent: number;
+  price?: number;
+  total?: number;
+  sortOrder: number;
+};
+
+export type StockInDto = {
+  id: string;
+  warehouseId: string;
+  warehouse?: { id: string; name: string; kind: WarehouseKind };
+  kind: StockInKind;
+  status: StockInStatus;
+  receiptNumber: string;
+  receiptDate: string;
+  paymentMode: string;
+  vendorId?: string | null;
+  vendor?: { id: string; name: string } | null;
+  defaultCategory: string;
+  receiptFileUrl?: string | null;
+  additionalCharges?: Array<{ name?: string; amount?: number }>;
+  notes?: string;
+  lines?: StockInLineDto[];
+  totals?: {
+    qty: number;
+    itemsTotal: number;
+    additionalCharges: number;
+    grandTotal: number;
+  };
+  confirmedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InventoryTxnDto = {
+  id: string;
+  warehouseId: string;
+  warehouse?: { id: string; name: string; kind: WarehouseKind };
+  itemId: string;
+  item?: {
+    id: string;
+    name: string;
+    category?: string;
+    primaryUom?: string;
+    itemCode?: string;
+  };
+  type: "IN" | "OUT";
+  quantity: number;
+  unitRate: number;
+  gstPercent: number;
+  amount: number;
+  refType: string;
+  refId?: string | null;
+  notes: string;
+  occurredAt: string;
+};
+
+async function inventoryUpload<T>(path: string, field: string, file: File) {
+  const { tokenStorage } = await import("@/lib/auth");
+  const base = (
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+  ).replace(/\/$/, "");
+  const token = tokenStorage.getAccessToken();
+  const form = new FormData();
+  form.append(field, file);
+  const res = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    throw new Error(json?.error?.message || json?.message || "Upload failed");
+  }
+  return json.data as T;
+}
+
+export const inventoryApi = {
+  warehouses: (query?: Record<string, string | number | undefined>) =>
+    api.get<WarehouseDto[]>("/inventory/warehouses", query),
+  warehouse: (id: string) => api.get<WarehouseDto>(`/inventory/warehouses/${id}`),
+  createWarehouse: (body: Record<string, unknown>) =>
+    api.post<WarehouseDto>("/inventory/warehouses", body),
+  updateWarehouse: (id: string, body: Record<string, unknown>) =>
+    api.put<WarehouseDto>(`/inventory/warehouses/${id}`, body),
+  stock: (warehouseId: string, query?: Record<string, string | number | undefined>) =>
+    api.get<WarehouseStockDto[]>(`/inventory/warehouses/${warehouseId}/stock`, query),
+  analytics: (
+    warehouseId: string,
+    query?: Record<string, string | number | undefined>
+  ) =>
+    api.get<{
+      warehouse: WarehouseDto;
+      type: "IN" | "OUT";
+      period: string;
+      itemCount: number;
+      goodsValue: number;
+      stockInQty: number;
+      stockInValue: number;
+      stockOutQty: number;
+      stockOutValue: number;
+      totals: { amount: number; qty: number; count: number };
+      byState: Array<{ label: string; amount: number; qty: number; count: number }>;
+      byProject: Array<{ label: string; amount: number; qty: number; count: number }>;
+      returnedToVendor: Array<{ label: string; amount: number; qty: number; count: number }>;
+      recent: InventoryTxnDto[];
+    }>(`/inventory/warehouses/${warehouseId}/analytics`, query),
+  items: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<InventoryItemDto>>("/inventory/items", query),
+  searchItems: (search: string) =>
+    api.get<InventoryItemDto[]>("/inventory/items/search", { search, limit: 20 }),
+  itemMeta: () =>
+    api.get<{
+      categories: string[];
+      goodsTypes: InventoryGoodsType[];
+      paymentModes: string[];
+    }>("/inventory/items/meta"),
+  createItem: (body: Record<string, unknown>) =>
+    api.post<InventoryItemDto>("/inventory/items", body),
+  updateItem: (id: string, body: Record<string, unknown>) =>
+    api.put<InventoryItemDto>(`/inventory/items/${id}`, body),
+  uploadItemImage: (id: string, file: File) =>
+    inventoryUpload<InventoryItemDto>(`/inventory/items/${id}/image`, "image", file),
+  stockIns: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<StockInDto>>("/inventory/stock-ins", query),
+  createStockIn: (body: Record<string, unknown>) =>
+    api.post<StockInDto>("/inventory/stock-ins", body),
+  getStockIn: (id: string) => api.get<StockInDto>(`/inventory/stock-ins/${id}`),
+  updateStockIn: (id: string, body: Record<string, unknown>) =>
+    api.put<StockInDto>(`/inventory/stock-ins/${id}`, body),
+  saveLines: (id: string, lines: Record<string, unknown>[]) =>
+    api.put<StockInDto>(`/inventory/stock-ins/${id}/lines`, { lines }),
+  confirmStockIn: (id: string) =>
+    api.post<StockInDto>(`/inventory/stock-ins/${id}/confirm`),
+  uploadReceipt: (id: string, file: File) =>
+    inventoryUpload<StockInDto>(`/inventory/stock-ins/${id}/receipt`, "file", file),
+  transactions: (query?: Record<string, string | number | undefined>) =>
+    api.get<Paginated<InventoryTxnDto>>("/inventory/transactions", query),
+  materialSearch: (q: string) =>
+    api.get<
+      Array<{
+        id: string;
+        quantity: number;
+        lastPurchasedPrice: number;
+        item: InventoryItemDto;
+        warehouse: { id: string; name: string; kind: WarehouseKind };
+      }>
+    >("/inventory/material-search", { q }),
+  deliveries: (status?: string) =>
+    api.get<{
+      items: InventoryInboxRow[];
+      total: number;
+      sum: number;
+    }>("/inventory/inbox/deliveries", { status }),
+  expenses: (status?: string) =>
+    api.get<{
+      items: InventoryInboxRow[];
+      total: number;
+      sum: number;
+    }>("/inventory/inbox/expenses", { status }),
+  setInboxStatus: (source: "DELIVERY" | "EXPENSE", sourceId: string, status: string) =>
+    api.post(`/inventory/inbox/${source}/${sourceId}`, { status }),
+};
+
+export type InventoryInboxRow = {
+  id: string;
+  number?: string;
+  name?: string;
+  user?: string;
+  expenseDate?: string;
+  project: string;
+  vendor: string;
+  remark: string;
+  amount: number;
+  deliveredAt?: string;
+  createdBy?: string;
+  category?: string;
+  attachmentUrl?: string | null;
+  status: "PENDING" | "RECORDED" | "DISCARDED";
+  source: "DELIVERY" | "EXPENSE";
 };
