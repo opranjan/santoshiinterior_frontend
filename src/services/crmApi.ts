@@ -1434,6 +1434,14 @@ export const hrApi = {
     }>(`/hr/attendance-recordings/${id}`),
   upsertAttendance: (body: Record<string, unknown>) =>
     api.post<Record<string, unknown>>("/hr/attendance", body),
+  listAttendanceAudits: (query?: Record<string, string | number | undefined>) =>
+    api.get<
+      Paginated<Record<string, unknown>> & {
+        summary?: { allOk?: number; notOk?: number; total?: number };
+      }
+    >("/hr/attendance-audits", query),
+  upsertAttendanceAudit: (body: Record<string, unknown>) =>
+    api.post<Record<string, unknown>>("/hr/attendance-audits", body),
   listAttendanceRequests: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/attendance-requests", query),
   reviewAttendanceRequest: (id: string, body: Record<string, unknown>) =>

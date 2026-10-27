@@ -75,6 +75,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Calendar: <CalenderIcon className="size-5 shrink-0" />,
   Admin: <UserCircleIcon className="size-5 shrink-0" />,
   "Vendor Panel": <GroupIcon className="size-5 shrink-0" />,
+  "HR Audits": <CheckCircleIcon className="size-5 shrink-0" />,
   Home: <GridIcon className="size-5 shrink-0" />,
   "My Tasks": <TaskIcon className="size-5 shrink-0" />,
   "Casual Staff Panel": <TaskIcon className="size-5 shrink-0" />,

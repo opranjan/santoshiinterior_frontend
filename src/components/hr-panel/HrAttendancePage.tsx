@@ -38,7 +38,7 @@ export default function HrAttendancePage() {
     () =>
       loading
         ? "Loading daily presence…"
-        : "Daily presence, late marks, and leave",
+        : "Listen to recordings, check attendance, then send All okay / Not okay to Super Admin",
     [loading]
   );
 

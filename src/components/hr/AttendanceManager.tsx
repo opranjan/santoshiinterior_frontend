@@ -35,8 +35,17 @@ export type EmployeeLite = {
   status: "Active" | "On Leave" | "Inactive";
 };
 
+type AttendanceAuditStatus = "ALL_OK" | "NOT_OK";
+
+type AttendanceAudit = {
+  id: string;
+  status: AttendanceAuditStatus;
+  remarks: string;
+};
+
 type AttendanceRecord = {
   employeeId: string;
+  attendanceId?: string;
   date: string;
   checkIn: string;
   checkOut: string;
@@ -44,6 +53,7 @@ type AttendanceRecord = {
   note: string;
   recordingId?: string;
   sessions: DutySession[];
+  audit?: AttendanceAudit | null;
 };
 
 type Props = {
@@ -239,6 +249,16 @@ function mapSessions(row: Record<string, unknown>): DutySession[] {
   return fromPunches;
 }
 
+function mapAudit(row: Record<string, unknown>): AttendanceAudit | null {
+  const audit = row.audit as { id?: string; status?: string; remarks?: string } | null | undefined;
+  if (!audit?.id) return null;
+  return {
+    id: String(audit.id),
+    status: audit.status === "NOT_OK" ? "NOT_OK" : "ALL_OK",
+    remarks: String(audit.remarks || ""),
+  };
+}
+
 function joinedTranscript(sessions: DutySession[]) {
   return sessions
     .map((row) => String(row.transcript || "").trim())
@@ -342,6 +362,14 @@ export default function AttendanceManager({ employees = [] }: Props) {
     status: string;
     sessions: DutySession[];
   } | null>(null);
+  const [auditDraft, setAuditDraft] = useState<{
+    emp: EmployeeLite;
+    attendanceId?: string;
+    status: AttendanceAuditStatus;
+    remarks: string;
+  } | null>(null);
+  const [savingAudit, setSavingAudit] = useState(false);
+  const [auditError, setAuditError] = useState("");
 
   const askConfirm = (title: string, message: string, onYes: () => void) => {
     setConfirm({ title, message, onYes });
@@ -399,6 +427,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
             const rec = sessions.find((item) => item.recordingId);
             byEmployee.set(employeeId, {
               employeeId,
+              attendanceId: String(row.id || ""),
               date: rowDate,
               checkIn: clockLabel(row.checkIn || sessions[0]?.checkIn || ""),
               checkOut: clockLabel(
@@ -408,6 +437,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
               note: String(row.remark || ""),
               recordingId: rec?.recordingId,
               sessions,
+              audit: mapAudit(row),
             });
           });
           const snap: Record<string, AttendanceRecord> = {};
@@ -618,6 +648,41 @@ export default function AttendanceManager({ employees = [] }: Props) {
       setLoadError(err instanceof Error ? err.message : "Failed to save attendance");
     } finally {
       setSavingDay(false);
+    }
+  };
+
+  const sendAudit = async () => {
+    if (!auditDraft) return;
+    setSavingAudit(true);
+    setAuditError("");
+    try {
+      const rec = records[recordKey(auditDraft.emp.id, date)];
+      const saved = await hrApi.upsertAttendanceAudit({
+        employeeId: auditDraft.emp.id,
+        attendanceId: auditDraft.attendanceId || rec?.attendanceId,
+        date,
+        status: auditDraft.status,
+        remarks: auditDraft.remarks,
+        attendanceStatus: rec
+          ? toApiStatus(rec.status, rec.checkIn, officeStart)
+          : undefined,
+        checkIn: rec?.checkIn,
+        checkOut: rec?.checkOut,
+        remark: rec?.note,
+      });
+      patchRecord(auditDraft.emp.id, {
+        attendanceId: String(saved.attendanceId || rec?.attendanceId || ""),
+        audit: {
+          id: String(saved.id || ""),
+          status: saved.status === "NOT_OK" ? "NOT_OK" : "ALL_OK",
+          remarks: String(saved.remarks || auditDraft.remarks),
+        },
+      });
+      setAuditDraft(null);
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : "Failed to send audit");
+    } finally {
+      setSavingAudit(false);
     }
   };
 
@@ -1013,6 +1078,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
                     "Sessions",
                     "Duty text",
                     "Note",
+                    "HR audit",
                     "Actions",
                   ].map((h) => (
                     <TableCell
@@ -1200,6 +1266,39 @@ export default function AttendanceManager({ employees = [] }: Props) {
                         />
                       </TableCell>
 
+                      <TableCell className="px-3 py-3">
+                        <div className="flex min-w-[140px] flex-col gap-1">
+                          {record.audit ? (
+                            <span
+                              className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                record.audit.status === "ALL_OK"
+                                  ? "bg-[#e7f6ec] text-[#2f7a45]"
+                                  : "bg-[#fde8e8] text-[#b42318]"
+                              }`}
+                            >
+                              {record.audit.status === "ALL_OK" ? "All okay" : "Not okay"}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">Not sent</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuditError("");
+                              setAuditDraft({
+                                emp,
+                                attendanceId: record.attendanceId,
+                                status: record.audit?.status || "ALL_OK",
+                                remarks: record.audit?.remarks || "",
+                              });
+                            }}
+                            className="text-left text-sm font-medium text-[#9a7748] hover:text-[#7d6139]"
+                          >
+                            {record.audit ? "Update audit" : "Send to Super Admin"}
+                          </button>
+                        </div>
+                      </TableCell>
+
                       <TableCell className="px-3 py-3 whitespace-nowrap">
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -1269,6 +1368,72 @@ export default function AttendanceManager({ employees = [] }: Props) {
           employeeName={listening.name}
           onClose={() => setListening(null)}
         />
+      ) : null}
+
+      {auditDraft ? (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-[#1c1814]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9a7748]">
+              Send to Super Admin
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-gray-800 dark:text-white">
+              {auditDraft.emp.name}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              After listening to the recording and checking attendance, mark this day All okay or Not okay.
+            </p>
+            <div className="mt-4 flex gap-2">
+              {(["ALL_OK", "NOT_OK"] as AttendanceAuditStatus[]).map((value) => {
+                const active = auditDraft.status === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setAuditDraft((d) => (d ? { ...d, status: value } : d))}
+                    className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                      value === "ALL_OK"
+                        ? active
+                          ? "border-[#2f7a45] bg-[#e7f6ec] text-[#2f7a45]"
+                          : "border-gray-200 text-gray-600"
+                        : active
+                          ? "border-[#b42318] bg-[#fde8e8] text-[#b42318]"
+                          : "border-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {value === "ALL_OK" ? "All okay" : "Not okay"}
+                  </button>
+                );
+              })}
+            </div>
+            <label className="mt-4 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+              Remarks {auditDraft.status === "NOT_OK" ? "(required)" : "(optional)"}
+            </label>
+            <textarea
+              value={auditDraft.remarks}
+              onChange={(e) => setAuditDraft((d) => (d ? { ...d, remarks: e.target.value } : d))}
+              rows={4}
+              placeholder="What you observed from attendance and the duty recording…"
+              className="mt-1 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 py-2 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+            />
+            {auditError ? <p className="mt-2 text-sm text-error-600">{auditError}</p> : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAuditDraft(null)}
+                className="rounded-lg px-3 py-2 text-sm text-gray-600"
+              >
+                Cancel
+              </button>
+              <Button
+                size="sm"
+                onClick={() => void sendAudit()}
+                disabled={savingAudit || (auditDraft.status === "NOT_OK" && !auditDraft.remarks.trim())}
+              >
+                {savingAudit ? "Sending…" : "Send to Super Admin"}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {confirm ? (

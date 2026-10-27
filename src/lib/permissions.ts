@@ -430,6 +430,7 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
       { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view", "procurement.manage"] },
       { name: "HR Panel", path: "/users", permissions: ["users.manage", "users.view"] },
+      { name: "HR Audits", path: "/users/hr-audits", permissions: ["users.manage", "users.view", "hr.manage"] },
       { name: "Casual Staff Panel", path: "/casual-staff", permissions: ["casual.manage", "users.manage", "users.view"] },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "procurement.manage"] },
     ],
