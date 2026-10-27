@@ -66,7 +66,7 @@ export default function HrAttendanceAuditsPage() {
       setSummary({
         allOk: Number(data.summary?.allOk || 0),
         notOk: Number(data.summary?.notOk || 0),
-        total: Number(data.summary?.total || data.total || 0),
+        total: Number(data.summary?.total || data.meta?.total || 0),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load HR audits");
