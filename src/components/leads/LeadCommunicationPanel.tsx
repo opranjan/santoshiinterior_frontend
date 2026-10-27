@@ -736,6 +736,7 @@ export default function LeadCommunicationPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const [pickerNonce, setPickerNonce] = useState(0);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const attachmentsRef = useRef<PendingAttachment[]>([]);
   attachmentsRef.current = attachments;
@@ -878,12 +879,21 @@ export default function LeadCommunicationPanel({
     if (docInputRef.current) docInputRef.current.value = "";
   };
 
+  const openPicker = (kind: "image" | "document") => {
+    const el = kind === "image" ? imageInputRef.current : docInputRef.current;
+    if (!el || sending) return;
+    el.value = "";
+    el.click();
+  };
+
   const pickAttachments = (list: FileList | null, kind: "image" | "document") => {
-    if (!list?.length) return;
+    const files = Array.from(list || []).filter(Boolean);
+    setPickerNonce((n) => n + 1);
+    if (!files.length) return;
     const problems: string[] = [];
     setAttachments((prev) => {
       const next = [...prev];
-      Array.from(list).forEach((file) => {
+      files.forEach((file) => {
         if (next.length >= 10) {
           if (!problems.includes("You can attach up to 10 files.")) {
             problems.push("You can attach up to 10 files.");
@@ -892,15 +902,19 @@ export default function LeadCommunicationPanel({
         }
         const image = isImageFile(file);
         const document = isDocumentFile(file);
+        const ext = fileExtension(file.name);
         if (kind === "image" && !image) {
           problems.push(`${file.name} is not an image WhatsApp can send.`);
           return;
         }
         if (kind === "document" && !document && !image) {
-          problems.push(
-            `${file.name} is not a supported document. Use PDF, Word, Excel, PowerPoint, or text.`
-          );
-          return;
+          const unknownOk = !ext || ext === ".bin";
+          if (!unknownOk) {
+            problems.push(
+              `${file.name} is not a supported document. Use PDF, Word, Excel, PowerPoint, or text.`
+            );
+            return;
+          }
         }
         const tooBig = image
           ? file.size > IMAGE_MAX_BYTES
@@ -921,8 +935,6 @@ export default function LeadCommunicationPanel({
       return next;
     });
     setError(problems[0] || "");
-    if (imageInputRef.current) imageInputRef.current.value = "";
-    if (docInputRef.current) docInputRef.current.value = "";
   };
 
   const removeAttachment = (index: number) => {
@@ -1457,19 +1469,24 @@ export default function LeadCommunicationPanel({
             ) : null}
 
             <input
+              key={`image-${pickerNonce}`}
               ref={imageInputRef}
               type="file"
-              accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp"
+              accept="image/*"
               multiple
-              className="hidden"
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none absolute h-px w-px opacity-0"
               onChange={(e) => pickAttachments(e.target.files, "image")}
             />
             <input
+              key={`doc-${pickerNonce}`}
               ref={docInputRef}
               type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
               multiple
-              className="hidden"
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none absolute h-px w-px opacity-0"
               onChange={(e) => pickAttachments(e.target.files, "document")}
             />
 
@@ -1480,7 +1497,7 @@ export default function LeadCommunicationPanel({
                   type="button"
                   title="Send images (customer must reply first, max 5 MB each, up to 10 files)"
                   disabled={sending}
-                  onClick={() => imageInputRef.current?.click()}
+                  onClick={() => openPicker("image")}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white disabled:opacity-40 dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
                   <ImageIcon />
@@ -1489,7 +1506,7 @@ export default function LeadCommunicationPanel({
                   type="button"
                   title="Send documents (customer must reply first, PDF/Word/Excel, max 100 MB each, up to 10 files)"
                   disabled={sending}
-                  onClick={() => docInputRef.current?.click()}
+                  onClick={() => openPicker("document")}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] transition hover:bg-white disabled:opacity-40 dark:text-gray-300 dark:hover:bg-[#2a3942] sm:h-10 sm:w-10"
                 >
                   <AttachIcon />
