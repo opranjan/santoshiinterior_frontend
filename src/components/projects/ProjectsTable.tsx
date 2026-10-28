@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { customersApi, leadsApi, projectsApi, storesApi, usersApi } from "@/services/crmApi";
+import { customersApi, leadsApi, projectsApi, storesApi, usersApi, vendorsApi } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
@@ -94,15 +94,38 @@ const scopes = [
 
 type StaffOption = { id: string; name: string };
 
-function isFranchiseeAccount(user: {
+function isVendorPickerAccount(user: {
   accessRole?: { key?: string; label?: string } | null;
 }) {
   const key = user.accessRole?.key || "";
   const label = String(user.accessRole?.label || "");
-  return key === "FRANCHISEE" || /franchisee/i.test(label) || /vendor panel/i.test(label);
+  return (
+    key === "FRANCHISEE" ||
+    key === "VENDOR" ||
+    /franchisee/i.test(label) ||
+    /vendor/i.test(label)
+  );
 }
 
-function franchiseesFromDto(dto: Record<string, unknown>) {
+function vendorsFromDto(dto: Record<string, unknown>) {
+  const vendorRows = Array.isArray(dto.vendorProjects)
+    ? (dto.vendorProjects as Array<{
+        vendorId?: string;
+        vendor?: { id?: string; name?: string } | null;
+      }>)
+    : [];
+  if (vendorRows.length) {
+    const people = vendorRows
+      .map((row) => ({
+        id: row.vendor?.id || row.vendorId || "",
+        name: row.vendor?.name || "Vendor",
+      }))
+      .filter((row) => row.id);
+    return {
+      franchiseeIds: people.map((row) => row.id),
+      franchiseeNames: people.map((row) => row.name).join(", "),
+    };
+  }
   const rows = Array.isArray(dto.assignees)
     ? (dto.assignees as Array<{
         userId?: string;
@@ -117,7 +140,7 @@ function franchiseesFromDto(dto: Record<string, unknown>) {
     .filter((row) => row.id);
   return {
     franchiseeIds: people.map((row) => row.id),
-    franchiseeNames: people.map((row) => row.name || "Franchisee").join(", "),
+    franchiseeNames: people.map((row) => row.name || "Vendor").join(", "),
   };
 }
 
@@ -378,7 +401,7 @@ export default function ProjectsTable() {
       salesOwner: salesOwner?.name || "",
       assignedTo: assignedTo?.name || "",
       assignedToId: assignedTo?.id || (dto.assignedToId as string | null) || null,
-      ...franchiseesFromDto(dto),
+      ...vendorsFromDto(dto),
       financialYear: String(dto.financialYear || ""),
       startDate: formatDate((dto.startDate as string | null) || ""),
       endDate: formatDate((dto.endDate as string | null) || ""),
@@ -411,13 +434,26 @@ export default function ProjectsTable() {
         try {
           const userData = await usersApi.list({ limit: 200, isActive: "true" });
           (userData.items || []).forEach((u) => {
-            const option = { id: u.id, name: u.name };
-            if (isFranchiseeAccount(u)) franchiseeRows.push(option);
-            else staffRows.push(option);
+            if (isVendorPickerAccount(u)) return;
+            staffRows.push({ id: u.id, name: u.name });
           });
         } catch {
           staffRows = [];
-          franchiseeRows = [];
+        }
+        try {
+          const vendorData = await vendorsApi.list({ limit: 200 });
+          franchiseeRows = (vendorData.items || [])
+            .filter((v) => !/archiv|inactive|disabled/i.test(String(v.status || "")))
+            .map((v) => ({ id: v.id, name: v.name }));
+        } catch {
+          try {
+            const userData = await usersApi.list({ limit: 200, isActive: "true" });
+            franchiseeRows = (userData.items || [])
+              .filter((u) => isVendorPickerAccount(u))
+              .map((u) => ({ id: u.id, name: u.name }));
+          } catch {
+            franchiseeRows = [];
+          }
         }
         if (cancelled) return;
         setStoreOptions(
@@ -644,7 +680,7 @@ export default function ProjectsTable() {
       description: form.description || null,
       latestRemark: form.latestRemark || null,
       assignedToId: form.assignedToId || null,
-      assigneeIds: form.franchiseeIds,
+      vendorIds: form.franchiseeIds,
       customerId: sourceCustomerId || undefined,
     };
 
@@ -793,7 +829,7 @@ export default function ProjectsTable() {
       )
     );
     try {
-      await projectsApi.update(id, { assigneeIds: nextIds });
+      await projectsApi.update(id, { vendorIds: nextIds });
     } catch {
       setProjects(prev);
     }
@@ -1054,7 +1090,7 @@ export default function ProjectsTable() {
                           {p.franchiseeNames || "Assign vendors"}
                         </button>
                         {franchiseePickerId === p.id ? (
-                          <div className="absolute z-30 mt-1 max-h-40 w-56 overflow-y-auto rounded-xl border border-[#eadfcf] bg-white p-2 shadow-lg dark:border-[#3a342c] dark:bg-[#161411]">
+                          <div className="absolute z-30 mt-1 max-h-56 w-64 overflow-y-auto rounded-xl border border-[#eadfcf] bg-white p-2 shadow-lg dark:border-[#3a342c] dark:bg-[#161411]">
                             {franchisees.length ? (
                               franchisees.map((user) => {
                                 const checked = p.franchiseeIds.includes(user.id);
@@ -1079,7 +1115,7 @@ export default function ProjectsTable() {
                               })
                             ) : (
                               <p className="px-1 py-2 text-xs text-[#b3a594]">
-                                No vendor accounts yet
+                                No vendors in My Vendors yet
                               </p>
                             )}
                           </div>
