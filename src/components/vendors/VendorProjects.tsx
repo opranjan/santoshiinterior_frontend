@@ -11,6 +11,7 @@ import {
   type VendorProjectTotals,
 } from "@/services/crmApi";
 import { vendorDisplayId } from "./VendorDataHeader";
+import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 
 const emptyTotals = (): VendorProjectTotals => ({
   estimatedExpenses: 0,
@@ -94,7 +95,7 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
     }
   };
 
-  if (loading) return <p className="text-sm text-gray-500">Loading vendor projects...</p>;
+  if (loading) return <TableSkeleton />;
 
   return (
     <div className="space-y-4">

@@ -43,6 +43,7 @@ export default function ConvertLeadToProjectModal({
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (!lead) return;
@@ -50,6 +51,7 @@ export default function ConvertLeadToProjectModal({
     setMode("existing");
     setError("");
     setSelectedProjectId("");
+    setConfirming(false);
 
     let cancelled = false;
     (async () => {
@@ -110,14 +112,27 @@ export default function ConvertLeadToProjectModal({
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Assign lead to project
+          {confirming ? "Confirm move to Projects" : "Assign lead to project"}
         </h3>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Link <strong>{lead.clientName}</strong> to an existing project or
-          create a new one on the Projects page. Lead status will be set to Won
-          after the project is saved.
+          {confirming ? (
+            <>
+              <strong>{lead.clientName}</strong> will be removed from{" "}
+              <strong>Sales → Leads</strong> and will only appear under{" "}
+              <strong>Projects</strong>. This cannot be undone from the Leads
+              list.
+            </>
+          ) : (
+            <>
+              Link <strong>{lead.clientName}</strong> to an existing project or
+              create a new one on the Projects page. After you confirm, this
+              lead leaves the Leads list.
+            </>
+          )}
         </p>
 
+        {confirming ? null : (
+        <>
         <div className="mt-5 flex gap-2 rounded-xl bg-gray-50 p-1 dark:bg-white/[0.04]">
           <button
             type="button"
@@ -201,25 +216,51 @@ export default function ConvertLeadToProjectModal({
             </p>
           </div>
         )}
+        </>
+        )}
 
         {error ? <p className="mt-3 text-sm text-error-600">{error}</p> : null}
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          {mode === "existing" ? (
-            <Button
-              size="sm"
-              onClick={() => void assignExisting()}
-              disabled={busy || !selectedProjectId}
-            >
-              {busy ? "Saving…" : "Assign to Project"}
-            </Button>
+          {confirming ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirming(false)}
+                disabled={busy}
+              >
+                Back
+              </Button>
+              {mode === "existing" ? (
+                <Button size="sm" onClick={() => void assignExisting()} disabled={busy}>
+                  {busy ? "Saving…" : "Yes, move to Projects"}
+                </Button>
+              ) : (
+                <Button size="sm" onClick={goToCreateProject}>
+                  Yes, continue to Projects
+                </Button>
+              )}
+            </>
           ) : (
-            <Button size="sm" onClick={goToCreateProject}>
-              Continue to Projects
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={onClose} disabled={busy}>
+                Cancel
+              </Button>
+              {mode === "existing" ? (
+                <Button
+                  size="sm"
+                  onClick={() => setConfirming(true)}
+                  disabled={busy || !selectedProjectId}
+                >
+                  Assign to Project
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => setConfirming(true)}>
+                  Continue to Projects
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

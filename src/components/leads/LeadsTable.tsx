@@ -312,7 +312,9 @@ export default function LeadsTable() {
       limit: 100,
       ...(storeFilterId ? { storeId: storeFilterId } : {}),
     });
-    setLeads(data.items.map(mapLeadDto));
+    setLeads(
+      data.items.map(mapLeadDto).filter((lead) => !lead.convertedProjectId)
+    );
   };
 
   useEffect(() => {
@@ -383,6 +385,8 @@ export default function LeadsTable() {
   const [otherFilter, setOtherFilter] = useState("none");
   const [sortBy, setSortBy] = useState("updated-desc");
   const [selected, setSelected] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null);
   const [fuType, setFuType] = useState<FollowUpType>("Call");
@@ -397,6 +401,7 @@ export default function LeadsTable() {
 
   const filteredLeads = useMemo(() => {
     let list = leads.filter((lead) => {
+      if (lead.convertedProjectId) return false;
       const q = search.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -442,6 +447,26 @@ export default function LeadsTable() {
     return list;
   }, [leads, search, statusFilter, otherFilter, sortBy]);
 
+  const pageCount = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const pagedLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize);
+  const showingFrom = filteredLeads.length ? (page - 1) * pageSize + 1 : 0;
+  const showingTo = Math.min(page * pageSize, filteredLeads.length);
+  const pageButtons = useMemo(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, i) => i + 1);
+    }
+    const set = new Set([1, pageCount, page, page - 1, page + 1, page - 2, page + 2]);
+    return [...set].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, otherFilter, sortBy, storeFilterId]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
   const leadsValueLabel = "₹ 0";
 
   const hasActiveFilters =
@@ -450,17 +475,17 @@ export default function LeadsTable() {
     otherFilter !== "none";
 
   const allVisibleSelected =
-    filteredLeads.length > 0 &&
-    filteredLeads.every((l) => selected.includes(l.id));
+    pagedLeads.length > 0 &&
+    pagedLeads.every((l) => selected.includes(l.id));
 
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
       setSelected((prev) =>
-        prev.filter((id) => !filteredLeads.some((l) => l.id === id))
+        prev.filter((id) => !pagedLeads.some((l) => l.id === id))
       );
     } else {
       setSelected((prev) => [
-        ...new Set([...prev, ...filteredLeads.map((l) => l.id)]),
+        ...new Set([...prev, ...pagedLeads.map((l) => l.id)]),
       ]);
     }
   };
@@ -607,23 +632,12 @@ export default function LeadsTable() {
     setConvertTarget(lead);
   };
 
-  const handleConvertSuccess = (result: {
+  const handleConvertSuccess = (_result: {
     project: { id: string; name: string };
   }) => {
     if (!convertTarget) return;
-    setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === convertTarget.id
-          ? {
-              ...lead,
-              status: "Won",
-              convertedProjectId: result.project.id,
-              convertedProjectName: result.project.name,
-              projectName: result.project.name,
-            }
-          : lead
-      )
-    );
+    setLeads((prev) => prev.filter((lead) => lead.id !== convertTarget.id));
+    setSelected((prev) => prev.filter((id) => id !== convertTarget.id));
     setConvertTarget(null);
   };
 
@@ -906,7 +920,7 @@ export default function LeadsTable() {
               </TableHeader>
 
               <TableBody className="divide-y divide-[#f0e8db] dark:divide-[#3a342c]">
-                {filteredLeads.map((lead) => {
+                {pagedLeads.map((lead) => {
                   const nextFu = lead.followUps[lead.followUps.length - 1];
                   const overdue = nextFu ? isOverdue(nextFu.nextDate) : false;
                   const isSelected = selected.includes(lead.id);
@@ -1220,6 +1234,50 @@ export default function LeadsTable() {
             </Table>
           </div>
         </div>
+        {filteredLeads.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f0e6d8] px-4 py-3 text-sm text-[#8a7b68]">
+            <p>
+              Showing {showingFrom} to {showingTo} of {filteredLeads.length} leads
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ‹
+              </button>
+              {pageButtons.map((n, index) => {
+                const prev = pageButtons[index - 1];
+                return (
+                  <React.Fragment key={n}>
+                    {prev && n - prev > 1 ? <span className="px-1">…</span> : null}
+                    <button
+                      type="button"
+                      onClick={() => setPage(n)}
+                      className={`grid h-8 min-w-8 place-items-center rounded-md px-2 text-sm ${
+                        n === page
+                          ? "bg-[#1c1610] text-[#e8d5b5]"
+                          : "border border-[#eadfcf] text-[#3d342c]"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+              <button
+                type="button"
+                disabled={page >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
       )}
 

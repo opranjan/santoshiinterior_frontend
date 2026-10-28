@@ -10,6 +10,7 @@ import {
   type PermissionGroup,
 } from "@/lib/permissions";
 import { rolesApi } from "@/services/crmApi";
+import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 
 const accent = "#c4a574";
 
@@ -434,7 +435,7 @@ export default function RoleManagementPanel() {
       </div>
 
       {loading ? (
-        <p className="py-12 text-center text-sm text-gray-500">Loading roles…</p>
+        <PageSkeleton />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((role) => (

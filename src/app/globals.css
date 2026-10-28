@@ -3063,3 +3063,59 @@ span.flatpickr-weekday,
     height: calc(100dvh - 7.5rem);
   }
 }
+
+.crm-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: #eadfcf;
+}
+
+.dark .crm-shimmer {
+  background: #2a241c;
+}
+
+.crm-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 252, 247, 0.72) 45%,
+    rgba(196, 165, 116, 0.45) 55%,
+    transparent 100%
+  );
+  animation: crm-shimmer-move 1.35s ease-in-out infinite;
+}
+
+.dark .crm-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(196, 165, 116, 0.28) 55%,
+    transparent 100%
+  );
+}
+
+.crm-shimmer-bar {
+  background: linear-gradient(90deg, #eadfcf, #c4a574, #9a7748, #c4a574, #eadfcf);
+  background-size: 220% 100%;
+  animation: crm-shimmer-bar-move 1.1s linear infinite;
+}
+
+@keyframes crm-shimmer-move {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes crm-shimmer-bar-move {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}

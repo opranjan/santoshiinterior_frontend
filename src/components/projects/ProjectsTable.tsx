@@ -16,6 +16,7 @@ import { hasAnyPermission } from "@/lib/permissions";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
 import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
+import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 
 type ProjectStatus =
   | "Kickoff"
@@ -342,10 +343,13 @@ export default function ProjectsTable() {
     "All"
   );
   const [typeFilter, setTypeFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [sourceLeadId, setSourceLeadId] = useState<string | null>(null);
   const [sourceLeadClientName, setSourceLeadClientName] = useState("");
+  const [confirmMoveLead, setConfirmMoveLead] = useState(false);
   const [sourceCustomerId, setSourceCustomerId] = useState<string | null>(null);
   const [tasksProject, setTasksProject] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
@@ -502,6 +506,7 @@ export default function ProjectsTable() {
         }));
         setSourceLeadId(fromLead);
         setSourceLeadClientName(lead.clientName);
+        setConfirmMoveLead(false);
         setEditing(null);
         setShowAdd(true);
         router.replace("/projects", { scroll: false });
@@ -573,6 +578,26 @@ export default function ProjectsTable() {
       return matchSearch && matchStore && matchStatus && matchType;
     });
   }, [projects, search, storeFilter, statusFilter, typeFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const showingFrom = filtered.length ? (page - 1) * pageSize + 1 : 0;
+  const showingTo = Math.min(page * pageSize, filtered.length);
+  const pageButtons = useMemo(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, i) => i + 1);
+    }
+    const set = new Set([1, pageCount, page, page - 1, page + 1, page - 2, page + 2]);
+    return [...set].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, storeFilter, statusFilter, typeFilter]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   const stats = useMemo(() => {
     const active = projects.filter(
@@ -658,6 +683,12 @@ export default function ProjectsTable() {
 
   const saveProject = async () => {
     if (!form.name.trim() || !form.client.trim()) return;
+    if (sourceLeadId && !editing && !confirmMoveLead) {
+      setError(
+        "Confirm that this lead will leave Sales → Leads and move to Projects."
+      );
+      return;
+    }
     const storeId =
       storeOptions.find((s) => s.name === form.store)?.id || null;
     const payload = {
@@ -709,6 +740,7 @@ export default function ProjectsTable() {
       setEditing(null);
       setSourceLeadId(null);
       setSourceLeadClientName("");
+      setConfirmMoveLead(false);
       setSourceCustomerId(null);
       resetForm();
     } catch (err) {
@@ -942,6 +974,9 @@ export default function ProjectsTable() {
         </div>
       </div>
 
+      {loading && projects.length === 0 ? (
+        <TableSkeleton cols={8} rows={8} />
+      ) : (
       <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="max-w-full overflow-x-auto">
           <div className="min-w-[1400px]">
@@ -972,7 +1007,7 @@ export default function ProjectsTable() {
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-[#f0e8db] dark:divide-[#3a342c]">
-                {filtered.map((p) => (
+                {paged.map((p) => (
                   <TableRow key={p.id} className="hover:bg-[#fbf8f3] dark:hover:bg-white/[0.03]">
                     <TableCell className="px-4 py-3.5 text-start">
                       <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
@@ -1224,7 +1259,52 @@ export default function ProjectsTable() {
             </Table>
           </div>
         </div>
+        {filtered.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f0e6d8] px-4 py-3 text-sm text-[#8a7b68]">
+            <p>
+              Showing {showingFrom} to {showingTo} of {filtered.length} projects
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ‹
+              </button>
+              {pageButtons.map((n, index) => {
+                const prev = pageButtons[index - 1];
+                return (
+                  <React.Fragment key={n}>
+                    {prev && n - prev > 1 ? <span className="px-1">…</span> : null}
+                    <button
+                      type="button"
+                      onClick={() => setPage(n)}
+                      className={`grid h-8 min-w-8 place-items-center rounded-md px-2 text-sm ${
+                        n === page
+                          ? "bg-[#1c1610] text-[#e8d5b5]"
+                          : "border border-[#eadfcf] text-[#3d342c]"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+              <button
+                type="button"
+                disabled={page >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
+      )}
 
       {deleteTarget ? (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
@@ -1270,8 +1350,8 @@ export default function ProjectsTable() {
                 </h3>
                 {sourceLeadId && !editing ? (
                   <p className="mt-1 text-sm text-[#9a7748]">
-                    From lead: {sourceLeadClientName} - review and save to link
-                    this project
+                    From lead: {sourceLeadClientName}. After save it leaves
+                    Leads and shows only in Projects.
                   </p>
                 ) : null}
               </div>
@@ -1580,6 +1660,21 @@ export default function ProjectsTable() {
               </div>
             </div>
 
+            {sourceLeadId && !editing ? (
+              <label className="mx-6 mt-2 flex items-start gap-2 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-4 py-3 text-sm text-[#5c5348] dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#d4c8b8]">
+                <input
+                  type="checkbox"
+                  checked={confirmMoveLead}
+                  onChange={(e) => setConfirmMoveLead(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[#1c1610]"
+                />
+                <span>
+                  I confirm <strong>{sourceLeadClientName || "this lead"}</strong>{" "}
+                  will be removed from Sales → Leads and kept in Projects.
+                </span>
+              </label>
+            ) : null}
+
             <div className="flex justify-end gap-2 border-t border-[#eadfcf] px-6 py-4 dark:border-[#3a342c]">
               <button
                 type="button"
@@ -1621,6 +1716,11 @@ export default function ProjectsTable() {
               current.map((p) =>
                 p.id === tasksProject.id ? { ...p, timelineTasks } : p
               )
+            )
+          }
+          onProjectChange={(dto) =>
+            setProjects((current) =>
+              current.map((p) => (p.id === String(dto.id || "") ? mapProject(dto) : p))
             )
           }
         />

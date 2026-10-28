@@ -40,6 +40,48 @@ type RequestOptions = {
   query?: Record<string, string | number | boolean | undefined | null>;
 };
 
+const apiBusyListeners = new Set<(busy: boolean) => void>();
+let apiBusyCount = 0;
+let apiBusyVisible = false;
+let apiBusyTimer: ReturnType<typeof setTimeout> | null = null;
+
+function emitApiBusy(busy: boolean) {
+  if (apiBusyVisible === busy) return;
+  apiBusyVisible = busy;
+  apiBusyListeners.forEach((fn) => fn(busy));
+}
+
+function beginApiBusy() {
+  apiBusyCount += 1;
+  if (apiBusyCount === 1 && !apiBusyTimer) {
+    apiBusyTimer = setTimeout(() => {
+      apiBusyTimer = null;
+      if (apiBusyCount > 0) emitApiBusy(true);
+    }, 180);
+  }
+}
+
+function endApiBusy() {
+  apiBusyCount = Math.max(0, apiBusyCount - 1);
+  if (apiBusyCount === 0) {
+    if (apiBusyTimer) {
+      clearTimeout(apiBusyTimer);
+      apiBusyTimer = null;
+    }
+    emitApiBusy(false);
+  }
+}
+
+export function subscribeApiLoading(listener: (busy: boolean) => void) {
+  apiBusyListeners.add(listener);
+  listener(apiBusyVisible);
+  return () => {
+    apiBusyListeners.delete(listener);
+  };
+}
+
+const QUIET_API = /(messages|health|webhooks|json\/version|telephony\/status)(\/|$|\?)/i;
+
 function buildUrl(path: string, query?: RequestOptions["query"]) {
   const url = new URL(
     path.startsWith("http") ? path : `${API_URL}${path.startsWith("/") ? path : `/${path}`}`
@@ -68,11 +110,18 @@ export async function apiRequest<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(buildUrl(path, query), {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const track = typeof window !== "undefined" && !QUIET_API.test(path);
+  if (track) beginApiBusy();
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, query), {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } finally {
+    if (track) endApiBusy();
+  }
 
   let payload: unknown = null;
   const text = await response.text();

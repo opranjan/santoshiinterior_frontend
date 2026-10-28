@@ -18,6 +18,7 @@ import {
   TimeIcon,
   UserCircleIcon,
 } from "@/icons";
+import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 import CrmDashboardCharts from "@/components/dashboard/CrmDashboardCharts";
 import { dashboardApi, storesApi, type DashboardDto } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
@@ -243,13 +244,12 @@ export default function CrmDashboard() {
     month: "long",
   });
 
+  if (loading && !stats) {
+    return <PageSkeleton />;
+  }
+
   return (
     <div className="space-y-5 pb-6">
-      {loading && (
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          Loading dashboard…
-        </div>
-      )}
       {error ? (
         <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
           {error}

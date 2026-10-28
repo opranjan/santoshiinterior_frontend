@@ -95,7 +95,7 @@ export default function QuotationForm() {
     (async () => {
       try {
         const [leads, customers, stores] = await Promise.all([
-          leadsApi.list({ limit: 100 }),
+          leadsApi.list({ limit: 100, includeConverted: "true" }),
           customersApi.list({ limit: 100 }),
           storesApi.list({ limit: 100 }),
         ]);

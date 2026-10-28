@@ -15,6 +15,7 @@ import {
 } from "@/services/crmApi";
 import { EmptyAnalytics, EmptyTransactions, FilterBtn, SegPills } from "./inventoryChrome";
 import { fieldClass, fmtDt, goldBtn, money, moneyPlain, outlineBtn } from "./inventoryUi";
+import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 
 type Tab = "inventory" | "history" | "analytics";
 
@@ -254,7 +255,7 @@ export default function WarehouseInventory() {
             </div>
           )}
           {historyLoading ? (
-            <p className="py-10 text-center text-sm text-gray-400">Loading…</p>
+            <TableSkeleton rows={5} cols={5} />
           ) : txns.length === 0 ? (
             <EmptyTransactions />
           ) : (

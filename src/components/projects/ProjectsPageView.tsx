@@ -5,10 +5,11 @@ import ProjectsTable from "@/components/projects/ProjectsTable";
 import { useAuth } from "@/context/AuthContext";
 import { isVendorPanelUser } from "@/lib/permissions";
 import { Suspense } from "react";
+import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 
 export default function ProjectsPageView() {
   const { user, loading } = useAuth();
-  if (loading) return <p className="text-sm text-[#8a7b68]">Loading…</p>;
+  if (loading) return <PageSkeleton />;
   if (isVendorPanelUser(user)) {
     return (
       <FranchiseeProjectsList
@@ -18,7 +19,7 @@ export default function ProjectsPageView() {
     );
   }
   return (
-    <Suspense fallback={<p className="text-sm text-[#8a7b68]">Loading projects…</p>}>
+    <Suspense fallback={<PageSkeleton />}>
       <ProjectsTable />
     </Suspense>
   );

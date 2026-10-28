@@ -6,6 +6,7 @@ import NewInvoiceModal from "@/components/accounting/NewInvoiceModal";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { formatDate, money } from "@/lib/invoiceMath";
 import { invoicesApi, type InvoiceDto } from "@/services/crmApi";
+import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 
 const STATUSES = [
   { value: "", label: "All statuses" },
@@ -111,8 +112,8 @@ export default function AccountingInvoices() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
-                    Loading…
+                  <td colSpan={7} className="p-0">
+                    <TableSkeleton cols={6} rows={6} />
                   </td>
                 </tr>
               ) : items.length === 0 ? (

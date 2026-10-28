@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { vendorsApi, type VendorDto } from "@/services/crmApi";
 import VendorFilterMenu from "./VendorFilterMenu";
+import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 
 function statusClass(status: string) {
   if (status === "Verified" || status === "Onboarded") {
@@ -287,8 +288,8 @@ export default function VendorsTable() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
-                    Loading vendors...
+                  <td colSpan={7} className="p-0">
+                    <TableSkeleton cols={6} rows={6} />
                   </td>
                 </tr>
               ) : items.length === 0 ? (

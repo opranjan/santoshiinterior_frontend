@@ -7,9 +7,11 @@ import DatePickerField from "@/components/form/DatePickerField";
 import {
   projectsApi,
   usersApi,
+  vendorsApi,
   type ProjectTaskDto,
 } from "@/services/crmApi";
 import { enumToLabel } from "@/lib/mappers";
+import { ListSkeleton } from "@/components/ui/loader/CrmLoader";
 
 type Props = {
   project: {
@@ -30,6 +32,7 @@ type Props = {
       status: string;
     }>
   ) => void;
+  onProjectChange?: (project: Record<string, unknown>) => void;
 };
 
 const statuses = ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"] as const;
@@ -71,14 +74,24 @@ function timelineLabel(start?: string | null, end?: string | null) {
   return { from: "No dates", to: "" };
 }
 
+function parseAssigneeValue(value: string) {
+  if (!value) return { assignedToId: null as string | null, vendorId: null as string | null };
+  if (value.startsWith("vendor:")) {
+    return { assignedToId: null as string | null, vendorId: value.slice(7) };
+  }
+  return { assignedToId: value, vendorId: null as string | null };
+}
+
 export default function ProjectTasksPanel({
   project,
   onClose,
   onCountChange,
   onTasksChange,
+  onProjectChange,
 }: Props) {
   const [tasks, setTasks] = useState<ProjectTaskDto[]>([]);
-  const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; vendorId?: string | null; vendorName?: string | null }>>([]);
+  const [vendors, setVendors] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -117,10 +130,23 @@ export default function ProjectTasksPanel({
         setTasks(list);
         emitTasks(list);
         try {
-          const userPage = await usersApi.list({ limit: 100, isActive: "true" });
+          const [userPage, vendorPage] = await Promise.all([
+            usersApi.list({ limit: 100, isActive: "true" }),
+            vendorsApi.list({ limit: 100 }).catch(() => ({ items: [] })),
+          ]);
           if (!cancelled) {
             setUsers(
-              (userPage.items || []).map((u) => ({ id: u.id, name: u.name }))
+              (userPage.items || []).map((u) => ({
+                id: u.id,
+                name: u.name,
+                vendorId: u.vendorId || u.vendor?.id || null,
+                vendorName: u.vendor?.name || null,
+              }))
+            );
+            setVendors(
+              (vendorPage.items || [])
+                .filter((v) => !/archiv|inactive|disabled/i.test(String(v.status || "")))
+                .map((v) => ({ id: v.id, name: v.name }))
             );
           }
         } catch {
@@ -150,11 +176,22 @@ export default function ProjectTasksPanel({
     setAssignedToId("");
   };
 
+  const refreshProject = async () => {
+    if (!onProjectChange) return;
+    try {
+      const dto = await projectsApi.get(project.id);
+      onProjectChange(dto as Record<string, unknown>);
+    } catch {
+      /* table can stay stale until next reload */
+    }
+  };
+
   const addTask = async () => {
     if (!title.trim() || saving) return;
     setSaving(true);
     setError("");
     try {
+      const assignee = parseAssigneeValue(assignedToId);
       const created = await projectsApi.createTask(project.id, {
         title: title.trim(),
         description: description.trim() || null,
@@ -162,7 +199,9 @@ export default function ProjectTasksPanel({
         priority,
         startDate: startDate || null,
         dueDate: dueDate || null,
-        assignedToId: assignedToId || null,
+        ...(assignee.vendorId
+          ? { vendorId: assignee.vendorId }
+          : { assignedToId: assignee.assignedToId }),
       });
       const next = [...tasks, created].sort((a, b) => {
         const aTime = new Date(a.startDate || a.dueDate || a.createdAt).getTime();
@@ -172,6 +211,9 @@ export default function ProjectTasksPanel({
       setTasks(next);
       emitTasks(next);
       resetForm();
+      if (assignee.assignedToId || assignee.vendorId) {
+        await refreshProject();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add task");
     } finally {
@@ -191,6 +233,9 @@ export default function ProjectTasksPanel({
         emitTasks(next);
         return next;
       });
+      if (body.assignedToId !== undefined || body.vendorId !== undefined) {
+        await refreshProject();
+      }
     } catch {
       setTasks(prev);
       setError("Could not update task");
@@ -320,11 +365,24 @@ export default function ProjectTasksPanel({
             className={`${selectClass} w-full`}
           >
             <option value="">Unassigned</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
+            <optgroup label="Team">
+              {users
+                .filter((u) => !u.vendorId)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+            </optgroup>
+            {vendors.length ? (
+              <optgroup label="Vendors">
+                {vendors.map((v) => (
+                  <option key={v.id} value={`vendor:${v.id}`}>
+                    {v.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </select>
           <Button
             size="sm"
@@ -340,7 +398,7 @@ export default function ProjectTasksPanel({
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading timeline…</p>
+          <ListSkeleton rows={5} />
         ) : openTasks.length === 0 ? (
           <p className="text-sm text-gray-500">
             No timeline tasks yet. Add one with start and end dates.
@@ -397,11 +455,31 @@ export default function ProjectTasksPanel({
                           </option>
                         ))}
                       </select>
-                      {task.assignedTo?.name ? (
-                        <span className="text-xs text-gray-400">
-                          {task.assignedTo.name}
-                        </span>
-                      ) : null}
+                      <select
+                        value={task.assignedToId || ""}
+                        onChange={(e) => {
+                          const next = parseAssigneeValue(e.target.value);
+                          void patchTask(
+                            task.id,
+                            next.vendorId
+                              ? { vendorId: next.vendorId }
+                              : { assignedToId: next.assignedToId }
+                          );
+                        }}
+                        className="h-8 max-w-[160px] rounded-md border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                      >
+                        <option value="">Unassigned</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.vendorName ? `${u.name} · ${u.vendorName}` : u.name}
+                          </option>
+                        ))}
+                        {vendors.map((v) => (
+                          <option key={v.id} value={`vendor:${v.id}`}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { hrApi } from "@/services/crmApi";
+import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 
 type AuditRow = {
   id: string;
@@ -146,8 +147,8 @@ export default function HrAttendanceAuditsPage() {
           <tbody className="divide-y divide-[#eadfcf] bg-white dark:divide-[#3a342c] dark:bg-[#161411]">
             {loading ? (
               <tr>
-                <td className="px-4 py-8 text-[#8a7b68]" colSpan={6}>
-                  Loading audits…
+                <td className="p-0" colSpan={6}>
+                  <TableSkeleton cols={6} rows={5} />
                 </td>
               </tr>
             ) : items.length === 0 ? (

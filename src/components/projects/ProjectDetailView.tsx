@@ -7,6 +7,7 @@ import { enumToLabel } from "@/lib/mappers";
 import { designAssetUrl } from "@/lib/designAssets";
 import { useAuth } from "@/context/AuthContext";
 import { isVendorPanelUser } from "@/lib/permissions";
+import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 
 type ProjectDetail = {
   id: string;
@@ -116,7 +117,7 @@ export default function ProjectDetailView({ projectId }: { projectId: string }) 
   }, [projectId]);
 
   if (loading) {
-    return <p className="text-sm text-[#8a7b68]">Loading project…</p>;
+    return <PageSkeleton />;
   }
   if (error || !row) {
     return (

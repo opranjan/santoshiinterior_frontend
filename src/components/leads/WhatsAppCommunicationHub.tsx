@@ -10,6 +10,7 @@ import { enumToLabel } from "@/lib/mappers";
 import { useAuth } from "@/context/AuthContext";
 import { allowedWhatsAppViews, type WhatsAppViewMode } from "@/lib/permissions";
 import LeadCommunicationPanel from "./LeadCommunicationPanel";
+import { InlineLoader, ListSkeleton } from "@/components/ui/loader/CrmLoader";
 
 type SelectedLead = {
   id: string;
@@ -457,7 +458,7 @@ export default function WhatsAppCommunicationHub({
             </p>
           ) : null}
           {loadingInbox && inbox.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-gray-400">Loading chats…</p>
+            <ListSkeleton rows={7} />
           ) : inboxError ? (
             <div className="px-4 py-8 text-center">
               <p className="text-sm text-red-500">{inboxError}</p>
@@ -558,8 +559,8 @@ export default function WhatsAppCommunicationHub({
         }`}
       >
         {loadingChat && !loadedLead ? (
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">
-            Loading conversation…
+          <div className="flex h-full items-center justify-center">
+            <InlineLoader label="Loading conversation" />
           </div>
         ) : showChat && loadedLead ? (
           <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">

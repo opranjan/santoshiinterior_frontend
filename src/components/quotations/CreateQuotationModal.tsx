@@ -111,7 +111,7 @@ export default function CreateQuotationModal({
       try {
         setLoadingOptions(true);
         const [leadsRes, projectsRes] = await Promise.all([
-          leadsApi.list({ limit: 200 }),
+          leadsApi.list({ limit: 200, includeConverted: "true" }),
           projectsApi.list({ limit: 200 }),
         ]);
         if (cancelled) return;

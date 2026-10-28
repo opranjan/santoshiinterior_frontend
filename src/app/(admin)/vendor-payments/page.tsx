@@ -1,4 +1,5 @@
 import AdminPayFranchisee from "@/components/franchisee/AdminPayFranchisee";
+import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 import { Metadata } from "next";
 import React, { Suspense } from "react";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function VendorPaymentsAdminPage() {
   return (
     <div>
-      <Suspense fallback={<p className="p-4 text-sm text-gray-500">Loading…</p>}>
+      <Suspense fallback={<PageSkeleton />}>
         <AdminPayFranchisee />
       </Suspense>
     </div>

@@ -6,10 +6,11 @@ import UserInfoCard from "@/components/user-profile/UserInfoCard";
 import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import { useAuth } from "@/context/AuthContext";
 import { isVendorPanelUser } from "@/lib/permissions";
+import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 
 export default function ProfilePageView() {
   const { user, loading } = useAuth();
-  if (loading) return <p className="p-4 text-sm text-gray-500">Loading…</p>;
+  if (loading) return <PageSkeleton />;
   if (isVendorPanelUser(user)) return <FranchiseeProfileSettings />;
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">

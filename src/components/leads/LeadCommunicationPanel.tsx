@@ -1180,15 +1180,15 @@ export default function LeadCommunicationPanel({
         extension: user?.sipExtension || undefined,
         agentNumber: user?.phone || undefined,
       });
-      if (result.originate.mode === "manual" && result.originate.dialFallback) {
-        window.location.href = result.originate.dialFallback;
+      if (result.originate.mode === "manual") {
+        throw new Error(
+          result.originate.message ||
+            "Click-to-call is not configured on the live server. Set Exotel keys and restart the API."
+        );
       }
       onRefresh?.();
     } catch (err) {
-      const digits = String(phone).replace(/\D/g, "");
-      const fallback = `tel:+${digits.length === 10 ? `91${digits}` : digits}`;
-      window.location.href = fallback;
-      setError(err instanceof Error ? err.message : "Cloud call failed; opened device dialer");
+      setError(err instanceof Error ? err.message : "Cloud call failed");
     } finally {
       setCalling(false);
     }

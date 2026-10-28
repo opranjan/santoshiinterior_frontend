@@ -1,4 +1,5 @@
 import SignInForm from "@/components/auth/SignInForm";
+import { CrmBootScreen } from "@/components/ui/loader/CrmLoader";
 import { Metadata } from "next";
 import { Suspense } from "react";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function SignIn() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading...</div>}>
+    <Suspense fallback={<CrmBootScreen label="Loading sign in" />}>
       <SignInForm />
     </Suspense>
   );

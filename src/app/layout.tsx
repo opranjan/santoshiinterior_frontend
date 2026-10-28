@@ -5,6 +5,7 @@ import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { AppToaster } from '@/components/ui/toast/ToastHost';
+import AppLoadingBar from '@/components/ui/loader/AppLoadingBar';
 import type { Metadata, Viewport } from 'next';
 
 const outfit = Outfit({
@@ -51,7 +52,10 @@ export default function RootLayout({
         />
         <ThemeProvider>
           <AuthProvider>
-            <SidebarProvider>{children}</SidebarProvider>
+            <SidebarProvider>
+              <AppLoadingBar />
+              {children}
+            </SidebarProvider>
             <AppToaster />
           </AuthProvider>
         </ThemeProvider>
