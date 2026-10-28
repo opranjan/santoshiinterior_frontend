@@ -732,8 +732,8 @@ export default function ProjectsTable() {
       } else {
         const existing = projects.find(
           (p) =>
-            p.name.trim().toLowerCase() === payload.name.toLowerCase() &&
-            p.client.trim().toLowerCase() === payload.client.toLowerCase()
+            p.name.trim().toLowerCase() === form.name.trim().toLowerCase() &&
+            p.client.trim().toLowerCase() === form.client.trim().toLowerCase()
         );
         if (existing) {
           setError("This project already exists. Open the existing row instead of creating a copy.");
