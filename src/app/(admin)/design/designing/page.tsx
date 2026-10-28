@@ -4,7 +4,7 @@ import React from "react";
 
 export const metadata: Metadata = {
   title: "Designing",
-  description: "AI-powered interior designing with ChatGPT",
+  description: "Interior designing",
 };
 
 export default function DesigningPage() {

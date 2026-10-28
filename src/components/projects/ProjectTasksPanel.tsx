@@ -99,8 +99,8 @@ export default function ProjectTasksPanel({
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<string>("TODO");
   const [priority, setPriority] = useState<string>("MEDIUM");
-  const [startDate, setStartDate] = useState(project.startIso || "");
-  const [dueDate, setDueDate] = useState(project.endIso || "");
+  const [startDate, setStartDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [assignedToId, setAssignedToId] = useState("");
 
   const emitTasks = (list: ProjectTaskDto[]) => {
@@ -171,8 +171,8 @@ export default function ProjectTasksPanel({
     setDescription("");
     setStatus("TODO");
     setPriority("MEDIUM");
-    setStartDate(project.startIso || "");
-    setDueDate(project.endIso || "");
+    setStartDate("");
+    setDueDate("");
     setAssignedToId("");
   };
 
@@ -299,7 +299,14 @@ export default function ProjectTasksPanel({
           ) : null}
         </div>
 
-        <div className="mb-6 space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+        <form
+          className="mb-6 space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/[0.02]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void addTask();
+          }}
+        >
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Add timeline task
           </p>
@@ -385,13 +392,13 @@ export default function ProjectTasksPanel({
             ) : null}
           </select>
           <Button
+            type="submit"
             size="sm"
-            onClick={() => void addTask()}
             disabled={!title.trim() || saving}
           >
             {saving ? "Saving…" : "Add to timeline"}
           </Button>
-        </div>
+        </form>
 
         {error ? (
           <p className="mb-4 text-sm text-error-500">{error}</p>

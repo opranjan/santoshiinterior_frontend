@@ -74,7 +74,12 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
 
   const saveAssignment = async (
     projectId: string,
-    payload: { budget?: string; deadline?: string | null; retentionPerDay?: number | string }
+    payload: {
+      budget?: string;
+      deadline?: string | null;
+      retentionPerDay?: number | string;
+      dlpHoldingPercent?: number | string;
+    }
   ) => {
     try {
       const data = await vendorsApi.updateProjectBudget(vendorId, projectId, payload);
@@ -117,7 +122,7 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
             ?
             {helpOpen ? (
               <span className="absolute left-6 top-0 z-20 w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-xs font-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                Assign CRM projects to this vendor. Set vendor budget, deadline, and delay retention (1% of vendor budget per late day by default).
+                Assign CRM projects to this vendor. Set vendor budget, DLP hold %, deadline, and delay retention (1% of vendor budget per late day by default).
               </span>
             ) : null}
           </button>
@@ -239,6 +244,22 @@ export default function VendorProjects({ vendorId }: { vendorId: string }) {
                   />
                 </label>
                 <label className="text-xs text-gray-500">
+                  DLP hold %
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    defaultValue={String(row.dlpHoldingPercent ?? 20)}
+                    key={`${row.id}-dlp-${row.dlpHoldingPercent ?? 20}`}
+                    className="mt-1 block h-9 w-20 rounded-lg border border-gray-200 px-2 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+                    onBlur={(event) => {
+                      const next = event.target.value.trim() || "20";
+                      if (next === String(row.dlpHoldingPercent ?? 20)) return;
+                      void saveAssignment(row.project.id, { dlpHoldingPercent: next });
+                    }}
+                  />
+                </label>
+                <label className="text-xs text-gray-500">
                   Deadline
                   <input
                     type="date"
@@ -335,13 +356,19 @@ function AssignProjectModal({
   assignedIds: string[];
   onAssign: (
     projectId: string,
-    payload?: { budget?: string; deadline?: string; retentionPerDay?: string }
+    payload?: {
+      budget?: string;
+      deadline?: string;
+      retentionPerDay?: string;
+      dlpHoldingPercent?: string;
+    }
   ) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [budget, setBudget] = useState("");
   const [deadline, setDeadline] = useState("");
   const [retentionPerDay, setRetentionPerDay] = useState("1");
+  const [dlpHoldingPercent, setDlpHoldingPercent] = useState("20");
   const [options, setOptions] = useState<Array<{ id: string; name: string; clientName?: string | null }>>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -354,6 +381,7 @@ function AssignProjectModal({
     setBudget("");
     setDeadline("");
     setRetentionPerDay("1");
+    setDlpHoldingPercent("20");
     setError("");
     const timer = setTimeout(() => {
       void (async () => {
@@ -386,6 +414,7 @@ function AssignProjectModal({
           budget: budget.trim() || undefined,
           deadline: deadline || undefined,
           retentionPerDay: retentionPerDay || "1",
+          dlpHoldingPercent: dlpHoldingPercent || "20",
         });
       }
       onClose();
@@ -424,23 +453,32 @@ function AssignProjectModal({
       />
       <div className="mb-3 grid grid-cols-2 gap-2">
         <input
+          type="number"
+          min={0}
+          max={100}
+          value={dlpHoldingPercent}
+          onChange={(e) => setDlpHoldingPercent(e.target.value)}
+          placeholder="DLP hold %"
+          className="h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+        />
+        <input
           type="date"
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
           className="h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
         />
-        <input
-          type="number"
-          min={0}
-          step="0.5"
-          value={retentionPerDay}
-          onChange={(e) => setRetentionPerDay(e.target.value)}
-          placeholder="% deducted per late day"
-          className="h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
-        />
       </div>
+      <input
+        type="number"
+        min={0}
+        step="0.5"
+        value={retentionPerDay}
+        onChange={(e) => setRetentionPerDay(e.target.value)}
+        placeholder="% deducted per late day"
+        className="mb-3 h-11 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#E85D75] dark:border-gray-700 dark:bg-gray-900"
+      />
       <p className="mb-3 text-xs text-gray-500">
-        If the vendor misses the deadline, 1% of vendor budget is deducted for each late day (or the % you set).
+        DLP hold % is kept from this vendor budget until DLP payment. Late days deduct the % / day from vendor budget.
       </p>
       {error ? <p className="mb-3 text-sm text-error-500">{error}</p> : null}
       <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">

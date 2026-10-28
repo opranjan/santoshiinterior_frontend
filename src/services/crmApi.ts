@@ -1287,6 +1287,7 @@ export type VendorProjectAssignment = {
   budget?: string | null;
   customerBudget?: string | null;
   deadline?: string | null;
+  dlpHoldingPercent?: number | string | null;
   retentionPerDay?: number | string | null;
   delayDays?: number;
   retentionPercent?: number;
@@ -1355,7 +1356,12 @@ export const vendorsApi = {
   assignProject: (
     id: string,
     projectId: string,
-    payload?: { budget?: string; deadline?: string; retentionPerDay?: number | string }
+    payload?: {
+      budget?: string;
+      deadline?: string;
+      retentionPerDay?: number | string;
+      dlpHoldingPercent?: number | string;
+    }
   ) =>
     api.post<{
       vendor: VendorDto;
@@ -1365,7 +1371,12 @@ export const vendorsApi = {
   updateProjectBudget: (
     id: string,
     projectId: string,
-    payload: { budget?: string; deadline?: string | null; retentionPerDay?: number | string }
+    payload: {
+      budget?: string;
+      deadline?: string | null;
+      retentionPerDay?: number | string;
+      dlpHoldingPercent?: number | string;
+    }
   ) =>
     api.put<{
       vendor: VendorDto;

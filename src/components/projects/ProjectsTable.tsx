@@ -468,7 +468,9 @@ export default function ProjectsTable() {
         if (storeData.items[0]) {
           setForm((prev) => ({ ...prev, store: storeData.items[0].name }));
         }
-        setProjects(projectData.items.map((item) => mapProject(item)));
+        const mapped = (projectData.items || []).map((item) => mapProject(item));
+        const seen = new Set<string>();
+        setProjects(mapped.filter((row) => (seen.has(row.id) ? false : (seen.add(row.id), true))));
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load projects");
@@ -491,6 +493,11 @@ export default function ProjectsTable() {
     (async () => {
       try {
         const lead = await leadsApi.get(fromLead);
+        if (lead.project?.id) {
+          setError("This lead is already a project. Open it from the list instead of creating a copy.");
+          router.replace("/projects", { scroll: false });
+          return;
+        }
         const prefilled = projectFormFromLead(lead, {
           store: storeOptions[0]?.name || "Main Branch",
           salesOwner: "Mukesh singh",
@@ -691,7 +698,7 @@ export default function ProjectsTable() {
     }
     const storeId =
       storeOptions.find((s) => s.name === form.store)?.id || null;
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: form.name.trim(),
       clientName: form.client.trim(),
       phone: form.phone.trim() || null,
@@ -699,7 +706,6 @@ export default function ProjectsTable() {
       projectType: form.projectType,
       scope: form.scope,
       budget: form.budget,
-      dlpHoldingPercent: Number(form.dlpHoldingPercent) || 0,
       status: labelToEnum(form.status),
       progress: Math.min(100, Math.max(0, Number(form.progress) || 0)),
       financialYear: form.financialYear || null,
@@ -711,7 +717,6 @@ export default function ProjectsTable() {
       description: form.description || null,
       latestRemark: form.latestRemark || null,
       assignedToId: form.assignedToId || null,
-      vendorIds: form.franchiseeIds,
       customerId: sourceCustomerId || undefined,
     };
 
@@ -725,10 +730,22 @@ export default function ProjectsTable() {
           prev.map((p) => (p.id === editing.id ? mapProject(updated) : p))
         );
       } else {
+        const existing = projects.find(
+          (p) =>
+            p.name.trim().toLowerCase() === payload.name.toLowerCase() &&
+            p.client.trim().toLowerCase() === payload.client.toLowerCase()
+        );
+        if (existing) {
+          setError("This project already exists. Open the existing row instead of creating a copy.");
+          return;
+        }
         const created = (await projectsApi.create(
           payload
         )) as Record<string, unknown>;
-        setProjects((prev) => [mapProject(created), ...prev]);
+        setProjects((prev) => {
+          if (prev.some((p) => p.id === String(created.id))) return prev;
+          return [mapProject(created), ...prev];
+        });
 
         if (sourceLeadId) {
           await leadsApi.convertToProject(sourceLeadId, {
@@ -1467,26 +1484,6 @@ export default function ProjectsTable() {
                 />
               </div>
               <div>
-                <label className={labelClass}>DLP holding %</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={form.dlpHoldingPercent}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      dlpHoldingPercent: Number(e.target.value) || 0,
-                    }))
-                  }
-                  placeholder="20"
-                  className={fieldClass}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">
-                  Held from vendor project value. 20% of 100 = ₹20 DLP, ₹80 payment.
-                </p>
-              </div>
-              <div>
                 <label className={labelClass}>Status</label>
                 <select
                   value={form.status}
@@ -1562,42 +1559,7 @@ export default function ProjectsTable() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-[#b3a594]">
-                  CRM staff owner. Separate from vendors.
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <label className={labelClass}>Assign to vendors</label>
-                <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[#eadfcf] bg-[#fdfbf7] p-2 dark:border-[#3a342c] dark:bg-[#1a1714]">
-                  {franchisees.length ? (
-                    franchisees.map((user) => {
-                      const checked = form.franchiseeIds.includes(user.id);
-                      return (
-                        <label
-                          key={user.id}
-                          className="flex items-center gap-2 text-sm text-[#1c1610] dark:text-[#f3ece2]"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setForm((f) => ({
-                                ...f,
-                                franchiseeIds: checked
-                                  ? f.franchiseeIds.filter((id) => id !== user.id)
-                                  : [...f.franchiseeIds, user.id],
-                              }))
-                            }
-                          />
-                          {user.name}
-                        </label>
-                      );
-                    })
-                  ) : (
-                    <p className="text-xs text-[#b3a594]">No vendor accounts yet</p>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-[#b3a594]">
-                  One project can be assigned to multiple vendors. This does not change Assigned To.
+                  CRM staff owner. Assign vendors later from the project row or My Vendors.
                 </p>
               </div>
               <div>

@@ -74,20 +74,7 @@ function paymentLabel(state?: string) {
 const FOLLOW_UP_TYPES = [
   { value: "CALL", label: "Call" },
   { value: "WHATSAPP", label: "WhatsApp" },
-  { value: "EMAIL", label: "Email" },
-  { value: "SITE_VISIT", label: "Visit" },
 ] as const;
-
-function vendorDigits(row: PurchaseOrderDto) {
-  return String(row.vendorRecord?.phone || "").replace(/\D/g, "").replace(/^91/, "");
-}
-
-function followUpMessage(row: PurchaseOrderDto) {
-  const vendor = row.vendorRecord?.name || row.vendor;
-  const overdue = daysPassed(row.expectedDate);
-  const when = overdue ? ` Delivery was due ${overdue} days ago.` : "";
-  return `Hello ${vendor}, following up on ${row.kind === "WO" ? "work order" : "purchase order"} ${row.code} (${row.title || "order"}).${when} Please share an update.`;
-}
 
 export default function ProcurementOrders() {
   const { user } = useAuth();
@@ -101,22 +88,11 @@ export default function ProcurementOrders() {
   const [stateFilter, setStateFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [preview, setPreview] = useState<PurchaseOrderDto | null>(null);
-  const [followMenuId, setFollowMenuId] = useState<string | null>(null);
   const [followOrder, setFollowOrder] = useState<PurchaseOrderDto | null>(null);
   const [fuType, setFuType] = useState<(typeof FOLLOW_UP_TYPES)[number]["value"]>("CALL");
   const [fuNote, setFuNote] = useState("");
   const [fuNextDate, setFuNextDate] = useState("");
   const [fuSaving, setFuSaving] = useState(false);
-
-  useEffect(() => {
-    const close = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-order-follow-menu]")) return;
-      setFollowMenuId(null);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
 
   const load = async () => {
     const query: Record<string, string | number | undefined> = { limit: 100, search };
@@ -153,39 +129,6 @@ export default function ProcurementOrders() {
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to load order");
     }
-  };
-
-  const openFollowChannel = (row: PurchaseOrderDto, kind: "CALL" | "WHATSAPP" | "EMAIL") => {
-    const digits = vendorDigits(row);
-    const email = row.vendorRecord?.email?.trim();
-    if (kind === "CALL") {
-      if (!digits) {
-        toastError("No vendor phone on this order.");
-        return;
-      }
-      window.open(`tel:+91${digits.slice(-10)}`, "_self");
-      return;
-    }
-    if (kind === "WHATSAPP") {
-      if (!digits) {
-        toastError("No vendor phone on this order.");
-        return;
-      }
-      window.open(
-        `https://wa.me/91${digits.slice(-10)}?text=${encodeURIComponent(followUpMessage(row))}`,
-        "_blank",
-        "noopener,noreferrer"
-      );
-      return;
-    }
-    if (!email) {
-      toastError("No vendor email on this order.");
-      return;
-    }
-    window.open(
-      `mailto:${email}?subject=${encodeURIComponent(`Follow-up: ${row.code}`)}&body=${encodeURIComponent(followUpMessage(row))}`,
-      "_self"
-    );
   };
 
   const saveFollowUp = async () => {
@@ -452,7 +395,7 @@ export default function ProcurementOrders() {
                           <p className="text-xs font-semibold text-rose-600">{overdue} days passed</p>
                         ) : null}
                       </td>
-                      <td className="relative px-3 py-3.5" data-order-follow-menu onClick={(event) => event.stopPropagation()}>
+                      <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                         {(() => {
                           const last = row.followUps?.[0];
                           const next = last?.nextDate;
@@ -460,63 +403,20 @@ export default function ProcurementOrders() {
                             <div className="min-w-[132px]">
                               <button
                                 type="button"
-                                className="inline-flex h-9 items-center gap-1 rounded-md border border-[#eadfcf] bg-white px-3 text-xs font-semibold text-[#7A4A28] hover:bg-[#FBF7F1]"
-                                onClick={() => setFollowMenuId(followMenuId === row.id ? null : row.id)}
+                                className="inline-flex h-9 items-center rounded-md border border-[#eadfcf] bg-white px-3 text-xs font-semibold text-[#7A4A28] hover:bg-[#FBF7F1]"
+                                onClick={() => {
+                                  setFuType("CALL");
+                                  setFuNote("");
+                                  setFuNextDate("");
+                                  setFollowOrder(row);
+                                }}
                               >
-                                Follow up
-                                <span className="text-[10px]">▾</span>
+                                Log follow-up
                               </button>
                               {next ? (
                                 <p className="mt-1 text-[11px] text-[#9a7748]">Next {formatDate(next)}</p>
                               ) : last ? (
                                 <p className="mt-1 text-[11px] text-[#8a7b68]">Last {formatDate(last.createdAt || last.date)}</p>
-                              ) : null}
-                              {followMenuId === row.id ? (
-                                <div className="absolute right-3 z-30 mt-1 w-44 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 shadow-lg">
-                                  <button
-                                    type="button"
-                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
-                                    onClick={() => {
-                                      setFollowMenuId(null);
-                                      openFollowChannel(row, "CALL");
-                                    }}
-                                  >
-                                    Call vendor
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
-                                    onClick={() => {
-                                      setFollowMenuId(null);
-                                      openFollowChannel(row, "WHATSAPP");
-                                    }}
-                                  >
-                                    WhatsApp
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
-                                    onClick={() => {
-                                      setFollowMenuId(null);
-                                      openFollowChannel(row, "EMAIL");
-                                    }}
-                                  >
-                                    Email
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#FBF7F1]"
-                                    onClick={() => {
-                                      setFollowMenuId(null);
-                                      setFuType("CALL");
-                                      setFuNote("");
-                                      setFuNextDate("");
-                                      setFollowOrder(row);
-                                    }}
-                                  >
-                                    Log follow-up
-                                  </button>
-                                </div>
                               ) : null}
                             </div>
                           );

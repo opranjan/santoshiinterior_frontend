@@ -1,12 +1,12 @@
-import AiDesignStudio from "@/components/design/AiDesignStudio";
+import ElevationSignoff from "@/components/design/ElevationSignoff";
 import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
   title: "Elevation",
-  description: "AI-powered elevation design with ChatGPT",
+  description: "Editable project signoff elevation PDF",
 };
 
 export default function ElevationPage() {
-  return <AiDesignStudio mode="elevation" />;
+  return <ElevationSignoff />;
 }
