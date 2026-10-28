@@ -431,9 +431,9 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
                 </div>
                 <div className="mt-2 flex flex-col gap-1.5 text-sm text-[#6b5b4b] sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
                   {dto.phone ? (
-                    <a href={`tel:${dto.phone}`} className="inline-flex min-h-11 items-center gap-1.5 hover:text-[#7A4A28] sm:min-h-0">
+                    <span className="inline-flex min-h-11 items-center gap-1.5 sm:min-h-0">
                       <PhoneIcon /> {prettyPhone(dto.phone)}
-                    </a>
+                    </span>
                   ) : null}
                   {dto.email ? (
                     <a href={`mailto:${dto.email}`} className="inline-flex min-h-11 items-center gap-1.5 break-all hover:text-[#7A4A28] sm:min-h-0">
