@@ -10,13 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { customersApi, leadsApi, projectsApi, storesApi, usersApi, vendorsApi } from "@/services/crmApi";
+import { customersApi, leadsApi, projectsApi, storesApi, telephonyApi, usersApi, vendorsApi } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
 import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
 import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
+import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
 
 type ProjectStatus =
   | "Kickoff"
@@ -35,6 +36,8 @@ type TimelineTask = {
   status: string;
 };
 
+type ProjectVendor = { id: string; name: string; phone: string };
+
 type Project = {
   id: string;
   name: string;
@@ -52,6 +55,7 @@ type Project = {
   assignedToId: string | null;
   franchiseeIds: string[];
   franchiseeNames: string;
+  vendors: ProjectVendor[];
   financialYear: string;
   startDate: string;
   endDate: string;
@@ -93,7 +97,18 @@ const scopes = [
   "Other",
 ];
 
-type StaffOption = { id: string; name: string };
+type StaffOption = { id: string; name: string; phone?: string };
+
+function digitsOnly(value?: string | null) {
+  return String(value || "").replace(/\D/g, "").slice(-10);
+}
+
+function maskPhone(value?: string | null) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "—";
+  if (digits.length <= 3) return `***${digits}`;
+  return `***${digits.slice(-3)}`;
+}
 
 function isVendorPickerAccount(user: {
   accessRole?: { key?: string; label?: string } | null;
@@ -112,7 +127,7 @@ function vendorsFromDto(dto: Record<string, unknown>) {
   const vendorRows = Array.isArray(dto.vendorProjects)
     ? (dto.vendorProjects as Array<{
         vendorId?: string;
-        vendor?: { id?: string; name?: string } | null;
+        vendor?: { id?: string; name?: string; phone?: string | null } | null;
       }>)
     : [];
   if (vendorRows.length) {
@@ -120,28 +135,32 @@ function vendorsFromDto(dto: Record<string, unknown>) {
       .map((row) => ({
         id: row.vendor?.id || row.vendorId || "",
         name: row.vendor?.name || "Vendor",
+        phone: String(row.vendor?.phone || ""),
       }))
       .filter((row) => row.id);
     return {
       franchiseeIds: people.map((row) => row.id),
       franchiseeNames: people.map((row) => row.name).join(", "),
+      vendors: people,
     };
   }
   const rows = Array.isArray(dto.assignees)
     ? (dto.assignees as Array<{
         userId?: string;
-        user?: { id?: string; name?: string } | null;
+        user?: { id?: string; name?: string; phone?: string | null } | null;
       }>)
     : [];
   const people = rows
     .map((row) => ({
       id: row.user?.id || row.userId || "",
       name: row.user?.name || "",
+      phone: String(row.user?.phone || ""),
     }))
     .filter((row) => row.id);
   return {
     franchiseeIds: people.map((row) => row.id),
     franchiseeNames: people.map((row) => row.name || "Vendor").join(", "),
+    vendors: people,
   };
 }
 
@@ -354,11 +373,20 @@ export default function ProjectsTable() {
   const [tasksProject, setTasksProject] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [callingKey, setCallingKey] = useState<string | null>(null);
+  const [vendorCallProject, setVendorCallProject] = useState<Project | null>(null);
 
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [franchisees, setFranchisees] = useState<StaffOption[]>([]);
   const [franchiseePickerId, setFranchiseePickerId] = useState<string | null>(null);
   const franchiseePickerRef = useRef<HTMLDivElement | null>(null);
+  const canCall = hasAnyPermission(user, [
+    "calls.make",
+    "sales.full",
+    "sales.manage",
+    "leads.manage",
+    "projects.manage",
+  ]);
   const [form, setForm] = useState({
     name: "",
     client: "",
@@ -448,13 +476,21 @@ export default function ProjectsTable() {
           const vendorData = await vendorsApi.list({ limit: 200 });
           franchiseeRows = (vendorData.items || [])
             .filter((v) => !/archiv|inactive|disabled/i.test(String(v.status || "")))
-            .map((v) => ({ id: v.id, name: v.name }));
+            .map((v) => ({
+              id: v.id,
+              name: v.name,
+              phone: String(v.phone || ""),
+            }));
         } catch {
           try {
             const userData = await usersApi.list({ limit: 200, isActive: "true" });
             franchiseeRows = (userData.items || [])
               .filter((u) => isVendorPickerAccount(u))
-              .map((u) => ({ id: u.id, name: u.name }));
+              .map((u) => ({
+                id: u.id,
+                name: u.name,
+                phone: String(u.phone || ""),
+              }));
           } catch {
             franchiseeRows = [];
           }
@@ -861,10 +897,13 @@ export default function ProjectsTable() {
 
   const updateFranchisees = async (id: string, nextIds: string[]) => {
     const prev = projects;
-    const names = franchisees
-      .filter((user) => nextIds.includes(user.id))
-      .map((user) => user.name)
-      .join(", ");
+    const selected = franchisees.filter((row) => nextIds.includes(row.id));
+    const names = selected.map((row) => row.name).join(", ");
+    const vendors = selected.map((row) => ({
+      id: row.id,
+      name: row.name,
+      phone: String(row.phone || ""),
+    }));
     setProjects((current) =>
       current.map((p) =>
         p.id === id
@@ -872,6 +911,7 @@ export default function ProjectsTable() {
               ...p,
               franchiseeIds: nextIds,
               franchiseeNames: names,
+              vendors,
               updatedAt: new Date().toISOString(),
             }
           : p
@@ -882,6 +922,76 @@ export default function ProjectsTable() {
     } catch {
       setProjects(prev);
     }
+  };
+
+  const placeExotelCall = async (opts: {
+    key: string;
+    to: string;
+    label: string;
+  }) => {
+    const to = digitsOnly(opts.to);
+    if (!to || to.length < 10) {
+      toastWarning(`No valid phone number for ${opts.label}`);
+      return;
+    }
+    const agentNumber = digitsOnly(user?.phone);
+    if (!agentNumber || agentNumber.length < 10) {
+      toastWarning("Add your phone number in profile to place Exotel calls");
+      return;
+    }
+    if (callingKey) return;
+    setCallingKey(opts.key);
+    try {
+      const result = await telephonyApi.clickToCall({
+        to,
+        agentNumber,
+        note: `Project call · ${opts.label}`,
+      });
+      if (result.originate.mode === "manual") {
+        throw new Error(
+          result.originate.message ||
+            "Click-to-call is not configured. Set Exotel keys and restart the API."
+        );
+      }
+      toastSuccess(`Calling ${opts.label}…`);
+      setVendorCallProject(null);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Call failed");
+    } finally {
+      setCallingKey(null);
+    }
+  };
+
+  const vendorsWithPhones = (project: Project): ProjectVendor[] => {
+    const phoneById = new Map(
+      franchisees.map((row) => [row.id, String(row.phone || "")])
+    );
+    return (project.vendors || []).map((vendor) => ({
+      ...vendor,
+      phone: vendor.phone || phoneById.get(vendor.id) || "",
+    }));
+  };
+
+  const openVendorCallPicker = (project: Project) => {
+    const vendors = vendorsWithPhones(project);
+    const withPhone = vendors.filter((v) => digitsOnly(v.phone).length >= 10);
+    if (!vendors.length) {
+      toastWarning("Assign a vendor to this project first");
+      return;
+    }
+    if (!withPhone.length) {
+      toastWarning("Assigned vendors have no phone numbers");
+      return;
+    }
+    if (withPhone.length === 1) {
+      void placeExotelCall({
+        key: `vendor:${project.id}:${withPhone[0].id}`,
+        to: withPhone[0].phone,
+        label: withPhone[0].name,
+      });
+      return;
+    }
+    setVendorCallProject({ ...project, vendors });
   };
 
   return (
@@ -1038,7 +1148,30 @@ export default function ProjectsTable() {
                       <p className="text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
                         {p.client}
                       </p>
-                      <p className="text-xs text-[#8a7b68]">{p.phone}</p>
+                      <p className="text-xs text-[#8a7b68]">{maskPhone(p.phone)}</p>
+                      {canCall ? (
+                        <button
+                          type="button"
+                          disabled={
+                            callingKey === `client:${p.id}` ||
+                            digitsOnly(p.phone).length < 10
+                          }
+                          onClick={() =>
+                            void placeExotelCall({
+                              key: `client:${p.id}`,
+                              to: p.phone,
+                              label: p.client || "client",
+                            })
+                          }
+                          className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#9a7748] hover:border-[#c4a574] hover:text-[#1c1610] disabled:cursor-not-allowed disabled:opacity-40 dark:border-[#3a342c] dark:bg-[#1a1714]"
+                          title="Call client via Exotel"
+                        >
+                          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                            <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
+                          </svg>
+                          {callingKey === `client:${p.id}` ? "Calling…" : "Call client"}
+                        </button>
+                      ) : null}
                     </TableCell>
 
                     <TableCell className="px-4 py-3.5 text-start whitespace-nowrap">
@@ -1173,6 +1306,25 @@ export default function ProjectsTable() {
                           </div>
                         ) : null}
                       </div>
+                      {canCall ? (
+                        <button
+                          type="button"
+                          disabled={
+                            Boolean(callingKey?.startsWith(`vendor:${p.id}:`)) ||
+                            !(p.vendors || []).length
+                          }
+                          onClick={() => openVendorCallPicker(p)}
+                          className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-[#eadfcf] bg-[#fdfbf7] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#9a7748] hover:border-[#c4a574] hover:text-[#1c1610] disabled:cursor-not-allowed disabled:opacity-40 dark:border-[#3a342c] dark:bg-[#1a1714]"
+                          title="Call vendor via Exotel"
+                        >
+                          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                            <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
+                          </svg>
+                          {callingKey?.startsWith(`vendor:${p.id}:`)
+                            ? "Calling…"
+                            : "Call vendor"}
+                        </button>
+                      ) : null}
                     </TableCell>
 
                     <TableCell className="px-4 py-3.5 text-start whitespace-nowrap">
@@ -1661,6 +1813,73 @@ export default function ProjectsTable() {
         </div>
       )}
 
+
+      {vendorCallProject ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <div className="border-b border-[#eadfcf] px-5 py-4 dark:border-[#3a342c]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#c4a574]">
+                Exotel
+              </p>
+              <h3
+                className="mt-1 font-serif text-lg text-[#1c1610] dark:text-[#f3ece2]"
+                style={serif}
+              >
+                Call vendor
+              </h3>
+              <p className="mt-1 text-sm text-[#8a7b68]">
+                Choose a vendor assigned to {vendorCallProject.name}
+              </p>
+            </div>
+            <div className="max-h-72 space-y-1 overflow-y-auto px-3 py-3">
+              {(vendorCallProject.vendors || []).map((vendor) => {
+                const phone = digitsOnly(vendor.phone);
+                const key = `vendor:${vendorCallProject.id}:${vendor.id}`;
+                const disabled = phone.length < 10 || callingKey === key;
+                return (
+                  <button
+                    key={vendor.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() =>
+                      void placeExotelCall({
+                        key,
+                        to: vendor.phone,
+                        label: vendor.name,
+                      })
+                    }
+                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-[#fbf8f3] disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-white/[0.04]"
+                  >
+                    <span>
+                      <span className="block text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                        {vendor.name}
+                      </span>
+                      <span className="block text-xs text-[#8a7b68]">
+                        {vendor.phone ? maskPhone(vendor.phone) : "No phone on file"}
+                      </span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#9a7748]">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
+                      </svg>
+                      {callingKey === key ? "Calling…" : "Call"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex justify-end border-t border-[#eadfcf] px-5 py-3 dark:border-[#3a342c]">
+              <button
+                type="button"
+                onClick={() => setVendorCallProject(null)}
+                className="inline-flex h-10 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1a1714]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {tasksProject ? (
         <ProjectTasksPanel

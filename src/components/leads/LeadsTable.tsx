@@ -12,7 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { leadsApi, storesApi, usersApi, type LeadDto } from "@/services/crmApi";
+import {
+  leadsApi,
+  messagingApi,
+  storesApi,
+  telephonyApi,
+  usersApi,
+  type LeadDto,
+} from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
 import { enumToLabel, formatDate, labelToEnum } from "@/lib/mappers";
 import { getLeadProjectName } from "@/lib/leadProjectLabel";
@@ -26,6 +33,7 @@ import ConvertLeadToProjectModal from "@/components/leads/ConvertLeadToProjectMo
 import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
 import DatePickerField from "@/components/form/DatePickerField";
+import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
 
 type LeadStatus =
   | "Created"
@@ -99,6 +107,60 @@ const salesTeam = [
 ];
 
 const followUpTypes: FollowUpType[] = ["Call", "WhatsApp", "Site Visit"];
+
+type WaTemplateId = "start_chat" | "start_chat_ut" | "followup" | "interior_lead_followup";
+
+const WA_FOLLOWUP_TEMPLATES: Array<{
+  id: WaTemplateId;
+  label: string;
+  params: 0 | 1 | 2;
+  body: string | null;
+}> = [
+  {
+    id: "start_chat_ut",
+    label: "start_chat_ut — Utility follow-up",
+    params: 1,
+    body: `Hi {{1}}\n\nThank you for contacting Santoshi Interiors.\n\nWe’re following up regarding your previous enquiry. If you still need assistance, simply reply to this message and our team will be happy to help.\n\nRegards,\nSantoshi Interiors`,
+  },
+  {
+    id: "followup",
+    label: "followup — Enquiry follow-up",
+    params: 1,
+    body: `Hi {{1}}, just following up on your enquiry with Santoshi Interiors.\nAre you still looking for interior design services? We’d be happy to assist you.`,
+  },
+  {
+    id: "start_chat",
+    label: "start_chat — Hi",
+    params: 0,
+    body: null,
+  },
+  {
+    id: "interior_lead_followup",
+    label: "interior_lead_followup — Lead follow-up",
+    params: 2,
+    body: `Hi {{1}},\n\nThank you for your interest in Santoshi Interior.\n\nWe received your requirement for {{2}} and would be happy to help you with your interior design needs.\n\nOur team is available to discuss your requirement and the next steps.\n\nRegards,\nSantoshi Interior`,
+  },
+];
+
+function digitsOnly(value?: string | null) {
+  return String(value || "").replace(/\D/g, "").slice(-10);
+}
+
+function maskPhone(value?: string | null) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "—";
+  if (digits.length <= 3) return `***${digits}`;
+  return `***${digits.slice(-3)}`;
+}
+
+function firstName(name: string) {
+  const raw = String(name || "there").trim();
+  return raw.split(/\s+/)[0] || "there";
+}
+
+function fillPlaceholders(body: string, values: string[]) {
+  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => values[Number(n) - 1] || "");
+}
 
 const avatarColors = [
   "bg-[#1c1610] text-[#e8d5b5]",
@@ -295,6 +357,18 @@ function leadQuoteHref(lead: Lead) {
 export default function LeadsTable() {
   const { user } = useAuth();
   const canDeleteLeads = hasAnyPermission(user, LEAD_DELETE_PERMISSIONS);
+  const canCall = hasAnyPermission(user, [
+    "calls.make",
+    "sales.full",
+    "sales.manage",
+    "leads.manage",
+  ]);
+  const canSendWa = hasAnyPermission(user, [
+    "leads.manage",
+    "sales.full",
+    "sales.manage",
+    "messages.send",
+  ]);
   const searchParams = useSearchParams();
   const storeFilterId = searchParams.get("storeId") || "";
   const [storeFilterName, setStoreFilterName] = useState("");
@@ -392,6 +466,11 @@ export default function LeadsTable() {
   const [fuType, setFuType] = useState<FollowUpType>("Call");
   const [fuNote, setFuNote] = useState("");
   const [fuNextDate, setFuNextDate] = useState("");
+  const [fuBusy, setFuBusy] = useState(false);
+  const [fuTemplate, setFuTemplate] = useState<WaTemplateId>("followup");
+  const [fuTemplateName, setFuTemplateName] = useState("");
+  const [fuTemplateNeed, setFuTemplateNeed] = useState("interior design");
+  const [fuApprovedTemplates, setFuApprovedTemplates] = useState<string[]>([]);
   const [historyLeadId, setHistoryLeadId] = useState<string | null>(null);
   const [explorerLead, setExplorerLead] = useState<Lead | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
@@ -642,27 +721,114 @@ export default function LeadsTable() {
   };
 
   const openFollowUpModal = (leadId: string) => {
+    const lead = leads.find((l) => l.id === leadId);
     setFollowUpLeadId(leadId);
     setFuType("Call");
     setFuNote("");
     setFuNextDate("");
+    setFuBusy(false);
+    setFuTemplate("followup");
+    setFuTemplateName(firstName(lead?.clientName || ""));
+    setFuTemplateNeed(lead?.scope || lead?.projectType || "interior design");
+    void (async () => {
+      try {
+        const status = await messagingApi.getStatus();
+        const approved = (status.approvedTemplates || []).map((row) => row.name);
+        setFuApprovedTemplates(approved);
+        const preferred =
+          WA_FOLLOWUP_TEMPLATES.find((row) => approved.includes(row.id))?.id ||
+          "followup";
+        setFuTemplate(preferred);
+      } catch {
+        setFuApprovedTemplates([]);
+      }
+    })();
+  };
+
+  const placeLeadExotelCall = async (lead: Lead) => {
+    const to = digitsOnly(lead.phone);
+    if (!to || to.length < 10) {
+      throw new Error("Lead has no valid phone number");
+    }
+    const agentNumber = digitsOnly(user?.phone);
+    if (!agentNumber || agentNumber.length < 10) {
+      throw new Error("Add your phone number in profile to place Exotel calls");
+    }
+    const result = await telephonyApi.clickToCall({
+      to,
+      leadId: lead.id,
+      extension: user?.sipExtension || undefined,
+      agentNumber,
+      note: `Lead follow-up · ${lead.clientName}`,
+    });
+    if (result.originate.mode === "manual") {
+      throw new Error(
+        result.originate.message ||
+          "Click-to-call is not configured. Set Exotel keys and restart the API."
+      );
+    }
+  };
+
+  const sendLeadWhatsAppTemplate = async (lead: Lead) => {
+    const spec = WA_FOLLOWUP_TEMPLATES.find((row) => row.id === fuTemplate);
+    const nameValue = fuTemplateName.trim() || firstName(lead.clientName);
+    const needValue = fuTemplateNeed.trim() || lead.scope || "interior design";
+    const bodyValues =
+      spec?.params === 2
+        ? [nameValue, needValue]
+        : spec?.params === 1
+          ? [nameValue]
+          : [];
+    await leadsApi.sendMessage(lead.id, {
+      templateName: fuTemplate,
+      languageCode: "en",
+      useTemplate: true,
+      bodyValues,
+    });
   };
 
   const saveFollowUp = async () => {
-    if (!followUpLeadId || !fuNote.trim()) return;
+    if (!followUpLeadId || fuBusy) return;
     const lead = leads.find((l) => l.id === followUpLeadId);
+    if (!lead) return;
+
+    if (fuType === "Site Visit" && !fuNote.trim()) {
+      toastWarning("Add notes for the site visit follow-up");
+      return;
+    }
+    if (fuType === "Call" && !canCall) {
+      toastWarning("You do not have permission to place calls");
+      return;
+    }
+    if (fuType === "WhatsApp" && !canSendWa) {
+      toastWarning("You do not have permission to send WhatsApp messages");
+      return;
+    }
+
+    setFuBusy(true);
     try {
+      let note = fuNote.trim();
+      if (fuType === "Call") {
+        await placeLeadExotelCall(lead);
+        if (!note) note = `Exotel call placed to ${maskPhone(lead.phone)}`;
+        toastSuccess(`Calling ${lead.clientName}…`);
+      } else if (fuType === "WhatsApp") {
+        await sendLeadWhatsAppTemplate(lead);
+        if (!note) note = `WhatsApp template “${fuTemplate}” sent`;
+        toastSuccess("WhatsApp template sent");
+      }
+
       const created = await leadsApi.addFollowUp(followUpLeadId, {
         type: labelToEnum(fuType),
-        note: fuNote.trim(),
+        note,
         nextDate: fuNextDate || null,
       });
       const entry: FollowUpEntry = {
         id: (created as { id?: string })?.id || `FU-${Date.now()}`,
         date: new Date().toISOString().slice(0, 10),
         type: fuType,
-        note: fuNote.trim(),
-        by: lead?.assignedTo || "—",
+        note,
+        by: lead.assignedTo || "—",
         nextDate: fuNextDate || "-",
       };
       setLeads((prev) =>
@@ -672,14 +838,16 @@ export default function LeadsTable() {
                 ...l,
                 followUps: [...l.followUps, entry],
                 updatedAt: new Date().toISOString(),
-                latestRemark: fuNote.trim(),
+                latestRemark: note,
               }
             : l
         )
       );
       setFollowUpLeadId(null);
-    } catch {
-      // keep modal open on failure
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Follow-up failed");
+    } finally {
+      setFuBusy(false);
     }
   };
 
@@ -1008,7 +1176,7 @@ export default function LeadsTable() {
                       </TableCell>
 
                       <TableCell className="px-3 py-3 text-gray-700 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.phone || "—"}
+                        {maskPhone(lead.phone)}
                       </TableCell>
 
                       <TableCell className="px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400 whitespace-nowrap">
@@ -1282,63 +1450,199 @@ export default function LeadsTable() {
       )}
 
       {/* Follow-up Modal */}
-      {followUpLeadId && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                Log Follow-up —{" "}
-                {leads.find((l) => l.id === followUpLeadId)?.clientName}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setFollowUpLeadId(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              >
-                ✕
-              </button>
+      {followUpLeadId && (() => {
+        const fuLead = leads.find((l) => l.id === followUpLeadId);
+        const selectedSpec = WA_FOLLOWUP_TEMPLATES.find((row) => row.id === fuTemplate);
+        const previewValues =
+          selectedSpec?.params === 2
+            ? [
+                fuTemplateName.trim() || firstName(fuLead?.clientName || ""),
+                fuTemplateNeed.trim() || "interior design",
+              ]
+            : selectedSpec?.params === 1
+              ? [fuTemplateName.trim() || firstName(fuLead?.clientName || "")]
+              : [];
+        const previewBody = selectedSpec?.body
+          ? fillPlaceholders(selectedSpec.body, previewValues)
+          : "Approved WhatsApp greeting template (no body variables).";
+        const clientLabel = (fuLead?.clientName || "client").trim() || "client";
+        const saveDisabled =
+          fuBusy ||
+          (fuType === "Site Visit" && !fuNote.trim()) ||
+          (fuType === "Call" && (!canCall || digitsOnly(fuLead?.phone).length < 10)) ||
+          (fuType === "WhatsApp" && !canSendWa);
+        const saveLabel = fuBusy
+          ? fuType === "Call"
+            ? `Calling ${clientLabel}…`
+            : fuType === "WhatsApp"
+              ? `Messaging ${clientLabel}…`
+              : "Saving…"
+          : fuType === "Call"
+            ? `Call ${clientLabel}`
+            : fuType === "WhatsApp"
+              ? `WhatsApp ${clientLabel}`
+              : `Save site visit`;
+
+        const fuFieldClass =
+          "w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 py-2.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+        const fuLabelClass =
+          "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]";
+
+        return (
+        <div className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">
+          <div className="flex max-h-[min(92vh,820px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <div className="relative shrink-0 overflow-hidden border-b border-[#eadfcf] bg-gradient-to-br from-[#1c1610] to-[#3a2f24] px-5 py-4 text-[#e8d5b5] dark:border-[#3a342c]">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#c4a574]/20" />
+              <div className="relative flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">
+                    Follow-up
+                  </p>
+                  <h3 className="mt-1 font-serif text-xl leading-tight text-[#f3ece2]">
+                    {clientLabel}
+                  </h3>
+                  <p className="mt-1 text-xs text-[#c4a574]/90">
+                    {maskPhone(fuLead?.phone)}
+                    {fuLead?.store ? ` · ${fuLead.store}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !fuBusy && setFollowUpLeadId(null)}
+                  className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-[#e8d5b5] hover:bg-white/20"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Follow-up Type
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {followUpTypes.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setFuType(type)}
-                      className={`rounded-lg border px-3 py-2 text-sm transition ${
-                        fuType === type
-                          ? "border-[#c4a574] bg-[#f6efe4] text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]"
-                          : "border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
-                      }`}
-                    >
-                      {followUpTypeIcon[type]} {type}
-                    </button>
-                  ))}
+                <label className={fuLabelClass}>Follow-up type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {followUpTypes.map((type) => {
+                    const active = fuType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        disabled={fuBusy}
+                        onClick={() => setFuType(type)}
+                        className={`rounded-xl border px-2 py-3 text-center transition ${
+                          active
+                            ? "border-[#1c1610] bg-[#1c1610] text-[#e8d5b5] shadow-sm dark:border-[#e8d5b5] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
+                            : "border-[#eadfcf] bg-white text-[#6b645b] hover:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#d4c8b8]"
+                        }`}
+                      >
+                        <span className="block text-base leading-none">{followUpTypeIcon[type]}</span>
+                        <span className="mt-1.5 block text-[11px] font-semibold tracking-wide">
+                          {type}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
+                {fuType === "Call" ? (
+                  <p className="mt-2.5 rounded-xl border border-[#eadfcf] bg-white px-3 py-2 text-xs text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1a1714]">
+                    Exotel will ring your phone first, then connect to{" "}
+                    <span className="font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                      {clientLabel}
+                    </span>{" "}
+                    ({maskPhone(fuLead?.phone)}).
+                  </p>
+                ) : null}
+                {fuType === "WhatsApp" ? (
+                  <p className="mt-2.5 rounded-xl border border-[#eadfcf] bg-white px-3 py-2 text-xs text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1a1714]">
+                    Sends an approved WhatsApp template to{" "}
+                    <span className="font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                      {clientLabel}
+                    </span>{" "}
+                    ({maskPhone(fuLead?.phone)}), then logs this follow-up.
+                  </p>
+                ) : null}
               </div>
 
+              {fuType === "WhatsApp" ? (
+                <div className="space-y-3 rounded-2xl border border-[#eadfcf] bg-white p-3.5 dark:border-[#3a342c] dark:bg-[#1a1714]">
+                  <div>
+                    <label className={fuLabelClass}>WhatsApp template</label>
+                    <select
+                      value={fuTemplate}
+                      disabled={fuBusy}
+                      onChange={(e) => setFuTemplate(e.target.value as WaTemplateId)}
+                      className={fuFieldClass}
+                    >
+                      {WA_FOLLOWUP_TEMPLATES.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.label}
+                          {fuApprovedTemplates.length && !fuApprovedTemplates.includes(row.id)
+                            ? " (may need approval)"
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {(selectedSpec?.params || 0) >= 1 ? (
+                    <div>
+                      <label className={fuLabelClass}>Name {"{{1}}"}</label>
+                      <input
+                        type="text"
+                        value={fuTemplateName}
+                        disabled={fuBusy}
+                        onChange={(e) => setFuTemplateName(e.target.value)}
+                        className={fuFieldClass}
+                      />
+                    </div>
+                  ) : null}
+                  {(selectedSpec?.params || 0) >= 2 ? (
+                    <div>
+                      <label className={fuLabelClass}>Requirement {"{{2}}"}</label>
+                      <input
+                        type="text"
+                        value={fuTemplateNeed}
+                        disabled={fuBusy}
+                        onChange={(e) => setFuTemplateNeed(e.target.value)}
+                        className={fuFieldClass}
+                      />
+                    </div>
+                  ) : null}
+                  <div>
+                    <label className={fuLabelClass}>Preview</label>
+                    <div className="max-h-28 overflow-y-auto rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-[#5c5348] dark:border-[#3a342c] dark:bg-[#161411] dark:text-[#d4c8b8]">
+                      {previewBody}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Notes / Outcome <span className="text-error-500">*</span>
+                <label className={fuLabelClass}>
+                  Notes / outcome{" "}
+                  {fuType === "Site Visit" ? (
+                    <span className="normal-case tracking-normal text-rose-500">*</span>
+                  ) : (
+                    <span className="normal-case tracking-normal text-[#b3a594]">optional</span>
+                  )}
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={fuNote}
+                  disabled={fuBusy}
                   onChange={(e) => setFuNote(e.target.value)}
-                  placeholder="What was discussed? Client response? Next steps..."
-                  className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                  placeholder={
+                    fuType === "Call"
+                      ? "Optional notes after the call…"
+                      : fuType === "WhatsApp"
+                        ? "Optional notes about this WhatsApp follow-up…"
+                        : "What was discussed? Client response? Next steps..."
+                  }
+                  className={fuFieldClass}
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Next Follow-up Date
-                </label>
+                <label className={fuLabelClass}>Next follow-up date</label>
                 <DatePickerField
                   id="lead-follow-up-next-date"
                   value={fuNextDate}
@@ -1348,129 +1652,183 @@ export default function LeadsTable() {
               </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <Button
-                size="sm"
-                variant="outline"
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#eadfcf] bg-white/80 px-5 py-4 backdrop-blur dark:border-[#3a342c] dark:bg-[#161411]">
+              <button
+                type="button"
+                disabled={fuBusy}
                 onClick={() => setFollowUpLeadId(null)}
+                className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#8a7b68] disabled:opacity-50 dark:border-[#3a342c] dark:bg-[#1a1714]"
               >
                 Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={saveFollowUp}
-                disabled={!fuNote.trim()}
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveFollowUp()}
+                disabled={saveDisabled}
+                className="inline-flex h-11 min-w-[9.5rem] items-center justify-center gap-2 rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#e8d5b5] dark:text-[#1c1610]"
               >
-                Save Follow-up
-              </Button>
+                {fuType === "Call" && !fuBusy ? (
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
+                  </svg>
+                ) : null}
+                {saveLabel}
+              </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Follow-up History Drawer */}
       {historyLead && (
-        <div className="fixed inset-0 z-[99999] flex justify-end bg-black/40">
-          <div className="h-full w-full max-w-md overflow-y-auto border-l border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                  Follow-up History
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {historyLead.clientName} · {historyLead.id}
-                </p>
+        <div
+          className="fixed inset-0 z-[99999] flex justify-end"
+          onClick={() => setHistoryLeadId(null)}
+        >
+          <div
+            className="flex h-full w-full max-w-md flex-col border-l border-[#eadfcf] bg-[#fbf8f3] shadow-[-12px_0_40px_rgba(28,22,16,0.12)] dark:border-[#3a342c] dark:bg-[#161411]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative shrink-0 overflow-hidden border-b border-[#eadfcf] bg-gradient-to-br from-[#1c1610] to-[#3a2f24] px-5 py-4 text-[#e8d5b5] dark:border-[#3a342c]">
+              <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-[#c4a574]/20" />
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">
+                    Follow-up history
+                  </p>
+                  <h3 className="mt-1 truncate font-serif text-xl leading-tight text-[#f3ece2]">
+                    {historyLead.clientName}
+                  </h3>
+                  <p className="mt-1 text-xs text-[#c4a574]/90">
+                    {maskPhone(historyLead.phone)}
+                    {historyLead.projectName
+                      ? ` · ${historyLead.projectName}`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHistoryLeadId(null)}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[#e8d5b5] hover:bg-white/20"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
               </div>
+            </div>
+
+            <div className="shrink-0 border-b border-[#eadfcf] px-5 py-4 dark:border-[#3a342c]">
+              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-[#eadfcf] bg-white p-3.5 dark:border-[#3a342c] dark:bg-[#1a1714]">
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Phone
+                  </span>
+                  <span className="mt-0.5 block text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                    {maskPhone(historyLead.phone)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Status
+                  </span>
+                  <div className="mt-1">
+                    <Badge size="sm" color={statusColor[historyLead.status]}>
+                      {historyLead.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Assigned to
+                  </span>
+                  <span className="mt-0.5 block text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                    {historyLead.assignedTo || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Project
+                  </span>
+                  <span className="mt-0.5 block truncate text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                    {historyLead.projectName || "—"}
+                  </span>
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setHistoryLeadId(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                onClick={() => {
+                  setHistoryLeadId(null);
+                  openFollowUpModal(historyLead.id);
+                }}
+                className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#1c1610] text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] hover:bg-[#2a2218] dark:bg-[#e8d5b5] dark:text-[#1c1610]"
               >
-                ✕
+                + Add follow-up
               </button>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
-              <div>
-                <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                  Phone
-                </span>
-                <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {historyLead.phone}
-                </span>
-              </div>
-              <div>
-                <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                  Status
-                </span>
-                <Badge size="sm" color={statusColor[historyLead.status]}>
-                  {historyLead.status}
-                </Badge>
-              </div>
-              <div>
-                <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                  Assigned To
-                </span>
-                <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {historyLead.assignedTo}
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+                  Timeline
+                </p>
+                <span className="rounded-full bg-[#eadfcf] px-2.5 py-0.5 text-[11px] font-semibold text-[#7d6139] dark:bg-[#c4a574]/20 dark:text-[#e8d5b5]">
+                  {historyLead.followUps.length} logged
                 </span>
               </div>
-              <div>
-                <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-                  Project
-                </span>
-                <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                  {historyLead.projectName}
-                </span>
-              </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setHistoryLeadId(null);
-                openFollowUpModal(historyLead.id);
-              }}
-              className="mb-6 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c4a574] py-2.5 text-sm font-medium text-[#9a7748] transition hover:bg-[#f6efe4] dark:hover:bg-[#c4a574]/10"
-            >
-              + Add Follow-up
-            </button>
-
-            {historyLead.followUps.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">
-                No follow-ups logged yet.
-              </p>
-            ) : (
-              <div className="relative space-y-0">
-                <div className="absolute bottom-2 left-4 top-2 w-px bg-gray-200 dark:bg-gray-700" />
-                {[...historyLead.followUps].reverse().map((fu) => (
-                  <div key={fu.id} className="relative flex gap-4 pb-6">
-                    <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gray-100 text-base dark:border-gray-900 dark:bg-gray-800">
-                      {followUpTypeIcon[fu.type]}
-                    </div>
-                    <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 p-3.5 dark:border-gray-800 dark:bg-white/[0.02]">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <Badge size="sm" color="light">
-                          {fu.type}
-                        </Badge>
-                        <span className="text-theme-xs text-gray-400 dark:text-gray-500">
-                          {fu.date}
-                        </span>
+              {historyLead.followUps.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#eadfcf] bg-white px-4 py-10 text-center dark:border-[#3a342c] dark:bg-[#1a1714]">
+                  <p className="text-sm text-[#8a7b68]">No follow-ups logged yet.</p>
+                  <p className="mt-1 text-xs text-[#b3a594]">
+                    Add a call, WhatsApp, or site visit to start the timeline.
+                  </p>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute bottom-3 left-[15px] top-3 w-px bg-[#eadfcf] dark:bg-[#3a342c]" />
+                  <div className="space-y-3">
+                    {[...historyLead.followUps].reverse().map((fu) => (
+                      <div key={fu.id} className="relative flex gap-3">
+                        <div
+                          className={`relative z-10 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#fbf8f3] text-sm shadow-sm dark:border-[#161411] ${
+                            fu.type === "Call"
+                              ? "bg-[#1c1610] text-[#e8d5b5]"
+                              : fu.type === "WhatsApp"
+                                ? "bg-[#25D366] text-white"
+                                : "bg-[#c4a574] text-[#1c1610]"
+                          }`}
+                        >
+                          {followUpTypeIcon[fu.type]}
+                        </div>
+                        <div className="min-w-0 flex-1 rounded-2xl border border-[#eadfcf] bg-white p-3.5 dark:border-[#3a342c] dark:bg-[#1a1714]">
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="inline-flex rounded-full bg-[#f6efe4] px-2.5 py-0.5 text-[11px] font-semibold text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]">
+                              {fu.type}
+                            </span>
+                            <span className="text-[11px] text-[#b3a594]">
+                              {fu.date}
+                            </span>
+                          </div>
+                          <p className="text-sm leading-relaxed text-[#1c1610] dark:text-[#f3ece2]">
+                            {fu.note || "—"}
+                          </p>
+                          <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#8a7b68]">
+                            {fu.by && fu.by !== "—" ? (
+                              <span>By {fu.by}</span>
+                            ) : null}
+                            {fu.nextDate && fu.nextDate !== "-" ? (
+                              <span>Next {fu.nextDate}</span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {fu.note}
-                      </p>
-                      <div className="mt-2 flex items-center gap-3 text-theme-xs text-gray-400 dark:text-gray-500">
-                        <span>By: {fu.by}</span>
-                        {fu.nextDate !== "-" && (
-                          <span>Next: {fu.nextDate}</span>
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

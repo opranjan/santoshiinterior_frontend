@@ -12,6 +12,7 @@ import {
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { allowedWhatsAppViews, hasAnyPermission } from "@/lib/permissions";
+import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
 
 type Props = {
   leadId: string;
@@ -84,6 +85,10 @@ Santoshi Interior`,
 function firstName(name: string) {
   const raw = String(name || "there").trim();
   return raw.split(/\s+/)[0] || "there";
+}
+
+function digitsOnly(value?: string | null) {
+  return String(value || "").replace(/\D/g, "").slice(-10);
 }
 
 function fillPlaceholders(body: string, values: string[]) {
@@ -1170,25 +1175,40 @@ export default function LeadCommunicationPanel({
   };
 
   const startCall = async () => {
-    if (!phone || calling || !canCall) return;
+    if (calling || !canCall) return;
+    const to = digitsOnly(phone);
+    if (!to || to.length < 10) {
+      toastWarning("This chat has no valid phone number to call");
+      return;
+    }
+    const agentNumber = digitsOnly(user?.phone);
+    if (!agentNumber || agentNumber.length < 10) {
+      toastWarning("Add your phone number in profile to place Exotel calls");
+      return;
+    }
     setCalling(true);
     setError("");
     try {
       const result = await telephonyApi.clickToCall({
-        to: phone,
+        to,
         leadId,
         extension: user?.sipExtension || undefined,
-        agentNumber: user?.phone || undefined,
+        agentNumber,
+        note: `WhatsApp chat · ${clientName}`,
       });
       if (result.originate.mode === "manual") {
         throw new Error(
           result.originate.message ||
-            "Click-to-call is not configured on the live server. Set Exotel keys and restart the API."
+            "Click-to-call is not configured. Set Exotel keys and restart the API."
         );
       }
+      toastSuccess(`Calling ${clientName} via Exotel…`);
+      setNotice(`Exotel call started to ${clientName}`);
       onRefresh?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cloud call failed");
+      const message = err instanceof Error ? err.message : "Exotel call failed";
+      setError(message);
+      toastError(message);
     } finally {
       setCalling(false);
     }
@@ -1265,10 +1285,14 @@ export default function LeadCommunicationPanel({
               type="button"
               onClick={() => void startCall()}
               disabled={calling}
-              title="Call via Jio SIP / cloud telephony"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/15 disabled:opacity-50"
+              title={`Call ${clientName} via Exotel`}
+              aria-label={`Call ${clientName} via Exotel`}
+              className="flex h-9 items-center justify-center gap-1.5 rounded-full px-2.5 text-white/90 transition hover:bg-white/15 disabled:opacity-50"
             >
               <CallIcon className="h-[18px] w-[18px]" />
+              <span className="hidden text-[11px] font-semibold sm:inline">
+                {calling ? "Calling…" : `Call ${firstName(clientName)}`}
+              </span>
             </button>
           ) : null}
           <button
