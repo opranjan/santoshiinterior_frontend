@@ -1242,9 +1242,9 @@ export default function ProjectsTable() {
                         <button
                           type="button"
                           onClick={() => setTasksProject(p)}
-                          className="text-left text-sm text-[#8a7b68] hover:text-[#1c1610]"
+                          className="inline-flex w-fit items-center rounded-lg border border-[#eadfcf] bg-[#fbf8f3] px-2.5 py-1 text-left text-xs font-semibold text-[#9a7748] hover:border-[#c4a574] hover:bg-[#f6efe4]"
                         >
-                          Tasks{p.taskCount ? ` (${p.taskCount})` : ""}
+                          Tasks{p.taskCount ? ` · ${p.taskCount}` : ""}
                         </button>
                         {canDeleteProject ? (
                           <button

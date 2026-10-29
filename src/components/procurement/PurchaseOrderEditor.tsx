@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import DatePickerField from "@/components/form/DatePickerField";
 import PurchaseOrderPreview from "@/components/procurement/PurchaseOrderPreview";
-import VendorFulfillButton from "@/components/procurement/VendorFulfillButton";
 import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
 import { designAssetUrl } from "@/lib/designAssets";
 import {
@@ -186,26 +185,6 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
   const kindLabel = row.kind === "WO" ? "Work Order" : "Purchase Order";
   const vendor = row.vendorRecord;
   const gst = vendor?.gstin ? `GST No: ${vendor.gstin}` : "";
-  const fulfillCtx = {
-    vendorId: row.vendorId || vendor?.id || null,
-    vendorName: vendor?.name || row.vendor || "",
-    projectId: row.projectId || row.project?.id || null,
-    projectName: row.project?.name || null,
-    projectAddress: shippingAddress || row.shippingAddress || row.project?.address || null,
-    title: title || row.title || kindLabel,
-    expectedDate: deliveryDate || null,
-    remark: row.remark || `${kindLabel} ${row.code || ""}`.trim(),
-    source: row.source || "MODULAR_CATALOG",
-  };
-  const toFulfillLine = (item: DraftItem) => ({
-    name: item.name,
-    code: item.code,
-    qty: Number(item.qty || 0) || 1,
-    unit: item.unit,
-    rate: Number(item.rate || 0),
-    hsn: item.hsn,
-  });
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -352,11 +331,9 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
               <button type="button" className="h-9 rounded-lg border px-3 text-sm text-gray-600">
                 ⚙ Columns
               </button>
-              <VendorFulfillButton
-                label={`Vendor${fulfillCtx.vendorName ? ` · ${fulfillCtx.vendorName}` : ""}`}
-                ctx={fulfillCtx}
-                items={namedItems.map(toFulfillLine)}
-              />
+              <span className="inline-flex h-9 items-center rounded-xl bg-[#C4A574] px-3 text-sm font-semibold text-[#1c1610]">
+                Vendor · {vendor?.name || row.vendor || "—"}
+              </span>
               <button
                 type="button"
                 onClick={() => setItems((prev) => [...prev, emptyItem()])}
@@ -434,12 +411,9 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
                       </td>
                       <td className="px-3 py-2">{item.taxPct || 18}</td>
                       <td className="px-3 py-2">
-                        <VendorFulfillButton
-                          compact
-                          label={fulfillCtx.vendorName || "Vendor"}
-                          ctx={fulfillCtx}
-                          items={[toFulfillLine(item)]}
-                        />
+                        <span className="inline-flex h-9 items-center rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm text-[#1c1610]">
+                          {vendor?.name || row.vendor || "—"}
+                        </span>
                       </td>
                       <td className="px-3 py-2">
                         <button type="button" onClick={() => setItems((prev) => prev.filter((rowItem) => rowItem.key !== item.key))} className="text-gray-400">

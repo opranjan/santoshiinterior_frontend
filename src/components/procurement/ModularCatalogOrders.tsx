@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { toastError } from "@/components/ui/toast/ToastHost";
-import { purchaseOrdersApi, type PurchaseOrderDto } from "@/services/crmApi";
+import { modularCatalogsApi, type ModularOrderCollection } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
 import { isVendorPanelUser } from "@/lib/permissions";
 
@@ -27,15 +27,14 @@ export default function ModularCatalogOrders() {
   const router = useRouter();
   const { user } = useAuth();
   const vendorView = isVendorPanelUser(user);
-  const [items, setItems] = useState<PurchaseOrderDto[]>([]);
+  const [items, setItems] = useState<ModularOrderCollection[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   const load = async () => {
-    const data = await purchaseOrdersApi.list({
+    const data = await modularCatalogsApi.listCollections({
       limit: 100,
       search,
-      source: "MODULAR_CATALOG",
     });
     setItems(data.items || []);
   };
@@ -43,7 +42,7 @@ export default function ModularCatalogOrders() {
   useEffect(() => {
     setLoading(true);
     load()
-      .catch((err) => toastError(err instanceof Error ? err.message : "Failed to load orders"))
+      .catch((err) => toastError(err instanceof Error ? err.message : "Failed to load collections"))
       .finally(() => setLoading(false));
   }, [search]);
 
@@ -61,7 +60,7 @@ export default function ModularCatalogOrders() {
             Modular Catalog Order
           </h1>
           <p className="mt-1 text-sm text-[#8a7b68]">
-            Raise purchase orders from a series, catalogue, and size.
+            Save a collection from series, catalogue, and size. Open it to pick project, vendor, and create order or purchase.
           </p>
         </div>
         {vendorView ? null : (
@@ -69,7 +68,7 @@ export default function ModularCatalogOrders() {
             href="/operations/procurement/modular-catalog/new"
             className="inline-flex h-11 w-fit shrink-0 items-center self-start rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] hover:bg-black dark:bg-[#e8d5b5] dark:text-[#1c1610] lg:self-auto"
           >
-            + Create order
+            + Create collection
           </Link>
         )}
       </div>
@@ -79,7 +78,7 @@ export default function ModularCatalogOrders() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search code, vendor, title"
+          placeholder="Search code or title"
           className="h-11 w-full max-w-sm rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
         />
       </div>
@@ -89,7 +88,7 @@ export default function ModularCatalogOrders() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-[#eadfcf] bg-[#fbf8f3] text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914]">
               <tr>
-                {["Code", "Title", "Project", "Vendor", "Amount", "Date", "State"].map((h) => (
+                {["Code", "Title", "Project", "Items", "Amount", "Date", "State"].map((h) => (
                   <th key={h} className="whitespace-nowrap px-4 py-3">
                     {h}
                   </th>
@@ -106,7 +105,7 @@ export default function ModularCatalogOrders() {
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
-                    No modular catalog orders yet. Create one from a catalogue size.
+                    No order collections yet. Create one from a catalogue size.
                   </td>
                 </tr>
               ) : (
@@ -114,20 +113,20 @@ export default function ModularCatalogOrders() {
                   <tr
                     key={row.id}
                     className="cursor-pointer border-b border-[#eadfcf]/70 last:border-0 hover:bg-[#f6efe4] dark:border-[#3a342c]"
-                    onClick={() => router.push(`/operations/procurement/orders/${row.id}`)}
+                    onClick={() => router.push(`/operations/procurement/modular-catalog/${row.id}`)}
                   >
                     <td className="whitespace-nowrap px-4 py-3.5 font-medium text-[#1c1610] dark:text-[#f3ece2]">
                       {row.code}
                     </td>
                     <td className="px-4 py-3.5 text-[#5c472c]">{row.title || "—"}</td>
                     <td className="px-4 py-3.5 text-[#8a7b68]">{row.project?.name || "—"}</td>
-                    <td className="px-4 py-3.5 text-[#5c472c]">{row.vendorRecord?.name || row.vendor}</td>
+                    <td className="px-4 py-3.5 text-[#8a7b68]">{row.items?.length || 0}</td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-[#1c1610]">{money(row.amount)}</td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-[#8a7b68]">
-                      {formatDate(row.orderDate || row.createdAt)}
+                      {formatDate(row.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-[#8a7b68]">
-                      {row.orderState?.replaceAll("_", " ") || "—"}
+                      {row.status?.replaceAll("_", " ") || "—"}
                     </td>
                   </tr>
                 ))

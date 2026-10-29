@@ -8,7 +8,7 @@ import DatePickerField from "@/components/form/DatePickerField";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { purchaseOrdersApi, type PurchaseOrderDto } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
-import { isVendorPanelUser } from "@/lib/permissions";
+import { hasAnyPermission, isVendorPanelUser } from "@/lib/permissions";
 
 const fieldClass =
   "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
@@ -79,6 +79,7 @@ const FOLLOW_UP_TYPES = [
 export default function ProcurementOrders() {
   const { user } = useAuth();
   const vendorView = isVendorPanelUser(user);
+  const canDelete = !vendorView && hasAnyPermission(user, ["purchaseorders.manage", "finance.full", "users.manage"]);
   const [items, setItems] = useState<PurchaseOrderDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<"mine" | "approved" | "pending">("mine");
@@ -86,6 +87,8 @@ export default function ProcurementOrders() {
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [createOpen, setCreateOpen] = useState(false);
   const [preview, setPreview] = useState<PurchaseOrderDto | null>(null);
   const [followOrder, setFollowOrder] = useState<PurchaseOrderDto | null>(null);
@@ -93,6 +96,8 @@ export default function ProcurementOrders() {
   const [fuNote, setFuNote] = useState("");
   const [fuNextDate, setFuNextDate] = useState("");
   const [fuSaving, setFuSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseOrderDto | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = async () => {
     const query: Record<string, string | number | undefined> = { limit: 100, search };
@@ -120,6 +125,29 @@ export default function ProcurementOrders() {
       wo: items.filter((row) => row.kind === "WO").length,
     };
   }, [items]);
+
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const paged = useMemo(
+    () => items.slice((page - 1) * pageSize, page * pageSize),
+    [items, page, pageSize]
+  );
+  const showingFrom = items.length ? (page - 1) * pageSize + 1 : 0;
+  const showingTo = Math.min(page * pageSize, items.length);
+  const pageButtons = useMemo(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, i) => i + 1);
+    }
+    const set = new Set([1, pageCount, page, page - 1, page + 1, page - 2, page + 2]);
+    return [...set].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [mainTab, review, search, kindFilter, stateFilter]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   const openPreview = async (row: PurchaseOrderDto) => {
     setPreview(row);
@@ -159,6 +187,22 @@ export default function ProcurementOrders() {
       toastSuccess("Order state updated.");
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to update state");
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await purchaseOrdersApi.remove(deleteTarget.id);
+      setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+      if (preview?.id === deleteTarget.id) setPreview(null);
+      setDeleteTarget(null);
+      toastSuccess("Order deleted.");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Could not delete order");
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -308,18 +352,19 @@ export default function ProcurementOrders() {
                 <th className="px-3 py-3.5">Delivery</th>
                 <th className="px-3 py-3.5">Follow up</th>
                 <th className="px-3 py-3.5">State</th>
+                {canDelete ? <th className="px-3 py-3.5">Action</th> : null}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
+                  <td colSpan={canDelete ? 11 : 10} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
                     Loading orders…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-16 text-center">
+                  <td colSpan={canDelete ? 11 : 10} className="px-4 py-16 text-center">
                     <p
                       className="font-serif text-xl text-[#1c1610] dark:text-[#f4efe6]"
                       style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
@@ -341,7 +386,7 @@ export default function ProcurementOrders() {
                   </td>
                 </tr>
               ) : (
-                items.map((row, index) => {
+                paged.map((row, index) => {
                   const overdue = daysPassed(row.expectedDate);
                   const stateMeta = ORDER_STATES.find((item) => item.value === row.orderState) || ORDER_STATES[0];
                   const work = row.kind === "WO";
@@ -351,7 +396,7 @@ export default function ProcurementOrders() {
                       className="cursor-pointer border-b border-[#f0e8db] last:border-0 hover:bg-[#fbf8f3] dark:border-[#3a342c] dark:hover:bg-white/[0.03]"
                       onClick={() => void openPreview(row)}
                     >
-                      <td className="px-3 py-3.5 text-[#8a7b68]">{index + 1}.</td>
+                      <td className="px-3 py-3.5 text-[#8a7b68]">{(page - 1) * pageSize + index + 1}.</td>
                       <td className="px-3 py-3.5">
                         <p className="font-medium uppercase text-[#1c1610] dark:text-[#f3ece2]">{row.title || "—"}</p>
                         <span
@@ -435,6 +480,17 @@ export default function ProcurementOrders() {
                           ))}
                         </select>
                       </td>
+                      {canDelete ? (
+                        <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(row)}
+                            className="rounded-lg border border-[#eadfcf] px-2.5 py-1.5 text-xs font-semibold text-[#8a3424] hover:bg-[#fbf4f2]"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })
@@ -442,7 +498,91 @@ export default function ProcurementOrders() {
             </tbody>
           </table>
         </div>
+        {items.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eadfcf] px-4 py-3 text-sm text-[#8a7b68] dark:border-[#3a342c]">
+            <p>
+              Showing {showingFrom} to {showingTo} of {items.length} order
+              {items.length === 1 ? "" : "s"}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ‹
+              </button>
+              {pageButtons.map((n, index) => {
+                const prev = pageButtons[index - 1];
+                return (
+                  <React.Fragment key={n}>
+                    {prev && n - prev > 1 ? <span className="px-1">…</span> : null}
+                    <button
+                      type="button"
+                      onClick={() => setPage(n)}
+                      className={`grid h-8 min-w-8 place-items-center rounded-md px-2 text-sm ${
+                        n === page
+                          ? "bg-[#1c1610] text-[#e8d5b5]"
+                          : "border border-[#eadfcf] text-[#3d342c]"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+              <button
+                type="button"
+                disabled={page >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-white p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3
+              className="font-serif text-lg text-[#1c1610]"
+              style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+            >
+              Delete order?
+            </h3>
+            <p className="mt-2 text-sm text-[#8a7b68]">
+              Remove{" "}
+              <strong className="text-[#1c1610]">
+                {deleteTarget.code}
+                {deleteTarget.title ? ` · ${deleteTarget.title}` : ""}
+              </strong>{" "}
+              permanently? This cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => !deleteBusy && setDeleteTarget(null)}
+                disabled={deleteBusy}
+                className="rounded-md border border-[#eadfcf] px-4 py-2 text-sm font-semibold text-[#5c5044] hover:bg-[#fbf8f3] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDelete()}
+                disabled={deleteBusy}
+                className="rounded-md bg-[#8a3424] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6f291c] disabled:opacity-50"
+              >
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {followOrder ? (
         <div className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">

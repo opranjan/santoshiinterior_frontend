@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Badge from "@/components/ui/badge/Badge";
-import Button from "@/components/ui/button/Button";
 import DatePickerField from "@/components/form/DatePickerField";
 import {
   projectsApi,
@@ -38,15 +36,27 @@ type Props = {
 const statuses = ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"] as const;
 const priorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 
-const statusColor: Record<
-  string,
-  "primary" | "info" | "warning" | "success" | "error" | "light"
-> = {
-  TODO: "light",
-  IN_PROGRESS: "info",
-  DONE: "success",
-  CANCELLED: "error",
+type FilterTab = "ALL" | "TODO" | "IN_PROGRESS" | "DONE";
+
+const statusTone: Record<string, string> = {
+  TODO: "border-[#eadfcf] bg-[#fbf8f3] text-[#8a7b68]",
+  IN_PROGRESS: "border-[#c4a574]/50 bg-[#f6efe4] text-[#9a7748]",
+  DONE: "border-[#c5d4c2] bg-[#eef4ec] text-[#3d5a3a]",
+  CANCELLED: "border-rose-200 bg-rose-50 text-rose-700",
 };
+
+const priorityTone: Record<string, string> = {
+  LOW: "text-[#8a7b68]",
+  MEDIUM: "text-[#9a7748]",
+  HIGH: "text-[#b4533a]",
+  URGENT: "text-rose-700 font-semibold",
+};
+
+const serif = { fontFamily: "Georgia, 'Times New Roman', serif" } as const;
+
+const fieldClass =
+  "h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]";
+const labelClass = "mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]";
 
 function toYmd(value?: string | null) {
   if (!value) return "";
@@ -56,22 +66,22 @@ function toYmd(value?: string | null) {
 }
 
 function dateLabel(iso?: string | null) {
-  if (!iso) return "";
+  if (!iso) return "—";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) return "—";
   const day = d.toLocaleString("en-GB", { day: "2-digit" });
   const mon = d.toLocaleString("en-GB", { month: "short" });
   const year = String(d.getFullYear()).slice(-2);
   return `${day}-${mon}-${year}`;
 }
 
-function timelineLabel(start?: string | null, end?: string | null) {
-  const from = dateLabel(start);
-  const to = dateLabel(end);
-  if (from && to) return { from, to };
-  if (from) return { from, to: "—" };
-  if (to) return { from: to, to: "" };
-  return { from: "No dates", to: "" };
+function isOverdue(task: ProjectTaskDto) {
+  if (!task.dueDate || task.status === "DONE" || task.status === "CANCELLED") return false;
+  const due = new Date(task.dueDate);
+  if (Number.isNaN(due.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return due < today;
 }
 
 function parseAssigneeValue(value: string) {
@@ -82,6 +92,30 @@ function parseAssigneeValue(value: string) {
   return { assignedToId: value, vendorId: null as string | null };
 }
 
+function assigneeDisplay(
+  task: ProjectTaskDto,
+  users: Array<{ id: string; name: string; vendorName?: string | null }>,
+  vendors: Array<{ id: string; name: string }>
+) {
+  if (task.assignedTo?.name) return task.assignedTo.name;
+  if (task.assignedToId) {
+    const user = users.find((u) => u.id === task.assignedToId);
+    if (user) return user.vendorName ? `${user.name} · ${user.vendorName}` : user.name;
+  }
+  const vendorId = (task as { vendorId?: string | null }).vendorId;
+  if (vendorId) {
+    const vendor = vendors.find((v) => v.id === vendorId);
+    if (vendor) return vendor.name;
+  }
+  return "Unassigned";
+}
+
+function assigneeSelectValue(task: ProjectTaskDto) {
+  const vendorId = (task as { vendorId?: string | null }).vendorId;
+  if (vendorId) return `vendor:${vendorId}`;
+  return task.assignedToId || "";
+}
+
 export default function ProjectTasksPanel({
   project,
   onClose,
@@ -90,11 +124,15 @@ export default function ProjectTasksPanel({
   onProjectChange,
 }: Props) {
   const [tasks, setTasks] = useState<ProjectTaskDto[]>([]);
-  const [users, setUsers] = useState<Array<{ id: string; name: string; vendorId?: string | null; vendorName?: string | null }>>([]);
+  const [users, setUsers] = useState<
+    Array<{ id: string; name: string; vendorId?: string | null; vendorName?: string | null }>
+  >([]);
   const [vendors, setVendors] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState<FilterTab>("ALL");
+  const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<string>("TODO");
@@ -211,6 +249,7 @@ export default function ProjectTasksPanel({
       setTasks(next);
       emitTasks(next);
       resetForm();
+      setShowForm(false);
       if (assignee.assignedToId || assignee.vendorId) {
         await refreshProject();
       }
@@ -223,9 +262,7 @@ export default function ProjectTasksPanel({
 
   const patchTask = async (taskId: string, body: Record<string, unknown>) => {
     const prev = tasks;
-    setTasks((current) =>
-      current.map((t) => (t.id === taskId ? { ...t, ...body } : t))
-    );
+    setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, ...body } : t)));
     try {
       const updated = await projectsApi.updateTask(project.id, taskId, body);
       setTasks((current) => {
@@ -243,6 +280,7 @@ export default function ProjectTasksPanel({
   };
 
   const removeTask = async (taskId: string) => {
+    if (!window.confirm("Delete this task?")) return;
     const prev = tasks;
     const next = tasks.filter((t) => t.id !== taskId);
     setTasks(next);
@@ -256,244 +294,391 @@ export default function ProjectTasksPanel({
     }
   };
 
-  const projectSpan = timelineLabel(project.startIso, project.endIso);
-  const openTasks = useMemo(
-    () => tasks.filter((t) => t.status !== "CANCELLED"),
-    [tasks]
+  const activeTasks = useMemo(() => tasks.filter((t) => t.status !== "CANCELLED"), [tasks]);
+  const counts = useMemo(
+    () => ({
+      all: activeTasks.length,
+      todo: activeTasks.filter((t) => t.status === "TODO").length,
+      progress: activeTasks.filter((t) => t.status === "IN_PROGRESS").length,
+      done: activeTasks.filter((t) => t.status === "DONE").length,
+      overdue: activeTasks.filter((t) => isOverdue(t)).length,
+    }),
+    [activeTasks]
   );
 
-  const selectClass =
-    "h-10 rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+  const visible = useMemo(() => {
+    if (filter === "ALL") return activeTasks;
+    return activeTasks.filter((t) => t.status === filter);
+  }, [activeTasks, filter]);
+
+  const tabs: Array<{ id: FilterTab; label: string; count: number }> = [
+    { id: "ALL", label: "All", count: counts.all },
+    { id: "TODO", label: "To do", count: counts.todo },
+    { id: "IN_PROGRESS", label: "In progress", count: counts.progress },
+    { id: "DONE", label: "Done", count: counts.done },
+  ];
 
   return (
-    <div className="fixed inset-0 z-[99999] flex justify-end bg-black/40">
-      <div className="h-full w-full max-w-md overflow-y-auto border-l border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-              Project timeline
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {project.name}
-              {project.client ? ` · ${project.client}` : ""}
-            </p>
+    <div className="fixed inset-0 z-[99999] flex justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="flex h-full w-full max-w-xl flex-col border-l border-[#eadfcf] bg-[#fbf8f3] shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 border-b border-[#eadfcf] bg-[#fdfbf7] px-5 py-4 dark:border-[#3a342c] dark:bg-[#1a1714]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#c4a574]">
+                Project tasks
+              </p>
+              <h3 className="mt-1 truncate font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]" style={serif}>
+                {project.name}
+              </h3>
+              <p className="mt-0.5 text-sm text-[#8a7b68]">
+                {project.client || "No client"}
+                {project.startIso || project.endIso
+                  ? ` · ${dateLabel(project.startIso)} → ${dateLabel(project.endIso)}`
+                  : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#eadfcf] text-[#8a7b68] hover:bg-white"
+              aria-label="Close"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-          >
-            ✕
-          </button>
+
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {[
+              { label: "Total", value: counts.all },
+              { label: "To do", value: counts.todo },
+              { label: "Doing", value: counts.progress },
+              { label: "Overdue", value: counts.overdue, rose: true },
+            ].map((chip) => (
+              <div
+                key={chip.label}
+                className="rounded-xl border border-[#eadfcf] bg-white px-2.5 py-2 text-center dark:border-[#3a342c] dark:bg-[#161411]"
+              >
+                <p
+                  className={`font-serif text-lg ${chip.rose && chip.value ? "text-rose-700" : "text-[#1c1610] dark:text-[#f3ece2]"}`}
+                  style={serif}
+                >
+                  {chip.value}
+                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68]">
+                  {chip.label}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
-          <p className="text-theme-xs uppercase tracking-wide text-gray-400">
-            Project dates
-          </p>
-          <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-            {projectSpan.from}
-          </p>
-          {projectSpan.to ? (
-            <p className="text-xs text-gray-400">→ {projectSpan.to}</p>
-          ) : null}
-        </div>
-
-        <form
-          className="mb-6 space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/[0.02]"
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            void addTask();
-          }}
-        >
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Add timeline task
-          </p>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Task title *"
-            className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-          />
-          <textarea
-            rows={2}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Notes (optional)"
-            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className={`${selectClass} w-full`}
-            >
-              {statuses.map((s) => (
-                <option key={s} value={s}>
-                  {enumToLabel(s)}
-                </option>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#eadfcf] bg-[#fdfbf7] px-5 py-3 dark:border-[#3a342c] dark:bg-[#1a1714]">
+            <div className="inline-flex max-w-full overflow-x-auto overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFilter(tab.id)}
+                  className={`h-9 shrink-0 px-3 text-[11px] font-semibold uppercase tracking-[0.1em] ${
+                    filter === tab.id
+                      ? "bg-[#1c1610] text-[#e8d5b5]"
+                      : "bg-[#fdfbf7] text-[#8a7b68] hover:bg-white"
+                  }`}
+                >
+                  {tab.label}
+                  <span className="ml-1 opacity-70">{tab.count}</span>
+                </button>
               ))}
-            </select>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className={`${selectClass} w-full`}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              className="inline-flex h-9 shrink-0 items-center rounded-xl bg-[#1c1610] px-3.5 text-xs font-semibold uppercase tracking-[0.1em] text-[#e8d5b5]"
             >
-              {priorities.map((p) => (
-                <option key={p} value={p}>
-                  {enumToLabel(p)}
-                </option>
-              ))}
-            </select>
+              {showForm ? "Close form" : "+ Add task"}
+            </button>
           </div>
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-gray-500">Start date</p>
-            <DatePickerField
-              id={`project-task-start-${project.id}`}
-              value={startDate}
-              onChange={setStartDate}
-              placeholder="Start date"
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-gray-500">End date</p>
-            <DatePickerField
-              id={`project-task-end-${project.id}`}
-              value={dueDate}
-              onChange={setDueDate}
-              placeholder="End date"
-            />
-          </div>
-          <select
-            value={assignedToId}
-            onChange={(e) => setAssignedToId(e.target.value)}
-            className={`${selectClass} w-full`}
-          >
-            <option value="">Unassigned</option>
-            <optgroup label="Team">
-              {users
-                .filter((u) => !u.vendorId)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-            </optgroup>
-            {vendors.length ? (
-              <optgroup label="Vendors">
-                {vendors.map((v) => (
-                  <option key={v.id} value={`vendor:${v.id}`}>
-                    {v.name}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-          </select>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!title.trim() || saving}
-          >
-            {saving ? "Saving…" : "Add to timeline"}
-          </Button>
-        </form>
 
-        {error ? (
-          <p className="mb-4 text-sm text-error-500">{error}</p>
-        ) : null}
-
-        {loading ? (
-          <ListSkeleton rows={5} />
-        ) : openTasks.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            No timeline tasks yet. Add one with start and end dates.
-          </p>
-        ) : (
-          <div className="relative space-y-0 border-l border-gray-200 pl-4 dark:border-gray-700">
-            {openTasks.map((task) => {
-              const span = timelineLabel(task.startDate, task.dueDate);
-              return (
-                <div key={task.id} className="relative mb-5">
-                  <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500 dark:border-gray-900" />
-                  <div className="rounded-xl border border-gray-100 p-3 dark:border-gray-800">
-                    <div className="mb-1 flex items-start justify-between gap-2">
-                      <p
-                        className={`text-sm font-medium text-gray-800 dark:text-white/90 ${
-                          task.status === "DONE" ? "line-through opacity-70" : ""
-                        }`}
-                      >
-                        {task.title}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => void removeTask(task.id)}
-                        className="text-xs text-error-500 hover:text-error-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      {span.from}
-                    </p>
-                    {span.to ? (
-                      <p className="text-xs text-gray-400">→ {span.to}</p>
-                    ) : null}
-                    {task.description ? (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {task.description}
-                      </p>
-                    ) : null}
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Badge size="sm" color={statusColor[task.status] || "light"}>
-                        {enumToLabel(task.status)}
-                      </Badge>
-                      <select
-                        value={task.status}
-                        onChange={(e) =>
-                          void patchTask(task.id, { status: e.target.value })
-                        }
-                        className="h-8 rounded-md border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                      >
-                        {statuses.map((s) => (
-                          <option key={s} value={s}>
-                            {enumToLabel(s)}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={task.assignedToId || ""}
-                        onChange={(e) => {
-                          const next = parseAssigneeValue(e.target.value);
-                          void patchTask(
-                            task.id,
-                            next.vendorId
-                              ? { vendorId: next.vendorId }
-                              : { assignedToId: next.assignedToId }
-                          );
-                        }}
-                        className="h-8 max-w-[160px] rounded-md border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                      >
-                        <option value="">Unassigned</option>
-                        {users.map((u) => (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {showForm ? (
+              <form
+                id="project-task-create-form"
+                className="space-y-3 border-b border-[#eadfcf] bg-white px-5 py-4 dark:border-[#3a342c] dark:bg-[#1a1714]"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void addTask();
+                }}
+              >
+                <p className="text-sm font-medium text-[#1c1610]">New task</p>
+                <div>
+                  <label className={labelClass}>Title *</label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="What needs to be done?"
+                    className={fieldClass}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Notes</label>
+                  <textarea
+                    rows={2}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Optional details"
+                    className={`${fieldClass} h-auto py-2.5`}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Status</label>
+                    <select value={status} onChange={(e) => setStatus(e.target.value)} className={fieldClass}>
+                      {statuses.map((s) => (
+                        <option key={s} value={s}>
+                          {enumToLabel(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Priority</label>
+                    <select value={priority} onChange={(e) => setPriority(e.target.value)} className={fieldClass}>
+                      {priorities.map((p) => (
+                        <option key={p} value={p}>
+                          {enumToLabel(p)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Start date</label>
+                    <DatePickerField
+                      id={`project-task-start-${project.id}`}
+                      value={startDate}
+                      onChange={setStartDate}
+                      placeholder="Select start"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Due date</label>
+                    <DatePickerField
+                      id={`project-task-end-${project.id}`}
+                      value={dueDate}
+                      onChange={setDueDate}
+                      placeholder="Select due"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Assign to</label>
+                  <select
+                    value={assignedToId}
+                    onChange={(e) => setAssignedToId(e.target.value)}
+                    className={fieldClass}
+                  >
+                    <option value="">Unassigned</option>
+                    <optgroup label="Team">
+                      {users
+                        .filter((u) => !u.vendorId)
+                        .map((u) => (
                           <option key={u.id} value={u.id}>
-                            {u.vendorName ? `${u.name} · ${u.vendorName}` : u.name}
+                            {u.name}
                           </option>
                         ))}
+                    </optgroup>
+                    {vendors.length ? (
+                      <optgroup label="Vendors">
                         {vendors.map((v) => (
                           <option key={v.id} value={`vendor:${v.id}`}>
                             {v.name}
                           </option>
                         ))}
-                      </select>
-                    </div>
-                  </div>
+                      </optgroup>
+                    ) : null}
+                  </select>
                 </div>
-              );
-            })}
+              </form>
+            ) : null}
+
+            {error ? <p className="px-5 pt-3 text-sm text-rose-700">{error}</p> : null}
+
+            <div className="px-5 py-4">
+            {loading ? (
+              <ListSkeleton rows={5} />
+            ) : visible.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[#eadfcf] bg-white px-4 py-12 text-center dark:border-[#3a342c] dark:bg-[#1a1714]">
+                <p className="font-serif text-xl text-[#1c1610]" style={serif}>
+                  {filter === "ALL" ? "No tasks yet" : `No ${enumToLabel(filter).toLowerCase()} tasks`}
+                </p>
+                <p className="mt-1 text-sm text-[#8a7b68]">
+                  Add a task with dates and an assignee so the team knows what to do next.
+                </p>
+                {filter === "ALL" && !showForm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(true)}
+                    className="mt-4 inline-flex h-10 items-center rounded-xl bg-[#1c1610] px-4 text-xs font-semibold uppercase tracking-[0.1em] text-[#e8d5b5]"
+                  >
+                    + Add first task
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-3 pb-6">
+                {visible.map((task) => {
+                  const overdue = isOverdue(task);
+                  return (
+                    <article
+                      key={task.id}
+                      className={`rounded-2xl border bg-white p-4 dark:bg-[#1a1714] ${
+                        overdue ? "border-rose-200" : "border-[#eadfcf] dark:border-[#3a342c]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                                statusTone[task.status] || statusTone.TODO
+                              }`}
+                            >
+                              {enumToLabel(task.status)}
+                            </span>
+                            <span className={`text-[10px] font-semibold uppercase tracking-[0.1em] ${priorityTone[task.priority] || priorityTone.MEDIUM}`}>
+                              {enumToLabel(task.priority)} priority
+                            </span>
+                            {overdue ? (
+                              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+                                Overdue
+                              </span>
+                            ) : null}
+                          </div>
+                          <h4
+                            className={`mt-2 font-serif text-lg leading-snug text-[#1c1610] dark:text-[#f3ece2] ${
+                              task.status === "DONE" ? "line-through opacity-60" : ""
+                            }`}
+                            style={serif}
+                          >
+                            {task.title}
+                          </h4>
+                          {task.description ? (
+                            <p className="mt-1 text-sm leading-relaxed text-[#6b645b]">{task.description}</p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void removeTask(task.id)}
+                          className="shrink-0 text-xs font-semibold text-[#b4533a] hover:text-[#8a3424]"
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-[#fbf8f3] p-3 text-sm dark:bg-[#161411] sm:grid-cols-4">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68]">
+                            Start
+                          </p>
+                          <p className="mt-0.5 font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                            {dateLabel(task.startDate)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68]">
+                            Due
+                          </p>
+                          <p
+                            className={`mt-0.5 font-medium ${
+                              overdue ? "text-rose-700" : "text-[#1c1610] dark:text-[#f3ece2]"
+                            }`}
+                          >
+                            {dateLabel(task.dueDate)}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7b68]">
+                            Assigned to
+                          </p>
+                          <p className="mt-0.5 font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                            {assigneeDisplay(task, users, vendors)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div>
+                          <label className={labelClass}>Update status</label>
+                          <select
+                            value={task.status}
+                            onChange={(e) => void patchTask(task.id, { status: e.target.value })}
+                            className={`${fieldClass} h-10`}
+                          >
+                            {statuses.map((s) => (
+                              <option key={s} value={s}>
+                                {enumToLabel(s)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Reassign</label>
+                          <select
+                            value={assigneeSelectValue(task)}
+                            onChange={(e) => {
+                              const next = parseAssigneeValue(e.target.value);
+                              void patchTask(
+                                task.id,
+                                next.vendorId
+                                  ? { vendorId: next.vendorId, assignedToId: null }
+                                  : { assignedToId: next.assignedToId, vendorId: null }
+                              );
+                            }}
+                            className={`${fieldClass} h-10`}
+                          >
+                            <option value="">Unassigned</option>
+                            {users.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.vendorName ? `${u.name} · ${u.vendorName}` : u.name}
+                              </option>
+                            ))}
+                            {vendors.map((v) => (
+                              <option key={v.id} value={`vendor:${v.id}`}>
+                                {v.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+            </div>
           </div>
-        )}
+
+          {showForm ? (
+            <div className="shrink-0 border-t border-[#eadfcf] bg-[#fdfbf7] px-5 py-3 dark:border-[#3a342c] dark:bg-[#1a1714]">
+              <button
+                type="submit"
+                form="project-task-create-form"
+                disabled={!title.trim() || saving}
+                className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#1c1610] text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save task"}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

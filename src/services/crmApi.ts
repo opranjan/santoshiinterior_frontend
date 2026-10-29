@@ -1834,6 +1834,50 @@ export const modularCatalogsApi = {
   updateSizeItem: (id: string, body: Record<string, unknown>) =>
     api.put<ModularSizeItem>(`/modular-catalogs/size-items/${id}`, body),
   deleteSizeItem: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/size-items/${id}`),
+  listCollections: (query?: Record<string, string | number | undefined>) =>
+    api.get<{ items: ModularOrderCollection[]; total: number }>("/modular-catalogs/collections", query),
+  getCollection: (id: string) =>
+    api.get<ModularOrderCollection>(`/modular-catalogs/collections/${id}`),
+  createCollection: (body: Record<string, unknown>) =>
+    api.post<ModularOrderCollection>("/modular-catalogs/collections", body),
+  updateCollection: (id: string, body: Record<string, unknown>) =>
+    api.put<ModularOrderCollection>(`/modular-catalogs/collections/${id}`, body),
+  fulfillCollectionItem: (id: string, itemId: string, body: Record<string, unknown>) =>
+    api.post<ModularOrderCollection>(`/modular-catalogs/collections/${id}/items/${itemId}/fulfill`, body),
+};
+
+export type ModularOrderCollectionItem = {
+  id: string;
+  collectionId: string;
+  name: string;
+  code: string;
+  qty: number;
+  uom: string;
+  amount: number;
+  vendorId?: string | null;
+  vendorName?: string;
+  fulfillKind?: string | null;
+  purchaseOrderId?: string | null;
+};
+
+export type ModularOrderCollection = {
+  id: string;
+  seq: number;
+  code: string;
+  title: string;
+  seriesName: string;
+  catalogName: string;
+  sizeName: string;
+  seriesId?: string | null;
+  catalogId?: string | null;
+  sizeId?: string | null;
+  projectId?: string | null;
+  project?: { id: string; name: string; address?: string | null } | null;
+  deliveryDate?: string | null;
+  status: string;
+  amount: number;
+  createdAt: string;
+  items: ModularOrderCollectionItem[];
 };
 
 export const usersApi = {

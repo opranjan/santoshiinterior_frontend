@@ -15,7 +15,9 @@ import {
   parseBudget,
   paymentSerif,
 } from "@/components/payments/paymentMoney";
-import { toastError } from "@/components/ui/toast/ToastHost";
+import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
+import { useAuth } from "@/context/AuthContext";
+import { hasAnyPermission } from "@/lib/permissions";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 
 type PaymentRow = {
@@ -67,6 +69,8 @@ function SummaryChip({
 }
 
 export default function ProjectPayments({ projectId }: { projectId: string }) {
+  const { user } = useAuth();
+  const canDelete = hasAnyPermission(user, ["payments.manage", "finance.full", "users.manage"]);
   const [project, setProject] = useState<{
     id: string;
     name: string;
@@ -79,6 +83,8 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
   const [showReversed, setShowReversed] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<PaymentRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(async () => {
     const [projectRes, paymentRes] = await Promise.all([
@@ -122,6 +128,21 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
     `h-10 px-5 text-xs font-semibold uppercase tracking-[0.12em] ${
       active ? "bg-[#1c1610] text-[#e8d5b5]" : "bg-transparent text-[#8a7b68]"
     }`;
+
+  const confirmDeletePayment = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await paymentsApi.remove(deleteTarget.id);
+      setItems((prev) => prev.filter((row) => row.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toastSuccess("Payment deleted.");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Could not delete payment");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -193,8 +214,19 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead>
                 <tr className="border-b border-[#f0e8db] bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914]">
-                  {["ID", "Transaction date", "Recorded date", "Amount", "Expense by", "Vendor", "Contract", "Source", "Type", "Category"].map(
-                    (heading) => (
+                  {[
+                    "ID",
+                    "Transaction date",
+                    "Recorded date",
+                    "Amount",
+                    "Expense by",
+                    "Vendor",
+                    "Contract",
+                    "Source",
+                    "Type",
+                    "Category",
+                    ...(canDelete ? ["Action"] : []),
+                  ].map((heading) => (
                       <th key={heading} className="px-3 py-3.5">
                         {heading}
                       </th>
@@ -205,13 +237,13 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-12 text-center text-[#8a7b68]">
+                    <td colSpan={canDelete ? 11 : 10} className="px-3 py-12 text-center text-[#8a7b68]">
                       Loading expenses...
                     </td>
                   </tr>
                 ) : visibleExpenses.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-16 text-center">
+                    <td colSpan={canDelete ? 11 : 10} className="px-3 py-16 text-center">
                       <p className="font-serif text-xl text-[#1c1610]" style={paymentSerif}>
                         No expenses yet
                       </p>
@@ -235,6 +267,17 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
                         <td className="px-3 py-3">{row.source || "CompanyAccount"}</td>
                         <td className="px-3 py-3">{row.expenseType || "\u2014"}</td>
                         <td className="px-3 py-3">{row.category || "\u2014"}</td>
+                        {canDelete ? (
+                          <td className="px-3 py-3">
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(row)}
+                              className="rounded-lg border border-[#eadfcf] px-2.5 py-1.5 text-xs font-semibold text-[#8a3424] hover:bg-[#fbf4f2]"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })
@@ -245,7 +288,17 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="border-b border-[#f0e8db] bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914]">
-                  {["ID", "Collection date", "Recorded date", "Amount", "Collected by", "Mode", "Contract", "Remarks"].map((heading) => (
+                  {[
+                    "ID",
+                    "Collection date",
+                    "Recorded date",
+                    "Amount",
+                    "Collected by",
+                    "Mode",
+                    "Contract",
+                    "Remarks",
+                    ...(canDelete ? ["Action"] : []),
+                  ].map((heading) => (
                     <th key={heading} className="px-3 py-3.5">
                       {heading}
                     </th>
@@ -255,13 +308,13 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-12 text-center text-[#8a7b68]">
+                    <td colSpan={canDelete ? 9 : 8} className="px-3 py-12 text-center text-[#8a7b68]">
                       Loading funds...
                     </td>
                   </tr>
                 ) : funds.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-16 text-center">
+                    <td colSpan={canDelete ? 9 : 8} className="px-3 py-16 text-center">
                       <p className="font-serif text-xl text-[#1c1610]" style={paymentSerif}>
                         No funds yet
                       </p>
@@ -281,6 +334,17 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
                       <td className="px-3 py-3">{row.method || "\u2014"}</td>
                       <td className="px-3 py-3">{row.contractName || "\u2014"}</td>
                       <td className="px-3 py-3 text-[#8a7b68]">{row.remark || "\u2014"}</td>
+                      {canDelete ? (
+                        <td className="px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(row)}
+                            className="rounded-lg border border-[#eadfcf] px-2.5 py-1.5 text-xs font-semibold text-[#8a3424] hover:bg-[#fbf4f2]"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 )}
@@ -289,6 +353,41 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
           )}
         </div>
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-white p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3 className="font-serif text-lg text-[#1c1610]" style={paymentSerif}>
+              Delete payment?
+            </h3>
+            <p className="mt-2 text-sm text-[#8a7b68]">
+              Remove{" "}
+              <strong className="text-[#1c1610]">
+                {deleteTarget.invoiceNo || deleteTarget.id.slice(0, 8)}
+              </strong>{" "}
+              ({formatINRSigned(Number(deleteTarget.paidAmount || deleteTarget.amount || 0))}) permanently?
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => !deleteBusy && setDeleteTarget(null)}
+                disabled={deleteBusy}
+                className="rounded-md border border-[#eadfcf] px-4 py-2 text-sm font-semibold text-[#5c5044] hover:bg-[#fbf8f3] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeletePayment()}
+                disabled={deleteBusy}
+                className="rounded-md bg-[#8a3424] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6f291c] disabled:opacity-50"
+              >
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <AddExpenseModal
         open={expenseOpen}

@@ -95,6 +95,8 @@ async function createOrder(kind: "PO" | "WO", ctx: FulfillContext, items: Fulfil
     shippingAddress: ctx.projectAddress || null,
     source: ctx.source || "MODULAR_CATALOG",
     remark: ctx.remark || null,
+    status: "SENT",
+    orderState: "ORDER_CREATED",
     items: items.map((item) => ({
       name: item.name.trim(),
       code: item.code || null,
@@ -140,11 +142,19 @@ export async function fulfillItems(dest: FulfillDestination, ctx: FulfillContext
   if (!named.length) throw new Error("Add at least one named item.");
   if (dest === "ORDER") {
     const id = await createOrder("WO", ctx, named);
-    return { message: "Work order created.", href: `/operations/procurement/orders/${id}` };
+    return { message: "Work order created.", href: `/operations/procurement/orders/${id}`, purchaseOrderId: id };
   }
   if (dest === "PURCHASE") {
+    if (!ctx.projectId) throw new Error("Select a project first.");
     const id = await createOrder("PO", ctx, named);
-    return { message: "Purchase order created.", href: `/operations/procurement/orders/${id}` };
+    const warehouse = await ensureProjectWarehouse(ctx.projectId, ctx.projectName);
+    await createConfirmedStockIn(warehouse, ctx, named);
+    return {
+      message: "Purchase order created and stocked in the project warehouse.",
+      href: `/operations/procurement/orders/${id}`,
+      purchaseOrderId: id,
+      warehouseId: warehouse.id,
+    };
   }
   if (dest === "INVENTORY") {
     const warehouse = await ensureCompanyWarehouse();
@@ -152,6 +162,7 @@ export async function fulfillItems(dest: FulfillDestination, ctx: FulfillContext
     return {
       message: `Stocked into ${warehouse.name}.`,
       href: `/inventory/warehouses/${created.warehouse.id}`,
+      purchaseOrderId: undefined as string | undefined,
     };
   }
   if (!ctx.projectId) throw new Error("Project is required for project warehouse.");
@@ -159,6 +170,7 @@ export async function fulfillItems(dest: FulfillDestination, ctx: FulfillContext
   const created = await createConfirmedStockIn(warehouse, ctx, named);
   return {
     message: `Stocked into ${warehouse.name}.`,
+    purchaseOrderId: undefined as string | undefined,
     href: `/inventory/warehouses/${created.warehouse.id}`,
   };
 }

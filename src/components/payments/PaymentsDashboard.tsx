@@ -13,7 +13,9 @@ import {
   paymentFieldClass,
   paymentSerif,
 } from "@/components/payments/paymentMoney";
-import { toastError } from "@/components/ui/toast/ToastHost";
+import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
+import { useAuth } from "@/context/AuthContext";
+import { hasAnyPermission } from "@/lib/permissions";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 
 type ProjectRow = {
@@ -99,10 +101,16 @@ function Money({ value, tone }: { value: number; tone?: "rose" | "olive" | "mute
 
 export default function PaymentsDashboard() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canDelete = hasAnyPermission(user, ["payments.manage", "finance.full", "projects.manage", "users.manage"]);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const [deleteTarget, setDeleteTarget] = useState<LedgerRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   useEffect(() => {
     Promise.all([projectsApi.list({ limit: 200 }), paymentsApi.list({ limit: 200 })])
@@ -114,6 +122,24 @@ export default function PaymentsDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await projectsApi.remove(deleteTarget.id);
+      setProjects((prev) => prev.filter((row) => row.id !== deleteTarget.id));
+      setPayments((prev) =>
+        prev.filter((row) => (row.projectId || row.project?.id) !== deleteTarget.id)
+      );
+      setDeleteTarget(null);
+      toastSuccess("Project removed from payments.");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Could not delete project");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   const rows = useMemo(() => buildRows(projects, payments), [projects, payments]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -124,6 +150,29 @@ export default function PaymentsDashboard() {
         row.projectName.toLowerCase().includes(q)
     );
   }, [rows, search]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
+  );
+  const showingFrom = filtered.length ? (page - 1) * pageSize + 1 : 0;
+  const showingTo = Math.min(page * pageSize, filtered.length);
+  const pageButtons = useMemo(() => {
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, i) => i + 1);
+    }
+    const set = new Set([1, pageCount, page, page - 1, page + 1, page - 2, page + 2]);
+    return [...set].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  }, [page, pageCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
@@ -287,6 +336,7 @@ export default function PaymentsDashboard() {
                   "Payables dues",
                   "Cash flow",
                   "Cash flow %",
+                  ...(canDelete ? ["Action"] : []),
                 ].map((heading) => (
                   <th key={heading} className="px-3 py-3.5 whitespace-nowrap">
                     {heading}
@@ -297,13 +347,13 @@ export default function PaymentsDashboard() {
             <tbody>
               {loading ? (
                 <tr>
-                    <td colSpan={12} className="px-3 py-12 text-center text-[#8a7b68]">
+                    <td colSpan={canDelete ? 13 : 12} className="px-3 py-12 text-center text-[#8a7b68]">
                     Loading payments...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                    <td colSpan={12} className="px-3 py-16 text-center">
+                    <td colSpan={canDelete ? 13 : 12} className="px-3 py-16 text-center">
                     <p className="font-serif text-xl text-[#1c1610]" style={paymentSerif}>
                       No projects yet
                     </p>
@@ -311,7 +361,7 @@ export default function PaymentsDashboard() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((row) => (
+                paged.map((row) => (
                   <tr
                     key={row.id}
                     onClick={() => router.push(`/payments/${row.id}`)}
@@ -351,16 +401,106 @@ export default function PaymentsDashboard() {
                     <td className={`px-3 py-3 font-medium ${row.cashFlowPct < 0 ? "text-rose-700" : "text-[#3d5a3a]"}`}>
                       {formatPct(row.cashFlowPct)}
                     </td>
+                    {canDelete ? (
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(row)}
+                          className="rounded-lg border border-[#eadfcf] px-2.5 py-1.5 text-xs font-semibold text-[#8a3424] hover:bg-[#fbf4f2]"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
-        <p className="border-t border-[#eadfcf] px-4 py-3 text-xs text-[#8a7b68] dark:border-[#3a342c]">
-          {filtered.length} project{filtered.length === 1 ? "" : "s"} · click a row for expenses and funds
-        </p>
+        {filtered.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eadfcf] px-4 py-3 text-sm text-[#8a7b68] dark:border-[#3a342c]">
+            <p>
+              Showing {showingFrom} to {showingTo} of {filtered.length} project
+              {filtered.length === 1 ? "" : "s"} · click a row for expenses and funds
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ‹
+              </button>
+              {pageButtons.map((n, index) => {
+                const prev = pageButtons[index - 1];
+                return (
+                  <React.Fragment key={n}>
+                    {prev && n - prev > 1 ? <span className="px-1">…</span> : null}
+                    <button
+                      type="button"
+                      onClick={() => setPage(n)}
+                      className={`grid h-8 min-w-8 place-items-center rounded-md px-2 text-sm ${
+                        n === page
+                          ? "bg-[#1c1610] text-[#e8d5b5]"
+                          : "border border-[#eadfcf] text-[#3d342c]"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+              <button
+                type="button"
+                disabled={page >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border border-[#eadfcf] disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="border-t border-[#eadfcf] px-4 py-3 text-xs text-[#8a7b68] dark:border-[#3a342c]">
+            click a row for expenses and funds
+          </p>
+        )}
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#eadfcf] bg-white p-6 shadow-2xl dark:border-[#3a342c] dark:bg-[#161411]">
+            <h3 className="font-serif text-lg text-[#1c1610]" style={paymentSerif}>
+              Delete project?
+            </h3>
+            <p className="mt-2 text-sm text-[#8a7b68]">
+              Remove <strong className="text-[#1c1610]">{deleteTarget.projectName}</strong>
+              {deleteTarget.clientName !== "\u2014" ? ` (${deleteTarget.clientName})` : ""} from payments?
+              This soft-deletes the project.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => !deleteBusy && setDeleteTarget(null)}
+                disabled={deleteBusy}
+                className="rounded-md border border-[#eadfcf] px-4 py-2 text-sm font-semibold text-[#5c5044] hover:bg-[#fbf8f3] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDelete()}
+                disabled={deleteBusy}
+                className="rounded-md bg-[#8a3424] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6f291c] disabled:opacity-50"
+              >
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
