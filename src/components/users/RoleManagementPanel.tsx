@@ -32,6 +32,37 @@ function emptyForm(): RoleForm {
   };
 }
 
+const WHATSAPP_TAB_KEYS = [
+  "messages.whatsapp.all",
+  "messages.whatsapp.leads",
+  "messages.whatsapp.projects",
+  "messages.whatsapp.campaigns",
+  "messages.whatsapp.vendors",
+] as const;
+
+const DESIGN_TAB_KEYS = ["design.designing", "design.elevation"] as const;
+
+/** Always shown in Design menu (even if API catalog is stale). */
+const DESIGN_MENU_PERMS: PermissionGroup["permissions"] = [
+  {
+    key: "design.manage",
+    label: "Both (Designing + Elevation)",
+    hint: "Grants Designing and Elevation together",
+  },
+  {
+    key: "design.designing",
+    label: "Designing only",
+    hint: "Sidebar Design → Designing",
+  },
+  {
+    key: "design.elevation",
+    label: "Elevation only",
+    hint: "Sidebar Design → Elevation",
+  },
+];
+
+const DESIGN_MENU_KEYS = DESIGN_MENU_PERMS.map((p) => p.key);
+
 function PermissionPicker({
   groups,
   selected,
@@ -42,6 +73,55 @@ function PermissionPicker({
   onChange: (next: string[]) => void;
 }) {
   const toggle = (key: string) => {
+    if (key === "messages.whatsapp.all") {
+      const tabKeys = WHATSAPP_TAB_KEYS.filter((k) => k !== "messages.whatsapp.all");
+      if (selected.includes(key)) {
+        onChange(selected.filter((p) => p !== key && !tabKeys.includes(p as (typeof tabKeys)[number])));
+      } else {
+        onChange([...new Set([...selected, key, ...tabKeys])]);
+      }
+      return;
+    }
+    if (key === "design.manage") {
+      if (selected.includes(key)) {
+        onChange(
+          selected.filter(
+            (p) =>
+              p !== key &&
+              !DESIGN_TAB_KEYS.includes(p as (typeof DESIGN_TAB_KEYS)[number])
+          )
+        );
+      } else {
+        onChange([...new Set([...selected, key, ...DESIGN_TAB_KEYS])]);
+      }
+      return;
+    }
+    if (
+      key.startsWith("messages.whatsapp.") &&
+      key !== "messages.whatsapp.all" &&
+      selected.includes("messages.whatsapp.all")
+    ) {
+      // Turning off one tab drops the All master.
+      const withoutAll = selected.filter((p) => p !== "messages.whatsapp.all");
+      onChange(
+        withoutAll.includes(key)
+          ? withoutAll.filter((p) => p !== key)
+          : [...withoutAll, key]
+      );
+      return;
+    }
+    if (
+      DESIGN_TAB_KEYS.includes(key as (typeof DESIGN_TAB_KEYS)[number]) &&
+      selected.includes("design.manage")
+    ) {
+      const withoutBoth = selected.filter((p) => p !== "design.manage");
+      onChange(
+        withoutBoth.includes(key)
+          ? withoutBoth.filter((p) => p !== key)
+          : [...withoutBoth, key]
+      );
+      return;
+    }
     onChange(
       selected.includes(key)
         ? selected.filter((p) => p !== key)
@@ -58,12 +138,51 @@ function PermissionPicker({
     }
   };
 
+  const renderPerm = (perm: PermissionGroup["permissions"][number]) => {
+    const checked =
+      selected.includes(perm.key) ||
+      (perm.key !== "messages.whatsapp.all" &&
+        WHATSAPP_TAB_KEYS.includes(perm.key as (typeof WHATSAPP_TAB_KEYS)[number]) &&
+        selected.includes("messages.whatsapp.all")) ||
+      (DESIGN_TAB_KEYS.includes(perm.key as (typeof DESIGN_TAB_KEYS)[number]) &&
+        selected.includes("design.manage"));
+    return (
+      <label
+        key={perm.key}
+        className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 transition ${
+          checked
+            ? "border-[#c4a574]/40 bg-[#c4a574]/5"
+            : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={() => toggle(perm.key)}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#c4a574]"
+        />
+        <span>
+          <span className="block text-sm font-medium text-gray-800 dark:text-white/90">
+            {perm.label}
+          </span>
+          <span className="block text-[11px] text-gray-500">{perm.hint}</span>
+        </span>
+      </label>
+    );
+  };
+
   return (
-    <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+    <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
       {groups.map((group) => {
         const keys = group.permissions.map((p) => p.key);
         const selectedCount = keys.filter((k) => selected.includes(k)).length;
         const allSelected = selectedCount === keys.length && keys.length > 0;
+        const whatsappTabs = group.permissions.filter((p) =>
+          WHATSAPP_TAB_KEYS.includes(p.key as (typeof WHATSAPP_TAB_KEYS)[number])
+        );
+        const otherPerms = group.permissions.filter(
+          (p) => !WHATSAPP_TAB_KEYS.includes(p.key as (typeof WHATSAPP_TAB_KEYS)[number])
+        );
 
         return (
           <div
@@ -85,35 +204,46 @@ function PermissionPicker({
                 {allSelected ? "Clear all" : "Select all"}
               </button>
             </div>
+
+            {group.id === "communication" && whatsappTabs.length ? (
+              <div className="mb-3 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#1a1714]">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9a7748]">
+                  WhatsApp inbox tabs
+                </p>
+                <p className="mb-2.5 text-[11px] text-[#8a7b68]">
+                  Choose All, or pick Leads / Projects / Campaign / Vendor for Communication → WhatsApp.
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {whatsappTabs.map(renderPerm)}
+                </div>
+              </div>
+            ) : null}
+
+            {group.id === "projects" ? (
+              <div className="mb-3 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#1a1714]">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9a7748]">
+                  Design menu
+                </p>
+                <p className="mb-2.5 text-[11px] text-[#8a7b68]">
+                  Pick Both, Designing only, Elevation only, or tick Designing and Elevation together.
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {DESIGN_MENU_PERMS.map(renderPerm)}
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {group.permissions.map((perm) => {
-                const checked = selected.includes(perm.key);
-                return (
-                  <label
-                    key={perm.key}
-                    className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 transition ${
-                      checked
-                        ? "border-[#c4a574]/40 bg-[#c4a574]/5"
-                        : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(perm.key)}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#c4a574]"
-                    />
-                    <span>
-                      <span className="block text-sm font-medium text-gray-800 dark:text-white/90">
-                        {perm.label}
-                      </span>
-                      <span className="block text-[11px] text-gray-500">
-                        {perm.hint}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
+              {(group.id === "communication"
+                ? otherPerms
+                : group.id === "projects"
+                  ? group.permissions.filter(
+                      (p) =>
+                        !DESIGN_MENU_KEYS.includes(p.key) &&
+                        p.key !== "design.view"
+                    )
+                  : group.permissions
+              ).map(renderPerm)}
             </div>
           </div>
         );

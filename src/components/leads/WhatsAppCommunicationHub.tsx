@@ -361,7 +361,9 @@ export default function WhatsAppCommunicationHub({
       ? PROJECT_STAGES
       : viewMode === "campaign"
         ? CAMPAIGN_TYPES
-        : LEAD_STATUSES.map((s) => ({ value: s, label: enumToLabel(s) }));
+        : viewMode === "vendor"
+          ? []
+          : LEAD_STATUSES.map((s) => ({ value: s, label: enumToLabel(s) }));
 
   return (
     <div
@@ -407,7 +409,9 @@ export default function WhatsAppCommunicationHub({
               placeholder={
                 viewMode === "campaign"
                   ? "Search campaign or name"
-                  : "Search name or project"
+                  : viewMode === "vendor"
+                    ? "Search vendor or phone"
+                    : "Search name or project"
               }
               className="h-9 w-full rounded-lg border-0 bg-[#f0f2f5] pl-9 pr-3 text-sm text-[#111b21] placeholder:text-[#8696a0] focus:outline-none focus:ring-2 focus:ring-[#25d366]/30 dark:bg-[#202c33] dark:text-white/90"
             />
@@ -436,6 +440,7 @@ export default function WhatsAppCommunicationHub({
               ))}
             </div>
             ) : null}
+            {viewMode !== "vendor" ? (
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}
@@ -448,6 +453,7 @@ export default function WhatsAppCommunicationHub({
                 </option>
               ))}
             </select>
+            ) : null}
           </div>
         </div>
 
@@ -476,20 +482,28 @@ export default function WhatsAppCommunicationHub({
                 ? "No projects match your filters."
                 : viewMode === "campaign"
                   ? "No campaign chats. Ads and unknown WhatsApp numbers appear here — sales leads stay in Lead."
-                  : "No leads match your filters."}
+                  : viewMode === "vendor"
+                    ? "No vendors with phone numbers yet. Add a phone on My Vendors to chat here."
+                    : "No leads match your filters."}
             </p>
           ) : (
             inbox.map((item) => {
               const active = item.id === activeLeadId;
               const title =
                 item.displayTitle ||
-                (viewMode === "project" ? item.projectName : item.clientName) ||
+                (viewMode === "project"
+                  ? item.projectName
+                  : viewMode === "vendor"
+                    ? item.clientName
+                    : item.clientName) ||
                 item.clientName;
               const subtitle =
                 item.displaySubtitle ||
                 (viewMode === "project"
                   ? item.assigneeName || "Unassigned"
-                  : item.leadOwnerName || item.assigneeName || item.projectName || item.phone);
+                  : viewMode === "vendor"
+                    ? item.phone || "Vendor"
+                    : item.leadOwnerName || item.assigneeName || item.projectName || item.phone);
               const preview = item.lastMessage?.preview || "Start WhatsApp conversation";
               const time = formatListTime(item.lastMessage?.createdAt || item.updatedAt);
 

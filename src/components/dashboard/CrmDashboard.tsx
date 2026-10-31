@@ -23,7 +23,11 @@ import CrmDashboardCharts from "@/components/dashboard/CrmDashboardCharts";
 import { dashboardApi, storesApi, type DashboardDto } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
 import { useAuth } from "@/context/AuthContext";
-import { hasAnyPermission, canAccessAllStores } from "@/lib/permissions";
+import {
+  hasAnyPermission,
+  canAccessAllStores,
+  isProcurementPanelUser,
+} from "@/lib/permissions";
 
 const formatINR = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -159,7 +163,8 @@ export default function CrmDashboard() {
     };
   }, [storeFilterId]);
 
-  const isSalesView = stats?.view === "sales" || !orgView;
+  const isSalesView =
+    !isProcurementPanelUser(user) && (stats?.view === "sales" || !orgView);
 
   const kpis = useMemo(() => {
     const s = stats?.summary;

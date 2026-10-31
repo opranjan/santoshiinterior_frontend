@@ -46,9 +46,7 @@ const IMPLIES: Record<string, string[]> = {
     "customers.manage",
     "messages.send",
     "messages.view.all",
-    "messages.whatsapp.leads",
-    "messages.whatsapp.projects",
-    "messages.whatsapp.campaigns",
+    "messages.whatsapp.all",
     "calls.make",
     "calls.view",
     "chat.box",
@@ -76,10 +74,12 @@ const IMPLIES: Record<string, string[]> = {
     "messages.whatsapp.projects",
     "messages.whatsapp.campaigns",
   ],
-  "messages.view.all": [
+  "messages.view.all": ["messages.whatsapp.all"],
+  "messages.whatsapp.all": [
     "messages.whatsapp.leads",
     "messages.whatsapp.projects",
     "messages.whatsapp.campaigns",
+    "messages.whatsapp.vendors",
   ],
   "customers.manage": ["customers.view"],
   "projects.manage": ["projects.view"],
@@ -89,7 +89,10 @@ const IMPLIES: Record<string, string[]> = {
   "workorders.manage": ["workorders.update", "warranty.manage", "issues.manage"],
   "purchaseorders.manage": ["procurement.manage", "vendors.manage"],
   "documents.manage": ["documents.view"],
-  "design.manage": ["design.view"],
+  // Manage Design = both sidebar options. Tab keys stay independent otherwise.
+  "design.manage": ["design.view", "design.designing", "design.elevation"],
+  "training.manage": ["training.view"],
+  "tasks.manage": ["tasks.view"],
   "hr.manage": ["hr.view"],
   "hr.portal": ["hr.view", "hr.manage"],
   "stores.manage": ["stores.view"],
@@ -140,7 +143,10 @@ export const WHATSAPP_VIEW_PERMISSIONS = {
   lead: "messages.whatsapp.leads",
   project: "messages.whatsapp.projects",
   campaign: "messages.whatsapp.campaigns",
+  vendor: "messages.whatsapp.vendors",
 } as const;
+
+export const WHATSAPP_ALL_TABS_PERMISSION = "messages.whatsapp.all";
 
 export type WhatsAppViewMode = keyof typeof WHATSAPP_VIEW_PERMISSIONS;
 
@@ -150,14 +156,29 @@ export const canAccessWhatsAppView = (
 ): boolean => {
   if (!user) return false;
   if (user.role === "SUPER_ADMIN") return true;
-  const specific = Object.values(WHATSAPP_VIEW_PERMISSIONS);
+  // Procurement panel: WhatsApp → Projects + Vendor only
+  if (isProcurementPanelUser(user)) {
+    return viewMode === "project" || viewMode === "vendor";
+  }
+  if (
+    hasAnyPermission(user, [
+      WHATSAPP_ALL_TABS_PERMISSION,
+      "messages.view.all",
+      "sales.full",
+    ])
+  ) {
+    return true;
+  }
+  const specific = [
+    WHATSAPP_ALL_TABS_PERMISSION,
+    ...Object.values(WHATSAPP_VIEW_PERMISSIONS),
+  ];
   if (hasAnyPermission(user, specific)) {
     return hasPermission(user, WHATSAPP_VIEW_PERMISSIONS[viewMode]);
   }
+  if (viewMode === "vendor") return false;
   return hasAnyPermission(user, [
     "messages.send",
-    "messages.view.all",
-    "sales.full",
     "sales.manage",
     "sales.view",
     "leads.manage",
@@ -166,10 +187,12 @@ export const canAccessWhatsAppView = (
 
 export const allowedWhatsAppViews = (
   user: AuthUser | null | undefined
-): WhatsAppViewMode[] =>
-  (["lead", "project", "campaign"] as WhatsAppViewMode[]).filter((mode) =>
-    canAccessWhatsAppView(user, mode)
+): WhatsAppViewMode[] => {
+  if (isProcurementPanelUser(user)) return ["project", "vendor"];
+  return (["lead", "project", "campaign", "vendor"] as WhatsAppViewMode[]).filter(
+    (mode) => canAccessWhatsAppView(user, mode)
   );
+};
 
 export const canAccessAllStores = (user: AuthUser | null | undefined): boolean => {
   if (!user) return false;
@@ -200,12 +223,39 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
     ],
   },
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
-  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "calls.make", "calls.view", "users.manage", "chat.box"] },
+  { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "messages.whatsapp.vendors", "calls.make", "calls.view", "users.manage", "chat.box", "procurement.manage", "vendors.manage"] },
   { prefix: "/chat-box", permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"] },
   { prefix: "/quotations", permissions: ["quotations.manage", "quotations.create", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/customers", permissions: ["customers.manage", "customers.view", "sales.full", "sales.manage", "sales.view"] },
-  { prefix: "/design", permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage", "vendor.portal", "franchisee.portal"] },
-  { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal", "vendor.portal"] },
+  {
+    prefix: "/design/designing",
+    permissions: [
+      "design.designing",
+      "design.manage",
+      "vendor.portal",
+      "franchisee.portal",
+    ],
+  },
+  {
+    prefix: "/design/elevation",
+    permissions: [
+      "design.elevation",
+      "design.manage",
+      "vendor.portal",
+      "franchisee.portal",
+    ],
+  },
+  {
+    prefix: "/design",
+    permissions: [
+      "design.manage",
+      "design.designing",
+      "design.elevation",
+      "vendor.portal",
+      "franchisee.portal",
+    ],
+  },
+  { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal", "vendor.portal", "procurement.manage", "purchaseorders.manage"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
   { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage", "procurement.manage"] },
   {
@@ -244,6 +294,24 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/settings/projects", permissions: ["settings.manage", "settings.view", "projects.manage"] },
   { prefix: "/settings/team", permissions: ["settings.manage", "settings.view", "users.manage"] },
   { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "website.manage", "integrations.manage", "procurement.manage"] },
+  /** Empty = any authenticated CRM user (videos still filtered by panel/role on API). */
+  { prefix: "/training", permissions: [] },
+  /** Empty = any authenticated CRM user (published catalog videos). */
+  { prefix: "/catalog-videos", permissions: [] },
+  {
+    prefix: "/task-tracker",
+    permissions: [
+      "tasks.view",
+      "tasks.manage",
+      "projects.view",
+      "projects.manage",
+      "sales.view",
+      "sales.manage",
+      "sales.full",
+      "users.manage",
+      "procurement.manage",
+    ],
+  },
 ];
 
 export const canAccessRoute = (
@@ -271,6 +339,10 @@ export const canAccessRoute = (
     return (
       path === "/" ||
       path === "/profile" ||
+      path === "/training" ||
+      path.startsWith("/training/") ||
+      path === "/catalog-videos" ||
+      path.startsWith("/catalog-videos/") ||
       path === "/hr" ||
       path.startsWith("/hr/")
     );
@@ -279,11 +351,23 @@ export const canAccessRoute = (
     return (
       path === "/" ||
       path === "/profile" ||
+      path === "/training" ||
+      path.startsWith("/training/") ||
+      path === "/catalog-videos" ||
+      path.startsWith("/catalog-videos/") ||
       path === "/casual" ||
       path.startsWith("/casual/")
     );
   }
-  if (isVendorPanelUser(user)) return vendorPanelOk;
+  if (isVendorPanelUser(user)) {
+    return (
+      vendorPanelOk ||
+      path === "/training" ||
+      path.startsWith("/training/") ||
+      path === "/catalog-videos" ||
+      path.startsWith("/catalog-videos/")
+    );
+  }
   if (vendorPanelOnly.some((p) => path === p || path.startsWith(`${p}/`))) {
     return false;
   }
@@ -366,12 +450,12 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Communication",
-    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "calls.make", "calls.view", "users.manage", "chat.box"],
+    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "messages.whatsapp.vendors", "calls.make", "calls.view", "users.manage", "chat.box", "procurement.manage", "vendors.manage"],
     subItems: [
       {
         name: "WhatsApp",
         path: "/communication/whatsapp",
-        permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns"],
+        permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "messages.whatsapp.vendors", "procurement.manage", "vendors.manage"],
       },
       {
         name: "Telephony",
@@ -392,16 +476,33 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Design",
-    permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage"],
+    permissions: ["design.manage", "design.designing", "design.elevation"],
     subItems: [
-      { name: "Designing", path: "/design/designing", permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
-      { name: "Elevation", path: "/design/elevation", permissions: ["design.manage", "design.view", "sales.view", "sales.manage", "sales.full", "leads.manage"] },
+      {
+        name: "Designing",
+        path: "/design/designing",
+        permissions: ["design.designing", "design.manage"],
+      },
+      {
+        name: "Elevation",
+        path: "/design/elevation",
+        permissions: ["design.elevation", "design.manage"],
+      },
     ],
   },
   {
     name: "Projects",
     path: "/projects",
-    permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view"],
+    permissions: [
+      "projects.manage",
+      "projects.view",
+      "design.manage",
+      "site.manage",
+      "sales.full",
+      "sales.view",
+      "procurement.manage",
+      "purchaseorders.manage",
+    ],
   },
   {
     name: "Payments",
@@ -440,6 +541,26 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
     permissions: ["documents.view", "documents.manage", "projects.view", "workorders.manage", "sales.view", "sales.manage", "sales.full"],
   },
   {
+    name: "Task Tracker",
+    path: "/task-tracker",
+    permissions: [
+      "tasks.view",
+      "tasks.manage",
+      "projects.view",
+      "projects.manage",
+      "sales.view",
+      "sales.manage",
+      "sales.full",
+      "users.manage",
+      "procurement.manage",
+    ],
+  },
+  {
+    name: "Catalog Video",
+    path: "/catalog-videos",
+    permissions: [],
+  },
+  {
     name: "HR",
     path: "/hr",
     permissions: ["hr.manage", "hr.view", "users.view", "users.manage"],
@@ -451,13 +572,26 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Admin",
-    permissions: ["users.manage", "users.view", "settings.manage", "settings.view", "roles.manage"],
+    permissions: [
+      "users.manage",
+      "users.view",
+      "settings.manage",
+      "settings.view",
+      "roles.manage",
+      "training.manage",
+      "training.view",
+    ],
     subItems: [
       { name: "Users", path: "/users", permissions: ["users.manage", "users.view", "roles.manage"] },
       { name: "Vendor Panel", path: "/franchisees", permissions: ["users.manage", "users.view", "procurement.manage"] },
       { name: "HR Panel", path: "/users", permissions: ["users.manage", "users.view"] },
       { name: "HR Audits", path: "/users/hr-audits", permissions: ["users.manage", "users.view", "hr.manage"] },
       { name: "Casual Staff Panel", path: "/casual-staff", permissions: ["casual.manage", "users.manage", "users.view"] },
+      {
+        name: "Training",
+        path: "/training",
+        permissions: ["training.manage", "training.view", "users.manage", "settings.manage"],
+      },
       { name: "Settings", path: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "procurement.manage"] },
     ],
   },
@@ -578,6 +712,8 @@ export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Chat Box", path: "/chat", permissions: VENDOR_PANEL_PERMS },
   { name: "Customer Issue", path: "/customer-issues", permissions: VENDOR_PANEL_PERMS },
   { name: "Documents", path: "/documents", permissions: ["documents.manage", "franchisee.portal", "vendor.portal"] },
+  { name: "Training", path: "/training", permissions: [] },
+  { name: "Catalog Video", path: "/catalog-videos", permissions: [] },
   { name: "Profile Settings", path: "/profile", permissions: VENDOR_PANEL_PERMS },
 ];
 
@@ -591,6 +727,8 @@ export const CASUAL_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Home", path: "/", permissions: CASUAL_PANEL_PERMS },
   { name: "My Tasks", path: "/casual/tasks", permissions: CASUAL_PANEL_PERMS },
   { name: "My Updates", path: "/casual/updates", permissions: CASUAL_PANEL_PERMS },
+  { name: "Training", path: "/training", permissions: [] },
+  { name: "Catalog Video", path: "/catalog-videos", permissions: [] },
   { name: "Profile", path: "/casual/profile", permissions: CASUAL_PANEL_PERMS },
 ];
 
@@ -611,6 +749,8 @@ export const HR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Performance", path: "/hr/performance", permissions: HR_PANEL_PERMS },
   { name: "HR Policies", path: "/hr/policies", permissions: HR_PANEL_PERMS },
   { name: "Documents", path: "/hr/documents", permissions: HR_PANEL_PERMS },
+  { name: "Training", path: "/training", permissions: [] },
+  { name: "Catalog Video", path: "/catalog-videos", permissions: [] },
   { name: "Reports", path: "/hr/reports", permissions: HR_PANEL_PERMS },
   { name: "Settings", path: "/hr/settings", permissions: HR_PANEL_PERMS },
 ];
@@ -687,6 +827,26 @@ export const isCasualPanelUser = (user: AuthUser | null | undefined) => {
     hasPermission(user, "casual.portal") &&
     !hasAnyPermission(user, ["sales.full", "sales.manage", "users.manage"])
   );
+};
+
+export const isProcurementPanelUser = (user: AuthUser | null | undefined) => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return false;
+  if (isVendorPanelUser(user) || isHrPanelUser(user) || isCasualPanelUser(user)) {
+    return false;
+  }
+  if (user.accessRole?.key === "PROCUREMENT") return true;
+  if (/procurement/i.test(String(user.accessRole?.label || ""))) return true;
+  const hasProcurement = hasAnyPermission(user, [
+    "procurement.manage",
+    "purchaseorders.manage",
+  ]);
+  const hasSales = hasAnyPermission(user, [
+    "sales.full",
+    "sales.manage",
+    "leads.manage",
+  ]);
+  return hasProcurement && !hasSales;
 };
 
 export const isIsolatedShellUser = (user: AuthUser | null | undefined) =>

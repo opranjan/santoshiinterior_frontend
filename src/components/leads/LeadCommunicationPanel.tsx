@@ -760,6 +760,8 @@ export default function LeadCommunicationPanel({
     "messages.view.all",
     "sales.full",
     "users.manage",
+    "messages.whatsapp.all",
+    "messages.whatsapp.vendors",
   ]);
   const isAssignee =
     user?.id === assignedToId ||
@@ -771,6 +773,8 @@ export default function LeadCommunicationPanel({
       "leads.manage",
       "sales.manage",
       "sales.full",
+      "messages.whatsapp.all",
+      "messages.whatsapp.vendors",
     ]) &&
     (isAssignee || canViewAll);
   const canCall = hasAnyPermission(user, [
@@ -778,6 +782,8 @@ export default function LeadCommunicationPanel({
     "sales.full",
     "sales.manage",
     "leads.manage",
+    "messages.whatsapp.vendors",
+    "messages.whatsapp.all",
   ]);
 
   const loadMessages = useCallback(async (showSpinner = false) => {

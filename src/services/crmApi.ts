@@ -144,10 +144,11 @@ export type WhatsAppInboxItemDto = {
   assigneeName?: string | null;
   leadOwnerName?: string | null;
   updatedAt: string;
-  viewMode?: "project" | "lead" | "campaign";
+  viewMode?: "project" | "lead" | "campaign" | "vendor";
   campaignType?: string | null;
   campaignName?: string | null;
   campaignUrl?: string | null;
+  vendorId?: string | null;
   displayTitle?: string;
   displaySubtitle?: string;
   lastMessage?: {
@@ -315,7 +316,7 @@ export const leadsApi = {
     ),
   getMessagingInbox: (query?: {
     search?: string;
-    viewMode?: "project" | "lead" | "campaign";
+    viewMode?: "project" | "lead" | "campaign" | "vendor";
     leadStatus?: string;
     projectStatus?: string;
     campaignType?: string;
@@ -2659,4 +2660,300 @@ export type InventoryInboxRow = {
   attachmentUrl?: string | null;
   status: "PENDING" | "RECORDED" | "DISCARDED";
   source: "DELIVERY" | "EXPENSE";
+};
+
+export type TrainingPanel = "ALL" | "CRM" | "PROCUREMENT" | "VENDOR" | "HR" | "CASUAL";
+
+export type TrainingVideoDto = {
+  id: string;
+  title: string;
+  description?: string | null;
+  panel: TrainingPanel | string;
+  panelLabel?: string;
+  roleKeys: string[];
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  durationSec?: number | null;
+  isPublished: boolean;
+  sortOrder: number;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const trainingApi = {
+  meta: () =>
+    api.get<{ panels: { id: string; label: string }[]; s3Configured: boolean }>(
+      "/training/meta"
+    ),
+  list: () =>
+    api.get<{
+      panel: string;
+      canManage: boolean;
+      items: TrainingVideoDto[];
+    }>("/training"),
+  /** Multipart upload via API → S3 (avoids browser CORS on the bucket). */
+  upload: async (
+    fields: {
+      title: string;
+      description?: string;
+      panel: string;
+      roleKeys?: string[];
+      isPublished?: boolean;
+    },
+    file: File,
+    onProgress?: (pct: number) => void
+  ) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("title", fields.title);
+    if (fields.description) form.append("description", fields.description);
+    form.append("panel", fields.panel);
+    form.append("roleKeys", JSON.stringify(fields.roleKeys || []));
+    form.append("isPublished", String(fields.isPublished !== false));
+    form.append("video", file);
+
+    return new Promise<TrainingVideoDto>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${base}/training/upload`);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.upload.onprogress = (ev) => {
+        if (!ev.lengthComputable) return;
+        onProgress?.(Math.max(1, Math.round((ev.loaded / ev.total) * 100)));
+      };
+      xhr.onload = () => {
+        let json: {
+          success?: boolean;
+          data?: TrainingVideoDto;
+          error?: { message?: string };
+          message?: string;
+        } | null = null;
+        try {
+          json = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } catch {
+          json = null;
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && json?.data) {
+          resolve(json.data);
+          return;
+        }
+        reject(
+          new Error(
+            json?.error?.message ||
+              json?.message ||
+              `Upload failed (${xhr.status})`
+          )
+        );
+      };
+      xhr.onerror = () => reject(new Error("Upload failed — network error"));
+      xhr.send(form);
+    });
+  },
+  create: (body: Record<string, unknown>) =>
+    api.post<TrainingVideoDto>("/training", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<TrainingVideoDto>(`/training/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/training/${id}`),
+  playbackUrl: (id: string) =>
+    api.get<{
+      id: string;
+      title: string;
+      contentType: string;
+      url: string;
+      expiresInSec: number;
+    }>(`/training/${id}/playback-url`),
+};
+
+export type CatalogVideoDto = {
+  id: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  categoryLabel?: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  durationSec?: number | null;
+  isPublished: boolean;
+  sortOrder: number;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const catalogVideosApi = {
+  meta: () =>
+    api.get<{
+      categories: { id: string; label: string }[];
+      s3Configured: boolean;
+      s3Prefix: string;
+    }>("/catalog-videos/meta"),
+  list: () =>
+    api.get<{
+      canManage: boolean;
+      items: CatalogVideoDto[];
+    }>("/catalog-videos"),
+  /** Multipart upload via API → S3 under catalog-videos/ (avoids browser CORS). */
+  upload: async (
+    fields: {
+      title: string;
+      description?: string;
+      category: string;
+      isPublished?: boolean;
+    },
+    file: File,
+    onProgress?: (pct: number) => void
+  ) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("title", fields.title);
+    if (fields.description) form.append("description", fields.description);
+    form.append("category", fields.category);
+    form.append("isPublished", String(fields.isPublished !== false));
+    form.append("video", file);
+
+    return new Promise<CatalogVideoDto>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${base}/catalog-videos/upload`);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.upload.onprogress = (ev) => {
+        if (!ev.lengthComputable) return;
+        onProgress?.(Math.max(1, Math.round((ev.loaded / ev.total) * 100)));
+      };
+      xhr.onload = () => {
+        let json: {
+          success?: boolean;
+          data?: CatalogVideoDto;
+          error?: { message?: string };
+          message?: string;
+        } | null = null;
+        try {
+          json = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        } catch {
+          json = null;
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && json?.data) {
+          resolve(json.data);
+          return;
+        }
+        reject(
+          new Error(
+            json?.error?.message ||
+              json?.message ||
+              `Upload failed (${xhr.status})`
+          )
+        );
+      };
+      xhr.onerror = () => reject(new Error("Upload failed — network error"));
+      xhr.send(form);
+    });
+  },
+  create: (body: Record<string, unknown>) =>
+    api.post<CatalogVideoDto>("/catalog-videos", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<CatalogVideoDto>(`/catalog-videos/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/catalog-videos/${id}`),
+  playbackUrl: (id: string) =>
+    api.get<{
+      id: string;
+      title: string;
+      contentType: string;
+      url: string;
+      expiresInSec: number;
+    }>(`/catalog-videos/${id}/playback-url`),
+};
+
+export type TrackerTaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "COMPLETED";
+export type TrackerPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
+export type TrackerTaskDto = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: TrackerTaskStatus;
+  priority: TrackerPriority;
+  teams: string[];
+  progress: number;
+  dueDate?: string | null;
+  overdue?: boolean;
+  projectId?: string | null;
+  project?: { id: string; name: string; clientName?: string | null } | null;
+  assignees: Array<{ id: string; name: string; avatarUrl?: string | null; email?: string | null }>;
+  createdBy?: { id: string; name: string; avatarUrl?: string | null } | null;
+  attachments?: Array<{ name: string; url: string; size?: number }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TrackerHistoryDto = {
+  id: string;
+  taskId?: string | null;
+  taskTitle: string;
+  action: string;
+  message: string;
+  changes?: Record<string, unknown> | null;
+  decisionNote?: string | null;
+  actor?: {
+    id: string;
+    name: string;
+    role?: string;
+    avatarUrl?: string | null;
+  } | null;
+  task?: {
+    id: string;
+    title: string;
+    status: string;
+    deleted?: boolean;
+  } | null;
+  createdAt: string;
+};
+
+export const taskTrackerApi = {
+  meta: () =>
+    api.get<{ statuses: string[]; priorities: string[]; teams: string[] }>(
+      "/task-tracker/meta"
+    ),
+  list: (query?: Record<string, string | number | undefined>) =>
+    api.get<{
+      summary: {
+        total: number;
+        todo: number;
+        inProgress: number;
+        inReview: number;
+        completed: number;
+        overdue: number;
+      };
+      items: TrackerTaskDto[];
+      meta: { statuses: string[]; priorities: string[]; teams: string[] };
+    }>("/task-tracker", query),
+  get: (id: string) => api.get<TrackerTaskDto>(`/task-tracker/${id}`),
+  mine: () =>
+    api.get<{ count: number; items: TrackerTaskDto[] }>("/task-tracker/mine"),
+  create: (body: Record<string, unknown>) =>
+    api.post<TrackerTaskDto>("/task-tracker", body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.put<TrackerTaskDto>(`/task-tracker/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/task-tracker/${id}`),
+  history: (query?: Record<string, string | number | undefined>) =>
+    api.get<{ canDecide: boolean; items: TrackerHistoryDto[] }>(
+      "/task-tracker/history",
+      query
+    ),
+  taskHistory: (id: string) =>
+    api.get<{ canDecide: boolean; items: TrackerHistoryDto[] }>(
+      `/task-tracker/${id}/history`
+    ),
+  addDecision: (historyId: string, decisionNote: string) =>
+    api.post<TrackerHistoryDto>(`/task-tracker/history/${historyId}/decision`, {
+      decisionNote,
+    }),
 };

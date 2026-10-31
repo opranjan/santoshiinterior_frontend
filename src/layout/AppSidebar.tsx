@@ -84,6 +84,8 @@ const ICONS: Record<string, React.ReactNode> = {
   Profile: <UserCircleIcon className="size-5 shrink-0" />,
   Integrations: <PlugInIcon className="size-5 shrink-0" />,
   Communication: <ChatIcon className="size-5 shrink-0" />,
+  Training: <TaskIcon className="size-5 shrink-0" />,
+  "Task Tracker": <TaskIcon className="size-5 shrink-0" />,
 };
 
 const withIcons = (items: NavPermissionGroup[]): NavItem[] =>
