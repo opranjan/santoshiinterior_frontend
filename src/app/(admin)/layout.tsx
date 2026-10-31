@@ -56,7 +56,7 @@ export default function AdminLayout({
                 chatPage
                   ? "flex min-h-0 flex-col overflow-hidden p-0 max-lg:max-w-none lg:p-6"
                   : designPage
-                    ? "flex min-h-0 flex-col overflow-hidden px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-4 md:p-6"
+                    ? "flex min-h-0 flex-col overflow-hidden p-0 max-lg:max-w-none"
                   : partner
                     ? "overflow-x-hidden px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:p-6"
                     : "overflow-x-auto p-4 md:p-6"

@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { designApi, type DesignGenerationDto } from "@/services/crmApi";
 import { designAssetUrl } from "@/lib/designAssets";
 import DesignGeneratingLoader from "@/components/design/DesignGeneratingLoader";
+import DesignResultDescription from "@/components/design/DesignResultDescription";
 import { useAuth } from "@/context/AuthContext";
 import { isVendorPanelUser } from "@/lib/permissions";
 
@@ -28,24 +28,39 @@ const defaultPrompts = {
   elevation: "Describe the elevation look you want...",
 };
 
+function buildGeneratingIntro(mode: AiStudioMode, userPrompt: string) {
+  const brief = userPrompt.trim() || (mode === "elevation" ? "redesign this elevation" : "redesign this room");
+  if (mode === "elevation") {
+    return `I'll update your building photo based on: “${brief}”. I'll keep the same structure and camera angle, then refine materials, facade detail, and lighting.`;
+  }
+  return `I'll update your room photo based on: “${brief}”. I'll keep the same layout and camera angle, then adjust colors, materials, furniture, and lighting to match.`;
+}
+
+function TypewriterText({ text }: { text: string }) {
+  const [shown, setShown] = useState("");
+  useEffect(() => {
+    setShown("");
+    let i = 0;
+    const timer = window.setInterval(() => {
+      i += 2;
+      setShown(text.slice(0, i));
+      if (i >= text.length) window.clearInterval(timer);
+    }, 18);
+    return () => window.clearInterval(timer);
+  }, [text]);
+  return (
+    <p className="whitespace-pre-wrap text-[15px] leading-6 text-[#0d0d0d]">
+      {shown}
+      {shown.length < text.length ? (
+        <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-[#0d0d0d] align-middle" />
+      ) : null}
+    </p>
+  );
+}
+
 function chatTitle(item: DesignGenerationDto) {
   const text = String(item.userPrompt || "").trim() || "Untitled design";
   return text.length > 34 ? `${text.slice(0, 34)}…` : text;
-}
-
-function formatChatTime(iso: string) {
-  const date = new Date(iso);
-  const start = (value: Date) =>
-    new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
-  const day = start(date);
-  const today = start(new Date());
-  const diff = today - day;
-  if (diff === 0) {
-    return date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-  }
-  if (diff === 86400000) return "Yesterday";
-  if (diff < 7 * 86400000) return `${Math.round(diff / 86400000)} days ago`;
-  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 function threadKey(item: DesignGenerationDto) {
@@ -161,8 +176,17 @@ export default function AiDesignStudio({ mode }: Props) {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ urls: string[]; index: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState("");
+  const generateAbortRef = useRef<AbortController | null>(null);
 
   promptRef.current = prompt;
+
+  useEffect(() => {
+    return () => {
+      generateAbortRef.current?.abort();
+      generateAbortRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (vendorPanel && mode === "elevation") {
@@ -289,24 +313,35 @@ export default function AiDesignStudio({ mode }: Props) {
       setError("Upload a photo first, then describe what you want to change.");
       return;
     }
+    generateAbortRef.current?.abort();
+    const abort = new AbortController();
+    generateAbortRef.current = abort;
     try {
+      setPendingPrompt(text);
       if (override?.asVariations) setVarying(true);
       else setLoading(true);
       setError("");
-      const data = await designApi.generate({
-        mode,
-        prompt: text || undefined,
-        images,
-        threadId: activeThreadId || undefined,
-      });
+      const data = await designApi.generate(
+        {
+          mode,
+          prompt: text || undefined,
+          images,
+          threadId: activeThreadId || undefined,
+        },
+        { signal: abort.signal }
+      );
+      if (abort.signal.aborted) return;
       setActiveThreadId(data.threadId || data.id);
       setHistory((prev) => [data, ...prev.filter((row) => row.id !== data.id)].slice(0, 200));
       if (!override?.asVariations) clearComposer();
     } catch (err) {
+      if (abort.signal.aborted) return;
       setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
+      if (generateAbortRef.current === abort) generateAbortRef.current = null;
       setLoading(false);
       setVarying(false);
+      setPendingPrompt("");
     }
   };
 
@@ -414,60 +449,60 @@ export default function AiDesignStudio({ mode }: Props) {
   };
 
   const canSend = Boolean(sources.length || latest?.resultImageUrl || latest?.sourceImageUrl) && !loading;
+  const showEmpty = !activeThreadId && !loading && !varying;
 
   const renderHistory = () => (
     <div className="flex min-h-0 flex-1 flex-col">
-      <button
-        type="button"
-        onClick={startNewChat}
-        className="mb-3 flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#111111] text-sm font-medium text-white"
-      >
-        <span className="text-lg leading-none">+</span> New chat
-      </button>
-      <div className="no-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+      <div className="shrink-0 px-3 pb-2 pt-3">
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="flex h-10 w-full items-center gap-2.5 rounded-lg px-2.5 text-[14px] font-medium text-[#0d0d0d] hover:bg-black/[0.06]"
+        >
+          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-black/15">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
+          New chat
+        </button>
+      </div>
+      <div className="no-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
         {threads.length === 0 ? (
-          <p className="px-1 text-sm text-[#9a958e]">No designs yet.</p>
+          <p className="px-2.5 py-2 text-[13px] text-[#8e8e8e]">No chats yet</p>
         ) : (
           threads.map((thread) => {
             const selected = thread.threadId === activeThreadId;
             return (
-              <div key={thread.threadId} className="relative">
+              <div key={thread.threadId} className="group relative">
                 <button
                   type="button"
                   onClick={() => openChat(thread)}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2.5 text-left ${
-                    selected ? "bg-[#f4efe6]" : "hover:bg-[#f7f4ef]"
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13.5px] leading-snug ${
+                    selected ? "bg-black/[0.08]" : "hover:bg-black/[0.05]"
                   }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={designAssetUrl(thread.latest.resultImageUrl)}
                     alt=""
-                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                    className="h-6 w-6 shrink-0 rounded object-cover"
                   />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium text-[#1c1c1c]">
-                      {thread.title}
-                    </span>
-                    <span className="block text-[11px] text-[#9a958e]">
-                      {formatChatTime(thread.latest.createdAt)}
-                      {thread.messages.length > 1 ? ` · ${thread.messages.length}` : ""}
-                    </span>
-                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[#0d0d0d]">{thread.title}</span>
                 </button>
                 <button
                   type="button"
                   title="More"
                   onClick={() => setMenuId(menuId === thread.threadId ? null : thread.threadId)}
-                  className="absolute right-1 top-1.5 flex h-8 w-8 items-center justify-center rounded-md text-[#9a958e] hover:bg-black/5"
+                  className="absolute right-1 top-1/2 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-[#6b6b6b] hover:bg-black/10 group-hover:flex"
                 >
                   ⋯
                 </button>
                 {menuId === thread.threadId ? (
-                  <div className="absolute right-1 top-8 z-10 w-36 rounded-lg border border-[#eceae6] bg-white py-1 text-sm shadow-lg">
+                  <div className="absolute right-1 top-9 z-10 w-40 overflow-hidden rounded-xl border border-black/10 bg-white py-1 text-sm shadow-lg">
                     <button
                       type="button"
-                      className="block w-full px-3 py-2 text-left hover:bg-[#f7f4ef]"
+                      className="block w-full px-3 py-2 text-left text-[#0d0d0d] hover:bg-black/[0.04]"
                       onClick={() => {
                         setMenuId(null);
                         void downloadResult(thread.latest);
@@ -485,317 +520,364 @@ export default function AiDesignStudio({ mode }: Props) {
     </div>
   );
 
-  return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-3 px-0.5 sm:mb-4">
-        <div className="min-w-0">
-          <p className="hidden text-[11px] font-medium uppercase tracking-[0.22em] text-[#b0a89d] sm:block">
-            {isDesign ? "Interior" : "Architecture"}
-          </p>
-          <h1 className="text-xl font-semibold tracking-tight text-[#111111] dark:text-white sm:mt-1 sm:text-[32px] sm:leading-none">
-            {isDesign ? "Designing" : "Elevation"}
-          </h1>
-          <p className="mt-1 hidden text-sm text-[#8b8680] md:block">
-            Create beautiful {isDesign ? "interior designs" : "elevations"} using AI. Upload a photo,
-            describe what you want, or get inspired with examples.
-          </p>
+  const composer = (
+    <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
+      {sources.length ? (
+        <div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto px-1">
+          {sources.map((item) => (
+            <div key={item.id} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-black/10">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.url} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removeSource(item.id)}
+                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[11px] text-white"
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
-        {vendorPanel ? null : (
-          <div className="flex shrink-0 items-center rounded-xl border border-[#eceae6] bg-white p-0.5 shadow-sm sm:p-1">
-            <Link
-              href="/design/designing"
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3.5 sm:text-sm ${
-                isDesign ? "bg-[#111111] text-white" : "text-[#6b6560] hover:text-[#111111]"
-              }`}
-            >
-              Designing
-            </Link>
-            <Link
-              href="/design/elevation"
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium sm:px-3.5 sm:text-sm ${
-                !isDesign ? "bg-[#111111] text-white" : "text-[#6b6560] hover:text-[#111111]"
-              }`}
-            >
-              Elevation
-            </Link>
-          </div>
-        )}
+      ) : null}
+      <div className="rounded-[28px] border border-black/10 bg-[#f4f4f4] px-2.5 py-2 shadow-[0_0_0_1px_rgba(0,0,0,0.02)] focus-within:bg-white focus-within:shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)]">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/jpg"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <div className="flex items-end gap-1.5">
+          <button
+            type="button"
+            title="Attach photo"
+            onClick={() => fileRef.current?.click()}
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#0d0d0d] hover:bg-black/[0.06]"
+          >
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              const el = e.target;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (canSend) void generate();
+              }
+            }}
+            placeholder={showEmpty ? "Ask anything" : defaultPrompts[mode]}
+            className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2.5 text-[16px] leading-6 text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] sm:text-[15px]"
+          />
+          <button
+            type="button"
+            title={listening ? "Stop voice" : "Voice"}
+            onClick={listen}
+            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-black/[0.06] ${
+              listening ? "bg-[#ffe8e0] text-[#c2410c]" : "text-[#0d0d0d]"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a3 3 0 003-3V7a3 3 0 10-6 0v4a3 3 0 003 3zm5-3a5 5 0 01-10 0m5 8v3m-4 0h8" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            title="Send"
+            disabled={!canSend}
+            onClick={() => void generate()}
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white disabled:bg-[#d9d9d9] disabled:text-[#8e8e8e]"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
+            </svg>
+          </button>
+        </div>
       </div>
+      <p className="mt-2 text-center text-[11px] text-[#8e8e8e]">
+        AI can make mistakes. Check important details.
+      </p>
+    </div>
+  );
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-4">
-        <aside className="hidden min-h-0 flex-col overflow-hidden lg:flex">
-          {renderHistory()}
-        </aside>
+  return (
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-white">
+      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-black/[0.06] bg-[#f9f9f9] lg:flex">
+        {renderHistory()}
+      </aside>
 
-        {historyOpen ? (
-          <div className="fixed inset-0 z-[90] lg:hidden">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/40"
-              aria-label="Close chats"
-              onClick={() => setHistoryOpen(false)}
-            />
-            <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col bg-white px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] shadow-2xl">
-              <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-[#111111]">Chats</p>
-                <button
-                  type="button"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-[#6b6560]"
-                  onClick={() => setHistoryOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col">{renderHistory()}</div>
-            </aside>
-          </div>
-        ) : null}
+      {historyOpen ? (
+        <div className="fixed inset-0 z-[90] lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close chats"
+            onClick={() => setHistoryOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,280px)] flex-col bg-[#f9f9f9] shadow-2xl">
+            <div className="flex items-center justify-between px-3 pt-3">
+              <p className="text-sm font-medium text-[#0d0d0d]">Chats</p>
+              <button
+                type="button"
+                className="rounded-lg px-2.5 py-1.5 text-sm text-[#6b6b6b]"
+                onClick={() => setHistoryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            {renderHistory()}
+          </aside>
+        </div>
+      ) : null}
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-[#eceae6] bg-white sm:rounded-[24px]">
-          <div className="flex shrink-0 items-center gap-2 border-b border-[#f0eeea] px-4 py-2.5 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="rounded-lg border border-[#eceae6] px-3 py-1.5 text-sm font-medium text-[#1c1c1c]"
-            >
-              Chats
-            </button>
-            <p className="min-w-0 flex-1 truncate text-sm font-medium text-[#1c1c1c]">
-              {activeThread?.title || "New chat"}
-            </p>
-            <button
-              type="button"
-              onClick={startNewChat}
-              className="rounded-lg bg-[#111111] px-3 py-1.5 text-sm font-medium text-white"
-            >
-              New
-            </button>
-          </div>
-          <div ref={listRef} className="no-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:space-y-6 sm:px-8 sm:py-6">
-            {error ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+      <section className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+        <div className="flex shrink-0 items-center gap-2 px-3 py-2 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/[0.05]"
+            aria-label="Open chats"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h10" />
+            </svg>
+          </button>
+          <p className="min-w-0 flex-1 truncate text-center text-sm font-medium text-[#0d0d0d]">
+            {activeThread?.title || "ChatGPT"}
+          </p>
+          <button
+            type="button"
+            onClick={startNewChat}
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/[0.05]"
+            aria-label="New chat"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        </div>
+
+        <div ref={listRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+          {error ? (
+            <div className="mx-auto mt-4 max-w-3xl px-4">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>
-            ) : null}
+            </div>
+          ) : null}
 
-            {!activeThreadId && !loading ? (
-              <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center">
-                <p className="text-lg font-medium text-[#1c1c1c]">Start a design chat</p>
-                <p className="mt-2 max-w-sm text-sm text-[#8b8680]">
-                  Attach a room photo, describe the change, and generate a concept.
-                </p>
+          {showEmpty ? (
+            <div className="flex h-full min-h-[420px] flex-col items-center justify-center px-4 pb-28">
+              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
+                <IconSparkle className="h-5 w-5" />
               </div>
-            ) : null}
-
-            {turns.map((turn, index) => {
-              const gallery = turn.results;
-              const lastResult = gallery[gallery.length - 1];
-              return (
-                <div key={`${turn.prompt}-${index}`} className="space-y-4">
-                  <div className="flex justify-end">
-                    <div className="flex w-full max-w-[min(100%,520px)] flex-col items-start gap-2 rounded-2xl bg-[#f6f1e8] px-3 py-3 sm:flex-row sm:gap-3">
-                      {turn.sources.slice(0, 1).map((url) => (
-                        <button
-                          key={url}
-                          type="button"
-                          onClick={() => setPreview({ urls: turn.sources.map(designAssetUrl), index: 0 })}
-                          className="shrink-0"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={designAssetUrl(url)}
-                            alt=""
-                            className="h-20 w-28 rounded-xl object-cover"
-                          />
-                        </button>
-                      ))}
-                      <p className="pt-1 text-sm leading-relaxed text-[#3f3a34]">
-                        {turn.prompt || "Make this space look better."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-3 flex items-start gap-2 text-sm text-[#3f3a34]">
-                      <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-white">
-                        <IconSparkle className="h-3.5 w-3.5" />
-                      </span>
-                      <p>
-                        Here is a {isDesign ? "design" : "elevation"} based on your photo
-                        {turn.prompt ? `: ${turn.prompt}` : "."}
-                      </p>
-                    </div>
-
-                    {gallery.length === 1 ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPreview({
-                            urls: [designAssetUrl(gallery[0].resultImageUrl)],
-                            index: 0,
-                          })
-                        }
-                        className="block w-full"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={designAssetUrl(gallery[0].resultImageUrl)}
-                          alt="Generated concept"
-                          className="max-h-[42vh] w-full rounded-2xl object-cover sm:max-h-[420px]"
-                        />
-                      </button>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                        {gallery.map((item, imageIndex) => (
+              <h1 className="text-center text-[28px] font-semibold tracking-tight text-[#0d0d0d] sm:text-[32px]">
+                What can I help with?
+              </h1>
+              <p className="mt-2 max-w-md text-center text-sm text-[#8e8e8e]">
+                Attach a room photo and describe the change you want.
+              </p>
+              <div className="mt-10 w-full">{composer}</div>
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 pb-4 sm:px-5">
+              {turns.map((turn, index) => {
+                const gallery = turn.results;
+                const lastResult = gallery[gallery.length - 1];
+                return (
+                  <div key={`${turn.prompt}-${index}`} className="space-y-5">
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] rounded-[22px] bg-[#f4f4f4] px-4 py-3 sm:max-w-[75%]">
+                        {turn.sources.slice(0, 1).map((url) => (
                           <button
-                            key={item.id}
+                            key={url}
                             type="button"
                             onClick={() =>
-                              setPreview({
-                                urls: gallery.map((row) => designAssetUrl(row.resultImageUrl)),
-                                index: imageIndex,
-                              })
+                              setPreview({ urls: turn.sources.map(designAssetUrl), index: 0 })
                             }
+                            className="mb-2 block"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={designAssetUrl(item.resultImageUrl)}
+                              src={designAssetUrl(url)}
                               alt=""
-                              className="aspect-[4/3] w-full rounded-2xl object-cover"
+                              className="h-28 w-40 rounded-xl object-cover"
                             />
                           </button>
                         ))}
+                        <p className="whitespace-pre-wrap text-[15px] leading-6 text-[#0d0d0d]">
+                          {turn.prompt || "Make this space look better."}
+                        </p>
                       </div>
-                    )}
+                    </div>
 
-                    {index === turns.length - 1 ? (
-                      <div className="mt-3 flex flex-wrap items-center gap-1 text-[#6b6560]">
-                        <button
-                          type="button"
-                          disabled={loading}
-                          onClick={() => void generate({ prompt: lastResult.userPrompt || undefined })}
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[#f7f4ef]"
-                        >
-                          ↻ Regenerate
-                        </button>
-                        <button
-                          type="button"
-                          disabled={downloading}
-                          onClick={() => void downloadResult(lastResult)}
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[#f7f4ef]"
-                        >
-                          ↓ Download
-                        </button>
-                        <button
-                          type="button"
-                          onClick={editPrompt}
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[#f7f4ef]"
-                        >
-                          ✎ Edit
-                        </button>
-                        <button
-                          type="button"
-                          disabled={varying || loading}
-                          onClick={() => void makeVariations()}
-                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[#f7f4ef]"
-                        >
-                          {varying ? "Making variations…" : "⧉ Make variations"}
-                        </button>
+                    <div className="flex gap-3">
+                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
+                        <IconSparkle className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        {gallery.length === 1 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreview({
+                                urls: [designAssetUrl(gallery[0].resultImageUrl)],
+                                index: 0,
+                              })
+                            }
+                            className="block w-full overflow-hidden rounded-2xl"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={designAssetUrl(gallery[0].resultImageUrl)}
+                              alt="Generated concept"
+                              className="max-h-[480px] w-full object-cover"
+                            />
+                          </button>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {gallery.map((item, imageIndex) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() =>
+                                  setPreview({
+                                    urls: gallery.map((row) => designAssetUrl(row.resultImageUrl)),
+                                    index: imageIndex,
+                                  })
+                                }
+                                className="overflow-hidden rounded-xl"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={designAssetUrl(item.resultImageUrl)}
+                                  alt=""
+                                  className="aspect-[4/3] w-full object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <DesignResultDescription
+                          text={lastResult.analysis}
+                          fallback={`Here is a ${isDesign ? "design" : "elevation"} based on your photo${
+                            turn.prompt ? `: ${turn.prompt}` : "."
+                          }`}
+                        />
+
+                        {index === turns.length - 1 ? (
+                          <div className="mt-2 flex flex-wrap items-center gap-0.5 text-[#6b6b6b]">
+                            <button
+                              type="button"
+                              disabled={loading}
+                              onClick={() =>
+                                void generate({ prompt: lastResult.userPrompt || undefined })
+                              }
+                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                            >
+                              Regenerate
+                            </button>
+                            <button
+                              type="button"
+                              disabled={downloading}
+                              onClick={() => void downloadResult(lastResult)}
+                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                            >
+                              Download
+                            </button>
+                            <button
+                              type="button"
+                              onClick={editPrompt}
+                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              disabled={varying || loading}
+                              onClick={() => void makeVariations()}
+                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                            >
+                              {varying ? "Making variations…" : "Make variations"}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {loading || varying ? (
+                <div className="space-y-5">
+                  {(() => {
+                    const pendingText =
+                      pendingPrompt || prompt || "Make this space look better.";
+                    const lastTurnPrompt = turns[turns.length - 1]?.prompt || "";
+                    const showPendingUser =
+                      !turns.length || lastTurnPrompt.trim() !== pendingText.trim();
+                    if (!showPendingUser) return null;
+                    return (
+                      <div className="flex justify-end">
+                        <div className="max-w-[85%] rounded-[22px] bg-[#f4f4f4] px-4 py-3 sm:max-w-[75%]">
+                          {sources.slice(0, 1).map((item) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={item.id}
+                              src={item.url}
+                              alt=""
+                              className="mb-2 h-28 w-40 rounded-xl object-cover"
+                            />
+                          ))}
+                          <p className="whitespace-pre-wrap text-[15px] leading-6 text-[#0d0d0d]">
+                            {pendingText}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex gap-3">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
+                      <IconSparkle className="h-3.5 w-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-4 pt-0.5">
+                      <TypewriterText
+                        text={buildGeneratingIntro(
+                          mode,
+                          pendingPrompt || prompt || latest?.userPrompt || ""
+                        )}
+                      />
+                      <DesignGeneratingLoader key={varying ? "vary" : "gen"} mode={mode} />
+                      <p className="text-[13px] text-[#8e8e8e]">
+                        After the image is ready, I&apos;ll explain what changed and the key features.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-
-            {loading || varying ? (
-              <div className="rounded-2xl bg-[#faf8f5] p-6">
-                <DesignGeneratingLoader key={varying ? "vary" : "gen"} mode={mode} />
-              </div>
-            ) : null}
-          </div>
-
-          <div className="shrink-0 border-t border-[#f0eeea] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-3">
-            {sources.length ? (
-              <div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto">
-                {sources.map((item) => (
-                  <div key={item.id} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.url} alt="" className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeSource(item.id)}
-                      className="absolute right-0.5 top-0.5 rounded-full bg-black/70 px-1 text-[10px] text-white"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <div className="flex items-end gap-1 rounded-[22px] border border-[#e6e1d8] bg-white px-2 py-1.5 shadow-sm sm:gap-2 sm:px-3 sm:py-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/jpg"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  addFiles(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                title="Attach photo"
-                onClick={() => fileRef.current?.click()}
-                className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#6b6560] hover:bg-[#f7f4ef]"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.6-4.6a2 2 0 012.8 0L16 16m-2-2l1.6-1.6a2 2 0 012.8 0L20 14M8 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <textarea
-                ref={inputRef}
-                rows={1}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (canSend) void generate();
-                  }
-                }}
-                placeholder={defaultPrompts[mode]}
-                className="max-h-24 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-[16px] text-[#1c1c1c] outline-none placeholder:text-[#b0aaa3] sm:max-h-28 sm:text-sm"
-              />
-              <button
-                type="button"
-                title={listening ? "Stop voice" : "Voice"}
-                onClick={listen}
-                className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-[#f7f4ef] ${
-                  listening ? "bg-[#f4e8e6] text-[#c2410c]" : "text-[#6b6560]"
-                }`}
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a3 3 0 003-3V7a3 3 0 10-6 0v4a3 3 0 003 3zm5-3a5 5 0 01-10 0m5 8v3m-4 0h8" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                title="Send"
-                disabled={!canSend}
-                onClick={() => void generate()}
-                className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white disabled:bg-[#d4cfc6]"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 19V5m0 0l-6 6m6-6l6 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+              ) : null}
             </div>
+          )}
+        </div>
+
+        {!showEmpty ? (
+          <div className="shrink-0 bg-gradient-to-t from-white via-white to-white/80 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+            {composer}
           </div>
-        </section>
-      </div>
+        ) : null}
+      </section>
 
       {preview ? (
         <div

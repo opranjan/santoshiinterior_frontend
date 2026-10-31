@@ -1053,6 +1053,185 @@ span.flatpickr-weekday,
   animation: design-sparkle-pulse 2s ease-in-out infinite;
 }
 
+/* ChatGPT "Creating image" canvas loader */
+.chatgpt-create-frame {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.chatgpt-create-glow {
+  position: absolute;
+  width: 48%;
+  height: 48%;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  background: radial-gradient(
+    circle,
+    rgba(255, 130, 40, 0.72) 0%,
+    rgba(255, 95, 25, 0.28) 34%,
+    transparent 70%
+  );
+  filter: blur(2px);
+}
+
+.chatgpt-create-glow-a {
+  left: 0;
+  top: 0;
+  animation: chatgpt-create-glow-orbit-a 4.8s ease-in-out infinite;
+}
+
+.chatgpt-create-glow-b {
+  width: 40%;
+  height: 40%;
+  left: 0;
+  top: 0;
+  animation: chatgpt-create-glow-orbit-b 5.6s ease-in-out infinite;
+  animation-delay: -1.8s;
+}
+
+.chatgpt-create-dot {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  margin-top: -1.5px;
+  border-radius: 9999px;
+  background: rgba(90, 70, 55, 0.75);
+  box-shadow: 0 0 8px rgba(255, 110, 30, 0.08);
+  animation: chatgpt-create-dot-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes chatgpt-create-glow-orbit-a {
+  0% {
+    transform: translate(6%, 10%) scale(0.92);
+    opacity: 0.75;
+  }
+  25% {
+    transform: translate(42%, 18%) scale(1.08);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(28%, 48%) scale(1);
+    opacity: 0.9;
+  }
+  75% {
+    transform: translate(12%, 36%) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(6%, 10%) scale(0.92);
+    opacity: 0.75;
+  }
+}
+
+@keyframes chatgpt-create-glow-orbit-b {
+  0% {
+    transform: translate(55%, 55%) scale(1);
+    opacity: 0.8;
+  }
+  25% {
+    transform: translate(20%, 58%) scale(1.12);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(48%, 22%) scale(0.95);
+    opacity: 0.85;
+  }
+  75% {
+    transform: translate(62%, 40%) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(55%, 55%) scale(1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes chatgpt-create-dot-pulse {
+  0%,
+  100% {
+    filter: brightness(0.95);
+  }
+  50% {
+    filter: brightness(1.25);
+  }
+}
+
+.chatgpt-create-net {
+  opacity: 0.62;
+}
+
+.chatgpt-create-net-lines path {
+  stroke-linecap: round;
+  stroke-dasharray: 140;
+  stroke-dashoffset: 140;
+  animation: chatgpt-create-net-draw 2.8s ease-in-out infinite;
+}
+
+.chatgpt-create-net-lines path:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.chatgpt-create-net-lines path:nth-child(3) {
+  animation-delay: 0.24s;
+}
+.chatgpt-create-net-lines path:nth-child(4) {
+  animation-delay: 0.36s;
+}
+.chatgpt-create-net-lines path:nth-child(5) {
+  animation-delay: 0.48s;
+}
+.chatgpt-create-net-lines path:nth-child(6) {
+  animation-delay: 0.6s;
+}
+.chatgpt-create-net-lines path:nth-child(7) {
+  animation-delay: 0.72s;
+}
+.chatgpt-create-net-lines path:nth-child(8) {
+  animation-delay: 0.84s;
+}
+.chatgpt-create-net-lines path:nth-child(9) {
+  animation-delay: 0.96s;
+}
+
+.chatgpt-create-net-bl .chatgpt-create-net-lines path {
+  animation-duration: 3.2s;
+  animation-delay: 0.2s;
+}
+
+.chatgpt-create-spider {
+  transform-origin: 152px 88px;
+  animation: chatgpt-create-spider-sway 3.4s ease-in-out infinite;
+}
+
+@keyframes chatgpt-create-net-draw {
+  0% {
+    stroke-dashoffset: 140;
+    opacity: 0.25;
+  }
+  35% {
+    stroke-dashoffset: 0;
+    opacity: 0.95;
+  }
+  65% {
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: -140;
+    opacity: 0.2;
+  }
+}
+
+@keyframes chatgpt-create-spider-sway {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+
 /* Classic vendor panel */
 .vendor-shell {
   --vendor-ink: #111111;

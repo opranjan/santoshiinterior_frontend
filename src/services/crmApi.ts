@@ -735,14 +735,17 @@ export type DesignGenerationDto = {
 
 export const designApi = {
   history: () => api.get<DesignGenerationDto[]>("/design/history"),
-  generate: async (payload: {
-    mode: "designing" | "elevation";
-    style?: string;
-    scope?: string;
-    prompt?: string;
-    images: File[];
-    threadId?: string;
-  }) => {
+  generate: async (
+    payload: {
+      mode: "designing" | "elevation";
+      style?: string;
+      scope?: string;
+      prompt?: string;
+      images: File[];
+      threadId?: string;
+    },
+    options?: { signal?: AbortSignal }
+  ) => {
     const { tokenStorage } = await import("@/lib/auth");
     const base = (
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
@@ -756,19 +759,39 @@ export const designApi = {
     if (payload.threadId?.trim()) form.append("threadId", payload.threadId.trim());
     payload.images.forEach((file) => form.append("image", file));
 
-    const res = await fetch(`${base}/design/generate`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    });
-    const text = await res.text();
-    const json = text ? JSON.parse(text) : null;
-    if (!res.ok) {
-      throw new Error(
-        json?.error?.message || json?.message || "Image generation failed"
-      );
+    /** Image edits often take 60–120s — abort only after a hard ceiling. */
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3 * 60 * 1000);
+    const onOuterAbort = () => controller.abort();
+    options?.signal?.addEventListener("abort", onOuterAbort);
+    try {
+      const res = await fetch(`${base}/design/generate`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+        signal: controller.signal,
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+      if (!res.ok) {
+        throw new Error(
+          json?.error?.message || json?.message || "Image generation failed"
+        );
+      }
+      return json.data as DesignGenerationDto;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new Error(
+          options?.signal?.aborted
+            ? "Generation cancelled"
+            : "Generation timed out. Please try again."
+        );
+      }
+      throw err;
+    } finally {
+      window.clearTimeout(timeout);
+      options?.signal?.removeEventListener("abort", onOuterAbort);
     }
-    return json.data as DesignGenerationDto;
   },
   download: async (id: string, mode: "designing" | "elevation") => {
     const { tokenStorage } = await import("@/lib/auth");
