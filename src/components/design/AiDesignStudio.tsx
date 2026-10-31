@@ -321,6 +321,11 @@ export default function AiDesignStudio({ mode }: Props) {
       if (override?.asVariations) setVarying(true);
       else setLoading(true);
       setError("");
+      /** Clear composer immediately after submit (ChatGPT-style). */
+      if (!override?.asVariations) {
+        clearComposer();
+        if (inputRef.current) inputRef.current.style.height = "auto";
+      }
       const data = await designApi.generate(
         {
           mode,
@@ -333,7 +338,6 @@ export default function AiDesignStudio({ mode }: Props) {
       if (abort.signal.aborted) return;
       setActiveThreadId(data.threadId || data.id);
       setHistory((prev) => [data, ...prev.filter((row) => row.id !== data.id)].slice(0, 200));
-      if (!override?.asVariations) clearComposer();
     } catch (err) {
       if (abort.signal.aborted) return;
       setError(err instanceof Error ? err.message : "Generation failed");
