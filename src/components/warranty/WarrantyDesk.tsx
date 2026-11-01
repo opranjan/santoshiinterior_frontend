@@ -19,6 +19,16 @@ function ShieldIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+function LayersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="m12 3 9 5-9 5L3 8l9-5Z" />
+      <path d="m3 12 9 5 9-5" />
+      <path d="m3 16 9 5 9-5" />
+    </svg>
+  );
+}
+
 function UsersIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -91,22 +101,29 @@ export default function WarrantyDesk() {
             className="object-cover opacity-90"
             sizes="46vw"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#f7f1e8] via-[#f7f1e8]/75 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#f7f1e8] via-[#f7f1e8]/80 to-transparent" />
         </div>
 
-        <div className="relative z-10 max-w-xl px-6 pb-6 pt-7 sm:px-8 sm:pt-8">
-          <h1 className="text-[32px] font-semibold leading-none tracking-tight text-[#1c1610]">
-            Warranty Desk
-          </h1>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-[#7a6f62]">
-            Track customer &amp; vendor warranties, and manage claim tickets efficiently.
-          </p>
+        <div className="relative z-10 px-6 pb-5 pt-7 sm:px-8 sm:pt-8">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#2a2118] text-[#e8d5b5] shadow-sm">
+              <ShieldIcon className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-[32px] font-semibold leading-none tracking-tight text-[#1c1610]">
+                Warranty Desk
+              </h1>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#7a6f62]">
+                Track customer &amp; vendor warranties, and manage claim tickets efficiently.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="relative z-10 mx-5 mb-5 rounded-2xl border border-[#e6d9c6] bg-[#f4ebe0]/95 p-4 shadow-sm backdrop-blur sm:mx-6 sm:mb-6 sm:p-5">
           <div className="flex gap-3">
-            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2a2118] text-[#e8d5b5]">
-              <ShieldIcon />
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#7a5c34] ring-1 ring-[#eadfcf]">
+              <LayersIcon />
             </div>
             <div>
               <h2 className="text-base font-semibold text-[#1c1610]">Dual warranty tracking</h2>

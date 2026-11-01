@@ -5,9 +5,7 @@ import { warrantyApi, projectsApi, storesApi } from "@/services/crmApi";
 import { labelToEnum, warrantyTypeToEnum } from "@/lib/mappers";
 import { mapWarranty, toIsoDateOrNull } from "@/lib/crmMappers";
 import Link from "next/link";
-import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import {
   Table,
@@ -75,8 +73,6 @@ const types: TicketType[] = [
 
 const priorities: Priority[] = ["Low", "Medium", "High", "Urgent"];
 
-const stores = ["All Stores", "Main Branch", "North Store", "South Store"];
-
 const team = [
   "Vikram Singh",
   "Sneha Patel",
@@ -121,27 +117,6 @@ const legacyProjectOptions = [
     warrantyUntil: "2027-12-15",
   },
 ];
-
-const statusColor: Record<
-  TicketStatus,
-  "warning" | "info" | "primary" | "light" | "success" | "error"
-> = {
-  Open: "warning",
-  Assigned: "info",
-  "In Progress": "primary",
-  "Waiting Parts": "light",
-  Resolved: "success",
-  Closed: "success",
-  Rejected: "error",
-};
-
-const priorityColor: Record<Priority, "light" | "info" | "warning" | "error"> =
-  {
-    Low: "light",
-    Medium: "info",
-    High: "warning",
-    Urgent: "error",
-  };
 
 const initialTickets: WarrantyTicket[] = [
   {
@@ -412,6 +387,9 @@ export default function WarrantyDeskTable() {
     const underWarranty = tickets.filter((t) =>
       warrantyActive(t.warrantyUntil)
     ).length;
+    const growthLabel =
+      tickets.length > 0 ? `+${Math.round((open / Math.max(tickets.length, 1)) * 100)}%` : null;
+
     return {
       total: tickets.length,
       open,
@@ -419,6 +397,7 @@ export default function WarrantyDeskTable() {
       resolved,
       urgent,
       underWarranty,
+      growthLabel,
     };
   }, [tickets]);
 
@@ -551,124 +530,209 @@ export default function WarrantyDeskTable() {
 
   const markResolved = (id: string) => updateStatus(id, "Resolved");
 
+  const softSelect =
+    "h-11 appearance-none rounded-xl border border-[#eadfcf] bg-white px-3 pr-9 text-sm text-[#1c1610] outline-none focus:border-[#c4a574]";
+
+  const priorityPill: Record<Priority, string> = {
+    Low: "bg-[#f3f4f6] text-[#4b5563]",
+    Medium: "bg-[#fff4e5] text-[#b76a1a]",
+    High: "bg-[#fdeceb] text-[#b42318]",
+    Urgent: "bg-[#fee4e2] text-[#912018]",
+  };
+
+  const statusPill: Record<TicketStatus, string> = {
+    Open: "bg-[#fff7e8] text-[#b54708]",
+    Assigned: "bg-[#eef4ff] text-[#3538cd]",
+    "In Progress": "bg-[#eef4ff] text-[#3538cd]",
+    "Waiting Parts": "bg-[#f4ebe0] text-[#7a5c34]",
+    Resolved: "bg-[#eaf6ee] text-[#1f7a45]",
+    Closed: "bg-[#eaf6ee] text-[#1f7a45]",
+    Rejected: "bg-[#fdeceb] text-[#b42318]",
+  };
+
+  const typeIcon = (type: TicketType) => {
+    if (type === "Service Visit") return "🔧";
+    if (type === "Warranty Claim") return "🛡️";
+    if (type === "Complaint") return "⚠️";
+    if (type === "AMC") return "📋";
+    return "🔍";
+  };
+
+  const thumbFor = (key: string) => {
+    const thumbs = [
+      "/images/product/product-01.jpg",
+      "/images/product/product-02.jpg",
+      "/images/product/product-03.jpg",
+      "/images/product/product-04.jpg",
+      "/images/cards/card-01.jpg",
+      "/images/cards/card-02.jpg",
+    ];
+    let hash = 0;
+    for (let i = 0; i < key.length; i += 1) hash = (hash + key.charCodeAt(i) * (i + 1)) % thumbs.length;
+    return thumbs[hash];
+  };
+
+  const avatarFor = (name: string) => {
+    const avatars = [
+      "/images/user/user-01.jpg",
+      "/images/user/user-02.jpg",
+      "/images/user/user-03.jpg",
+      "/images/user/user-04.jpg",
+      "/images/user/user-05.jpg",
+      "/images/user/user-06.jpg",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) hash = (hash + name.charCodeAt(i)) % avatars.length;
+    return avatars[hash];
+  };
+
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-600">
+    <div className="space-y-4">
+      {error ? (
+        <div className="rounded-xl border border-[#f0c9c3] bg-[#fff7f6] px-4 py-3 text-sm text-[#8a3424]">
           {error}
         </div>
-      )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Warranty Desk
-          </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            After-sales tickets, warranty claims, AMC, and service visits.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/projects">
-            <Button size="sm" variant="outline">
-              Projects
-            </Button>
-          </Link>
-          <Link href="/customers">
-            <Button size="sm" variant="outline">
-              Customers
-            </Button>
-          </Link>
-          <Button size="sm" onClick={openAdd}>
-            + New Ticket
-          </Button>
-        </div>
-      </div>
+      ) : null}
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {[
-          { label: "Total Tickets", value: stats.total },
-          { label: "Open", value: stats.open },
-          { label: "Overdue", value: stats.overdue, alert: true },
-          { label: "Urgent", value: stats.urgent, alert: true },
-          { label: "Resolved", value: stats.resolved },
-          { label: "Under Warranty", value: stats.underWarranty },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]"
-          >
-            <p className="text-xs text-gray-500">{s.label}</p>
-            <p
-              className={`mt-1 text-xl font-semibold ${
-                s.alert && s.value > 0
-                  ? "text-error-500"
-                  : "text-gray-800 dark:text-white/90"
-              }`}
-            >
-              {s.value}
+        <div className="rounded-2xl border border-[#eadfcf] bg-white p-4 shadow-[0_1px_2px_rgba(28,22,16,0.04)]">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a7b68]">
+              Total Tickets
             </p>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#f4ebe0] text-sm">🎫</span>
           </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <div className="flex-1 sm:max-w-xs">
-          <Input
-            type="text"
-            placeholder="Search ticket, client, project…"
-            defaultValue={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="mt-2 flex items-end gap-2">
+            <p className="text-3xl font-semibold tracking-tight text-[#1c1610]">{stats.total}</p>
+            {stats.growthLabel ? (
+              <span className="mb-1 text-xs font-semibold text-[#1f7a45]">{stats.growthLabel}</span>
+            ) : null}
+          </div>
         </div>
-        <select
-          value={storeFilter}
-          onChange={(e) => setStoreFilter(e.target.value)}
-          className={selectClass}
-        >
-          {stores.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as "All" | TicketStatus)
-          }
-          className={selectClass}
-        >
-          <option value="All">All Status</option>
-          {statuses.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) =>
-            setTypeFilter(e.target.value as "All" | TicketType)
-          }
-          className={selectClass}
-        >
-          <option value="All">All Types</option>
-          {types.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+        <div className="rounded-2xl border border-[#d6e4ff] bg-[#eef4ff] p-4">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6172f3]">Open</p>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm">📂</span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1610]">{stats.open}</p>
+        </div>
+        <div className="rounded-2xl border border-[#f9dbda] bg-[#fef3f2] p-4">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#d92d20]">Overdue</p>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm">⚠</span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1610]">{stats.overdue}</p>
+        </div>
+        <div className="rounded-2xl border border-[#f9db8e] bg-[#fff6df] p-4">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#b54708]">Urgent</p>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm">🔥</span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1610]">{stats.urgent}</p>
+        </div>
+        <div className="rounded-2xl border border-[#cfe8d7] bg-[#eaf6ee] p-4">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#1f7a45]">Resolved</p>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm">✓</span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1610]">{stats.resolved}</p>
+        </div>
+        <div className="rounded-2xl border border-[#e0d7fe] bg-[#f4f0ff] p-4">
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6938ef]">
+              Under Warranty
+            </p>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm">🛡️</span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-[#1c1610]">{stats.underWarranty}</p>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
+          <div className="relative min-w-[240px] flex-1 xl:max-w-md">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a7b68]">
+              ⌕
+            </span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search ticket, client, project..."
+              className="h-11 w-full rounded-xl border border-[#eadfcf] bg-white pl-9 pr-3 text-sm text-[#1c1610] outline-none focus:border-[#c4a574]"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className={softSelect}
+            >
+              <option value="All Stores">All Stores</option>
+              {storeOptions.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "All" | TicketStatus)}
+              className={softSelect}
+            >
+              <option value="All">All Status</option>
+              {statuses.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as "All" | TicketType)}
+              className={softSelect}
+            >
+              <option value="All">All Types</option>
+              {types.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/projects"
+            className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-3 text-sm font-semibold text-[#5c5348]"
+          >
+            Projects
+          </Link>
+          <Link
+            href="/customers"
+            className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-3 text-sm font-semibold text-[#5c5348]"
+          >
+            Customers
+          </Link>
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex h-11 items-center rounded-xl bg-[#2a2118] px-4 text-sm font-semibold text-[#f3ece2]"
+          >
+            + New Ticket
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-[0_1px_2px_rgba(28,22,16,0.04)]">
         <div className="max-w-full overflow-x-auto">
-          <div className="min-w-[1400px]">
+          <div className="min-w-[1280px]">
             <Table>
-              <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+              <TableHeader className="bg-[#f4ebe0]">
                 <TableRow>
                   {[
                     "Ticket",
@@ -685,181 +749,189 @@ export default function WarrantyDeskTable() {
                     <TableCell
                       key={h}
                       isHeader
-                      className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap"
+                      className="px-4 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a6f62] whitespace-nowrap"
                     >
                       {h}
                     </TableCell>
                   ))}
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-                {filtered.map((t) => {
-                  const overdue = isOverdue(t);
-                  const active = warrantyActive(t.warrantyUntil);
-                  return (
-                    <TableRow
-                      key={t.id}
-                      className={
-                        overdue
-                          ? "bg-error-50/40 dark:bg-error-500/5"
-                          : undefined
-                      }
-                    >
-                      <TableCell className="px-4 py-3 text-start">
-                        <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                          {t.subject}
-                        </p>
-                        <p className="text-xs text-gray-400">{t.id}</p>
-                        <p className="text-xs text-gray-400">
-                          Opened {formatDate(t.openedAt)}
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3 text-start whitespace-nowrap">
-                        <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                          {t.client}
-                        </p>
-                        <p className="text-xs text-gray-500">{t.phone}</p>
-                        <p className="text-xs text-gray-400">
-                          {t.projectName} · {t.store}
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                        {t.type}
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3">
-                        <Badge size="sm" color={priorityColor[t.priority]}>
-                          {t.priority}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3">
-                        <div className="flex flex-col gap-1.5">
-                          <Badge size="sm" color={statusColor[t.status]}>
-                            {t.status}
-                          </Badge>
-                          <select
-                            value={t.status}
-                            onChange={(e) =>
-                              updateStatus(
-                                t.id,
-                                e.target.value as TicketStatus
-                              )
-                            }
-                            className="h-8 rounded-md border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                          >
-                            {statuses.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3">
-                        <select
-                          value={t.assignedTo}
-                          onChange={(e) =>
-                            updateAssignee(t.id, e.target.value)
-                          }
-                          className="h-8 max-w-[140px] rounded-md border border-gray-200 bg-transparent px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                        >
-                          {team.map((m) => (
-                            <option key={m} value={m}>
-                              {m}
-                            </option>
-                          ))}
-                        </select>
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3 text-start whitespace-nowrap">
-                        <p className="text-sm text-gray-700 dark:text-gray-300">
-                          {formatDate(t.warrantyUntil)}
-                        </p>
-                        <p
-                          className={`text-xs ${
-                            active
-                              ? "text-success-600"
-                              : "text-error-500"
-                          }`}
-                        >
-                          {active ? "Active" : "Expired"}
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3 text-start whitespace-nowrap">
-                        <p
-                          className={`text-sm ${
-                            overdue
-                              ? "font-medium text-error-500"
-                              : "text-gray-700 dark:text-gray-300"
-                          }`}
-                        >
-                          {formatDate(t.dueDate)}
-                        </p>
-                        {overdue && (
-                          <p className="text-xs text-error-500">Overdue</p>
-                        )}
-                        {t.resolvedAt && (
-                          <p className="text-xs text-gray-400">
-                            Done {formatDate(t.resolvedAt)}
-                          </p>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3 max-w-[220px]">
-                        <p className="line-clamp-2 text-sm text-gray-500">
-                          {t.issue || "—"}
-                        </p>
-                        {t.resolution && (
-                          <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">
-                            Fix: {t.resolution}
-                          </p>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(t)}
-                            className="text-left text-sm font-medium text-brand-500 hover:text-brand-600"
-                          >
-                            Edit
-                          </button>
-                          {t.status !== "Resolved" &&
-                            t.status !== "Closed" &&
-                            t.status !== "Rejected" && (
-                              <button
-                                type="button"
-                                onClick={() => markResolved(t.id)}
-                                className="text-left text-sm font-medium text-success-600 hover:text-success-700"
-                              >
-                                Resolve
-                              </button>
-                            )}
-                          <Link
-                            href="/projects"
-                            className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400"
-                          >
-                            Project
-                          </Link>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-
-                {filtered.length === 0 && (
+              <TableBody>
+                {loading ? (
                   <TableRow>
-                    <TableCell className="px-4 py-10 text-center text-sm text-gray-500">
+                    <TableCell className="px-4 py-12 text-center text-sm text-[#8a7b68]">
+                      Loading…
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {!loading &&
+                  filtered.map((t) => {
+                    const overdue = isOverdue(t);
+                    const active = warrantyActive(t.warrantyUntil);
+                    return (
+                      <TableRow
+                        key={t.id}
+                        className={`border-t border-[#f0e8db] hover:bg-[#fbf8f3] ${
+                          overdue ? "bg-[#fff7f6]" : ""
+                        }`}
+                      >
+                        <TableCell className="px-4 py-3.5 text-start">
+                          <p className="text-sm font-semibold text-[#1c1610]">
+                            #{t.id.slice(0, 8).toUpperCase()}
+                          </p>
+                          <p className="mt-0.5 line-clamp-1 text-xs text-[#8a7b68]">{t.subject}</p>
+                          <p className="text-xs text-[#a89884]">Opened {formatDate(t.openedAt)}</p>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5 text-start">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={thumbFor(t.projectId || t.id)}
+                              alt=""
+                              className="h-10 w-10 rounded-xl object-cover ring-1 ring-[#eadfcf]"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#1c1610]">
+                                {t.client || "—"}
+                              </p>
+                              <p className="truncate text-xs text-[#8a7b68]">{t.phone || "—"}</p>
+                              <p className="truncate text-xs text-[#a89884]">
+                                {t.projectName || "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 text-sm text-[#5c5348]">
+                            <span>{typeIcon(t.type)}</span>
+                            {t.type}
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${priorityPill[t.priority]}`}
+                          >
+                            {t.priority}
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5">
+                          <div className="relative inline-flex">
+                            <select
+                              value={t.status}
+                              onChange={(e) =>
+                                updateStatus(t.id, e.target.value as TicketStatus)
+                              }
+                              className={`h-8 appearance-none rounded-full border-0 px-3 pr-7 text-[11px] font-semibold outline-none ${statusPill[t.status]}`}
+                            >
+                              {statuses.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={avatarFor(t.assignedTo || "Unassigned")}
+                              alt=""
+                              className="h-7 w-7 rounded-full object-cover ring-1 ring-[#eadfcf]"
+                            />
+                            <select
+                              value={t.assignedTo}
+                              onChange={(e) => updateAssignee(t.id, e.target.value)}
+                              className="h-8 max-w-[130px] rounded-lg border border-[#eadfcf] bg-white px-2 text-xs text-[#5c5348]"
+                            >
+                              {team.map((m) => (
+                                <option key={m} value={m}>
+                                  {m}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5 whitespace-nowrap">
+                          <p
+                            className={`text-sm font-medium ${
+                              active ? "text-[#1f7a45]" : "text-[#b42318]"
+                            }`}
+                          >
+                            {active ? "Active" : "— Expired"}
+                          </p>
+                          <p className="text-xs text-[#8a7b68]">{formatDate(t.warrantyUntil)}</p>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5 whitespace-nowrap">
+                          {t.resolvedAt ? (
+                            <p className="text-sm text-[#5c5348]">Done {formatDate(t.resolvedAt)}</p>
+                          ) : (
+                            <p
+                              className={`text-sm ${
+                                overdue ? "font-semibold text-[#b42318]" : "text-[#5c5348]"
+                              }`}
+                            >
+                              {formatDate(t.dueDate)}
+                            </p>
+                          )}
+                          {overdue ? <p className="text-xs text-[#b42318]">Overdue</p> : null}
+                        </TableCell>
+
+                        <TableCell className="max-w-[220px] px-4 py-3.5">
+                          <p className="line-clamp-2 text-sm text-[#6b645b]">{t.issue || "—"}</p>
+                        </TableCell>
+
+                        <TableCell className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="relative inline-flex">
+                            <details className="group">
+                              <summary className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-[#eadfcf] text-[#8a7b68] hover:bg-[#fbf8f3]">
+                                ⋯
+                              </summary>
+                              <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 shadow-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(t)}
+                                  className="block w-full px-3 py-2 text-left text-sm text-[#1c1610] hover:bg-[#fbf8f3]"
+                                >
+                                  Edit
+                                </button>
+                                {t.status !== "Resolved" &&
+                                t.status !== "Closed" &&
+                                t.status !== "Rejected" ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => markResolved(t.id)}
+                                    className="block w-full px-3 py-2 text-left text-sm text-[#1f7a45] hover:bg-[#fbf8f3]"
+                                  >
+                                    Resolve
+                                  </button>
+                                ) : null}
+                                <Link
+                                  href="/projects"
+                                  className="block px-3 py-2 text-sm text-[#5c5348] hover:bg-[#fbf8f3]"
+                                >
+                                  Project
+                                </Link>
+                              </div>
+                            </details>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                {!loading && filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell className="px-4 py-12 text-center text-sm text-[#8a7b68]">
                       No tickets match your filters.
                     </TableCell>
                   </TableRow>
-                )}
+                ) : null}
               </TableBody>
             </Table>
           </div>
