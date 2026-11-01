@@ -1073,7 +1073,13 @@ export type PurchaseOrderDto = {
   acceptanceStatus?: "PENDING" | "PARTIAL" | "ACCEPTED";
   createdBy?: { id: string; name: string } | null;
   items?: PurchaseOrderItemDto[];
-  files?: Array<{ id: string; fileName: string; fileUrl: string; kind?: string }>;
+  files?: Array<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    kind?: string;
+    mimeType?: string | null;
+  }>;
   comments?: PurchaseOrderCommentDto[];
   followUps?: Array<{
     id: string;
