@@ -76,45 +76,34 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto, assetOrigin =
         .join("")
     : `<tr><td colspan="5" class="empty">No materials listed on this warranty.</td></tr>`;
 
+  const signatureImg = row.authorizedSignatureData
+    ? `<img class="sign-img" src="${String(row.authorizedSignatureData).replace(/"/g, "&quot;")}" alt="Authorized signature" />`
+    : `<div class="sign-line"></div>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${esc(receiptNo)} · Warranty Card</title>
+  <title>${esc(receiptNo)}-Warranty-Card</title>
   <style>
     @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap");
-    @page { size: A4; margin: 8mm; }
+    @page { size: A4; margin: 0; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
       color: #2d2218;
       font-family: Manrope, "Segoe UI", sans-serif;
       font-size: 12px;
       line-height: 1.45;
-      background: #ece4d8;
+      background: #fffdf9 !important;
     }
-    .toolbar {
-      padding: 14px 16px;
-      text-align: center;
-      background: #f7f0e6;
-      border-bottom: 1px solid #e0d3c1;
-    }
-    .toolbar button {
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-weight: 650;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .btn-primary { border: 0; background: #3a271c; color: #f3e7d5; }
-    .btn-ghost { margin-left: 8px; border: 1px solid #d9cbb8; background: #fff; color: #5c5348; }
     .sheet {
-      max-width: 900px;
-      margin: 18px auto;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
       background: #fffdf9;
-      border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 18px 50px rgba(58, 39, 28, 0.16);
     }
     .top {
       display: grid;
@@ -335,6 +324,13 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto, assetOrigin =
     }
     .sign p { margin: 8px 0 0; color: #8a7b68; font-size: 11px; }
     .sign.right { text-align: right; }
+    .sign-img {
+      display: block;
+      max-width: 100%;
+      height: 54px;
+      object-fit: contain;
+      margin: 8px 0 0 auto;
+    }
     .footer {
       margin-top: 16px;
       background: #3a271c;
@@ -347,19 +343,23 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto, assetOrigin =
       font-size: 11px;
     }
     @media print {
-      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .no-print { display: none !important; }
-      .sheet { margin: 0; box-shadow: none; border-radius: 0; max-width: none; }
+      html, body {
+        background: #fffdf9 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .sheet {
+        width: 100% !important;
+        min-height: auto !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="no-print toolbar">
-    <button class="btn-primary" onclick="window.print()">Download PDF / Print</button>
-    <button class="btn-ghost" onclick="window.close()">Close</button>
-  </div>
-
-  <div class="sheet">
+  <div class="sheet" id="warranty-card">
     <div class="top">
       <div class="brand-wrap">
         <div class="brand">
@@ -439,11 +439,7 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto, assetOrigin =
         </div>
         <div class="sign right">
           <h3>Authorized Signatory</h3>
-          ${
-            row.authorizedSignatureData
-              ? `<img src="${esc(row.authorizedSignatureData)}" alt="Authorized signature" style="display:block;max-width:100%;height:54px;object-fit:contain;margin:8px 0 0 auto;" />`
-              : `<div class="sign-line"></div>`
-          }
+          ${signatureImg}
           <p>${esc(row.authorizedSignatoryName || "For Santoshi Interiors")}</p>
         </div>
       </div>
@@ -459,13 +455,73 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto, assetOrigin =
 </html>`;
 }
 
+function waitForImages(doc: Document) {
+  const images = Array.from(doc.images || []);
+  if (!images.length) return Promise.resolve();
+  return Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        })
+    )
+  ).then(() => undefined);
+}
+
+/** Prints only the warranty card document (not the CRM page). */
 export function openWarrantyReceiptPrintWindow(row: CustomerWarrantyDto) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+  const origin = window.location.origin;
   const html = buildWarrantyReceiptHtml(row, origin);
-  const win = window.open("", "_blank", "width=980,height=1200");
-  if (!win) return false;
-  win.document.write(html);
-  win.document.close();
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("title", "Warranty Card PDF");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  document.body.appendChild(iframe);
+
+  const frameWindow = iframe.contentWindow;
+  const frameDoc = iframe.contentDocument || frameWindow?.document;
+  if (!frameWindow || !frameDoc) {
+    iframe.remove();
+    return false;
+  }
+
+  frameDoc.open();
+  frameDoc.write(html);
+  frameDoc.close();
+
+  const cleanup = () => {
+    try {
+      iframe.remove();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const runPrint = async () => {
+    try {
+      await waitForImages(frameDoc);
+      // Let layout settle before Chrome captures the frame.
+      await new Promise((r) => setTimeout(r, 120));
+      frameWindow.focus();
+      frameWindow.print();
+    } finally {
+      window.setTimeout(cleanup, 1500);
+    }
+  };
+
+  void runPrint();
   return true;
 }
 

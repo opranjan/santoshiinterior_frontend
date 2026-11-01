@@ -222,7 +222,7 @@ export default function CustomerWarrantyReceiptPreview({ warranty, onClose, onUp
               onClick={downloadPdf}
               className="inline-flex h-9 items-center rounded-xl bg-[#3a271c] px-4 text-sm font-semibold text-[#f3e7d5]"
             >
-              Download PDF
+              Download card PDF
             </button>
             <button
               type="button"
