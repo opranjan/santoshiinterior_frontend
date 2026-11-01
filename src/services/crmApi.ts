@@ -1544,6 +1544,7 @@ export type CustomerWarrantyDto = {
     name: string;
     clientName?: string | null;
     phone?: string | null;
+    address?: string | null;
   } | null;
   vendorWarranties?: VendorWarrantyDto[];
   createdAt?: string;
