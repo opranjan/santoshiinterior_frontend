@@ -1539,6 +1539,8 @@ export type CustomerWarrantyDto = {
   startsOn?: string | null;
   endsOn?: string | null;
   notes?: string | null;
+  authorizedSignatoryName?: string | null;
+  authorizedSignatureData?: string | null;
   project?: {
     id: string;
     name: string;

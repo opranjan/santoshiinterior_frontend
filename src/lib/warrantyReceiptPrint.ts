@@ -439,8 +439,12 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto, assetOrigin =
         </div>
         <div class="sign right">
           <h3>Authorized Signatory</h3>
-          <div class="sign-line"></div>
-          <p>For Santoshi Interiors</p>
+          ${
+            row.authorizedSignatureData
+              ? `<img src="${esc(row.authorizedSignatureData)}" alt="Authorized signature" style="display:block;max-width:100%;height:54px;object-fit:contain;margin:8px 0 0 auto;" />`
+              : `<div class="sign-line"></div>`
+          }
+          <p>${esc(row.authorizedSignatoryName || "For Santoshi Interiors")}</p>
         </div>
       </div>
     </div>
