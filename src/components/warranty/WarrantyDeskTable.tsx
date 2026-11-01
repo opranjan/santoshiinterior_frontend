@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { warrantyApi, projectsApi, storesApi } from "@/services/crmApi";
 import { labelToEnum, warrantyTypeToEnum } from "@/lib/mappers";
 import { mapWarranty, toIsoDateOrNull } from "@/lib/crmMappers";
@@ -178,6 +178,29 @@ export default function WarrantyDeskTable() {
   const [typeFilter, setTypeFilter] = useState<"All" | TicketType>("All");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<WarrantyTicket | null>(null);
+  const [actionsOpenId, setActionsOpenId] = useState<string | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!actionsOpenId) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (actionsMenuRef.current?.contains(target)) return;
+      setActionsOpenId(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActionsOpenId(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [actionsOpenId]);
 
   const emptyForm = {
     subject: "",
@@ -735,15 +758,33 @@ export default function WarrantyDeskTable() {
                         </TableCell>
 
                         <TableCell className="px-4 py-3.5 whitespace-nowrap">
-                          <div className="relative inline-flex">
-                            <details className="group">
-                              <summary className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg border border-[#eadfcf] text-[#8a7b68] hover:bg-[#fbf8f3]">
-                                ⋯
-                              </summary>
-                              <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 shadow-lg">
+                          <div
+                            className="relative inline-flex"
+                            ref={actionsOpenId === t.id ? actionsMenuRef : undefined}
+                          >
+                            <button
+                              type="button"
+                              aria-haspopup="menu"
+                              aria-expanded={actionsOpenId === t.id}
+                              onClick={() =>
+                                setActionsOpenId((prev) => (prev === t.id ? null : t.id))
+                              }
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#eadfcf] text-[#8a7b68] hover:bg-[#fbf8f3]"
+                            >
+                              ⋯
+                            </button>
+                            {actionsOpenId === t.id ? (
+                              <div
+                                role="menu"
+                                className="absolute right-0 z-30 mt-1 w-36 overflow-hidden rounded-xl border border-[#eadfcf] bg-white py-1 shadow-lg"
+                              >
                                 <button
                                   type="button"
-                                  onClick={() => openEdit(t)}
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setActionsOpenId(null);
+                                    openEdit(t);
+                                  }}
                                   className="block w-full px-3 py-2 text-left text-sm text-[#1c1610] hover:bg-[#fbf8f3]"
                                 >
                                   Edit
@@ -753,7 +794,11 @@ export default function WarrantyDeskTable() {
                                 t.status !== "Rejected" ? (
                                   <button
                                     type="button"
-                                    onClick={() => markResolved(t.id)}
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setActionsOpenId(null);
+                                      markResolved(t.id);
+                                    }}
                                     className="block w-full px-3 py-2 text-left text-sm text-[#1f7a45] hover:bg-[#fbf8f3]"
                                   >
                                     Resolve
@@ -761,12 +806,14 @@ export default function WarrantyDeskTable() {
                                 ) : null}
                                 <Link
                                   href="/projects"
+                                  role="menuitem"
+                                  onClick={() => setActionsOpenId(null)}
                                   className="block px-3 py-2 text-sm text-[#5c5348] hover:bg-[#fbf8f3]"
                                 >
                                   Project
                                 </Link>
                               </div>
-                            </details>
+                            ) : null}
                           </div>
                         </TableCell>
                       </TableRow>
