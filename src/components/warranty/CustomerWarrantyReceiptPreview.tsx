@@ -27,7 +27,20 @@ const SignatureCanvas = forwardRef<SignaturePadHandle, { disabled?: boolean }>(
   function SignatureCanvas({ disabled }, ref) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const drawing = useRef(false);
-    const empty = useRef(true);
+    const strokeCount = useRef(0);
+
+    const hasInk = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return false;
+      if (strokeCount.current > 0) return true;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return false;
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] > 0) return true;
+      }
+      return false;
+    };
 
     useImperativeHandle(ref, () => ({
       clear: () => {
@@ -35,11 +48,11 @@ const SignatureCanvas = forwardRef<SignaturePadHandle, { disabled?: boolean }>(
         const ctx = canvas?.getContext("2d");
         if (!canvas || !ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        empty.current = true;
+        strokeCount.current = 0;
       },
       toDataUrl: () => {
         const canvas = canvasRef.current;
-        if (!canvas || empty.current) return null;
+        if (!canvas || !hasInk()) return null;
         return canvas.toDataURL("image/png");
       },
     }));
@@ -48,7 +61,7 @@ const SignatureCanvas = forwardRef<SignaturePadHandle, { disabled?: boolean }>(
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
       if (!canvas || !ctx) return;
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.strokeStyle = "#3a271c";
@@ -82,7 +95,7 @@ const SignatureCanvas = forwardRef<SignaturePadHandle, { disabled?: boolean }>(
       const p = pos(e);
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
-      empty.current = false;
+      strokeCount.current += 1;
     };
 
     const end = () => {
@@ -92,14 +105,15 @@ const SignatureCanvas = forwardRef<SignaturePadHandle, { disabled?: boolean }>(
     return (
       <canvas
         ref={canvasRef}
-        width={520}
-        height={140}
-        className={`h-28 w-full touch-none rounded-xl border border-[#eadfcf] bg-white ${
+        width={640}
+        height={160}
+        className={`h-32 w-full touch-none rounded-xl border border-[#eadfcf] bg-[#fffdf9] ${
           disabled ? "cursor-not-allowed opacity-60" : "cursor-crosshair"
         }`}
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}
+        onPointerCancel={end}
         onPointerLeave={end}
       />
     );
@@ -139,13 +153,22 @@ export default function CustomerWarrantyReceiptPreview({ warranty, onClose, onUp
       toastWarning("Draw the authorized signature first.");
       return;
     }
+    const name = signatoryName.trim() || "Authorized Signatory";
     try {
       setSaving(true);
       const updated = await warrantyCoverageApi.updateCustomer(row.id, {
-        authorizedSignatoryName: signatoryName.trim() || "Authorized Signatory",
+        authorizedSignatoryName: name,
         authorizedSignatureData: dataUrl,
       });
-      const next = { ...row, ...updated };
+      const next: CustomerWarrantyDto = {
+        ...row,
+        ...(updated || {}),
+        // Always keep the drawn signature visible even if API omits the large field.
+        authorizedSignatoryName:
+          updated?.authorizedSignatoryName || name,
+        authorizedSignatureData:
+          updated?.authorizedSignatureData || dataUrl,
+      };
       setRow(next);
       setSigning(false);
       onUpdated?.(next);
@@ -433,23 +456,22 @@ export default function CustomerWarrantyReceiptPreview({ warranty, onClose, onUp
                     <img
                       src={row.authorizedSignatureData}
                       alt="Authorized signature"
-                      className="ml-auto mt-3 h-14 w-auto max-w-full object-contain"
+                      className="ml-auto mt-2 h-16 w-full max-w-[220px] object-contain object-right"
                     />
                   ) : (
                     <div className="ml-auto mt-10 h-px w-full bg-[#d9cbb8]" />
                   )}
+                  <div className="mt-2 h-px w-full bg-[#d9cbb8]" />
                   <p className="mt-2 text-[11px] text-[#8a7b68]">
                     {row.authorizedSignatoryName || "For Santoshi Interiors"}
                   </p>
-                  {!row.authorizedSignatureData ? (
-                    <button
-                      type="button"
-                      onClick={() => setSigning(true)}
-                      className="mt-2 text-xs font-semibold text-[#9a7748]"
-                    >
-                      Sign here →
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSigning(true)}
+                    className="mt-2 text-xs font-semibold text-[#9a7748]"
+                  >
+                    {row.authorizedSignatureData ? "Re-sign →" : "Sign here →"}
+                  </button>
                 </div>
               </div>
             </div>

@@ -655,6 +655,7 @@ export default function CustomerWarrantyFormPage({ id }: { id?: string }) {
         <CustomerWarrantyReceiptPreview
           warranty={savedWarranty}
           onClose={() => setShowPreview(false)}
+          onUpdated={(next) => setSavedWarranty(next)}
         />
       ) : null}
     </div>

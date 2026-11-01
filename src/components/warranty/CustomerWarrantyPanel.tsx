@@ -547,7 +547,11 @@ export default function CustomerWarrantyPanel() {
       </div>
 
       {preview ? (
-        <CustomerWarrantyReceiptPreview warranty={preview} onClose={() => setPreview(null)} />
+        <CustomerWarrantyReceiptPreview
+          warranty={preview}
+          onClose={() => setPreview(null)}
+          onUpdated={(next) => setPreview(next)}
+        />
       ) : null}
     </div>
   );
