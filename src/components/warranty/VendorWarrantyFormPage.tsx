@@ -65,10 +65,10 @@ export default function VendorWarrantyFormPage({ id }: { id?: string }) {
       .list({ limit: 200 })
       .then((data) =>
         setProjects(
-          (data.items || []).map((p: { id: string; name: string; clientName?: string | null }) => ({
-            id: p.id,
-            name: p.name,
-            clientName: p.clientName,
+          (data.items || []).map((p) => ({
+            id: String(p.id || ""),
+            name: String(p.name || ""),
+            clientName: (p.clientName as string | null | undefined) ?? null,
           }))
         )
       )
@@ -76,7 +76,7 @@ export default function VendorWarrantyFormPage({ id }: { id?: string }) {
     vendorsApi
       .list({ limit: 200 })
       .then((data) =>
-        setVendors((data.items || []).map((v: { id: string; name: string }) => ({ id: v.id, name: v.name })))
+        setVendors((data.items || []).map((v) => ({ id: v.id, name: v.name })))
       )
       .catch(() => setVendors([]));
   }, []);

@@ -94,10 +94,10 @@ export default function CustomerWarrantyFormPage({ id }: { id?: string }) {
       .list({ limit: 200 })
       .then((data) =>
         setProjects(
-          (data.items || []).map((p: { id: string; name: string; clientName?: string | null }) => ({
-            id: p.id,
-            name: p.name,
-            clientName: p.clientName,
+          (data.items || []).map((p) => ({
+            id: String(p.id || ""),
+            name: String(p.name || ""),
+            clientName: (p.clientName as string | null | undefined) ?? null,
           }))
         )
       )
