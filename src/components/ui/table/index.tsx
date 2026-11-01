@@ -4,6 +4,7 @@ import React, { ReactNode } from "react";
 interface TableProps {
   children: ReactNode; // Table content (thead, tbody, etc.)
   className?: string; // Optional className for styling
+  style?: React.CSSProperties;
 }
 
 // Props for TableHeader
@@ -31,12 +32,17 @@ interface TableCellProps {
   isHeader?: boolean; // If true, renders as <th>, otherwise <td>
   className?: string; // Optional className for styling
   colSpan?: number;
+  style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
 }
 
 // Table Component
-const Table: React.FC<TableProps> = ({ children, className }) => {
-  return <table className={`min-w-full  ${className}`}>{children}</table>;
+const Table: React.FC<TableProps> = ({ children, className, style }) => {
+  return (
+    <table className={`min-w-full  ${className}`} style={style}>
+      {children}
+    </table>
+  );
 };
 
 // TableHeader Component
@@ -64,11 +70,12 @@ const TableCell: React.FC<TableCellProps> = ({
   isHeader = false,
   className,
   colSpan,
+  style,
   onClick,
 }) => {
   const CellTag = isHeader ? "th" : "td";
   return (
-    <CellTag className={` ${className}`} colSpan={colSpan} onClick={onClick}>
+    <CellTag className={` ${className}`} colSpan={colSpan} style={style} onClick={onClick}>
       {children}
     </CellTag>
   );

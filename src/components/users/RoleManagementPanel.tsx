@@ -46,8 +46,8 @@ const DESIGN_TAB_KEYS = ["design.designing", "design.elevation"] as const;
 const DESIGN_MENU_PERMS: PermissionGroup["permissions"] = [
   {
     key: "design.manage",
-    label: "Both (Designing + Elevation)",
-    hint: "Grants Designing and Elevation together",
+    label: "All Design (Designing + Elevation)",
+    hint: "Grants Designing, Elevation, and Elevation Collection",
   },
   {
     key: "design.designing",
@@ -56,8 +56,8 @@ const DESIGN_MENU_PERMS: PermissionGroup["permissions"] = [
   },
   {
     key: "design.elevation",
-    label: "Elevation only",
-    hint: "Sidebar Design → Elevation",
+    label: "Elevation + Collection",
+    hint: "Sidebar Design → Elevation and Elevation Collection",
   },
 ];
 
@@ -225,7 +225,7 @@ function PermissionPicker({
                   Design menu
                 </p>
                 <p className="mb-2.5 text-[11px] text-[#8a7b68]">
-                  Pick Both, Designing only, Elevation only, or tick Designing and Elevation together.
+                  Pick All Design, Designing only, Elevation + Collection, or tick Designing and Elevation together.
                 </p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {DESIGN_MENU_PERMS.map(renderPerm)}

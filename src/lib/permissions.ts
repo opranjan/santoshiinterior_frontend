@@ -237,6 +237,15 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
     ],
   },
   {
+    prefix: "/design/elevation-collection",
+    permissions: [
+      "design.elevation",
+      "design.manage",
+      "vendor.portal",
+      "franchisee.portal",
+    ],
+  },
+  {
     prefix: "/design/elevation",
     permissions: [
       "design.elevation",
@@ -486,6 +495,11 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
       {
         name: "Elevation",
         path: "/design/elevation",
+        permissions: ["design.elevation", "design.manage"],
+      },
+      {
+        name: "Elevation Collection",
+        path: "/design/elevation-collection",
         permissions: ["design.elevation", "design.manage"],
       },
     ],

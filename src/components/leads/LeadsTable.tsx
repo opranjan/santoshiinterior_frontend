@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Badge from "@/components/ui/badge/Badge";
@@ -293,6 +293,55 @@ const columns = [
   "Actions",
 ] as const;
 
+type LeadColumn = (typeof columns)[number];
+
+const CHECKBOX_COL_WIDTH = 48;
+const COLUMN_MIN_WIDTH = 72;
+const COLUMN_MAX_WIDTH = 480;
+const LEADS_COL_WIDTHS_KEY = "crm.leads.columnWidths.v1";
+
+const DEFAULT_COLUMN_WIDTHS: Record<LeadColumn, number> = {
+  "Client Name": 190,
+  Status: 140,
+  Phone: 120,
+  Email: 190,
+  "Follow Up": 150,
+  Project: 160,
+  "Lead Owner": 170,
+  "Sales Owner": 130,
+  Budget: 110,
+  Scope: 120,
+  "Project Type": 130,
+  Source: 120,
+  Store: 130,
+  Description: 220,
+  "Latest Remark": 220,
+  "Tentative Start": 130,
+  FY: 80,
+  "Created Date": 150,
+  "Last Update": 150,
+  Actions: 300,
+};
+
+function loadStoredColumnWidths(): Record<LeadColumn, number> {
+  if (typeof window === "undefined") return { ...DEFAULT_COLUMN_WIDTHS };
+  try {
+    const raw = window.localStorage.getItem(LEADS_COL_WIDTHS_KEY);
+    if (!raw) return { ...DEFAULT_COLUMN_WIDTHS };
+    const parsed = JSON.parse(raw) as Partial<Record<LeadColumn, number>>;
+    const next = { ...DEFAULT_COLUMN_WIDTHS };
+    for (const key of columns) {
+      const value = Number(parsed[key]);
+      if (Number.isFinite(value)) {
+        next[key] = Math.min(COLUMN_MAX_WIDTH, Math.max(COLUMN_MIN_WIDTH, value));
+      }
+    }
+    return next;
+  } catch {
+    return { ...DEFAULT_COLUMN_WIDTHS };
+  }
+}
+
 const teamAssigneeOptions: AssigneeOption[] = [
   { id: "team-procurement", name: "Procurement", kind: "team" },
   { id: "team-supervisor", name: "Project/Supervisor team", kind: "team" },
@@ -380,6 +429,79 @@ export default function LeadsTable() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [convertTarget, setConvertTarget] = useState<Lead | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<LeadColumn, number>>(
+    () => ({ ...DEFAULT_COLUMN_WIDTHS })
+  );
+  const resizingRef = useRef<{
+    key: LeadColumn;
+    startX: number;
+    startW: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setColumnWidths(loadStoredColumnWidths());
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LEADS_COL_WIDTHS_KEY, JSON.stringify(columnWidths));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [columnWidths]);
+
+  const onColumnResizeMove = useCallback((e: MouseEvent) => {
+    const active = resizingRef.current;
+    if (!active) return;
+    const next = Math.min(
+      COLUMN_MAX_WIDTH,
+      Math.max(COLUMN_MIN_WIDTH, active.startW + (e.clientX - active.startX))
+    );
+    setColumnWidths((prev) =>
+      prev[active.key] === next ? prev : { ...prev, [active.key]: next }
+    );
+  }, []);
+
+  const onColumnResizeEnd = useCallback(() => {
+    resizingRef.current = null;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    window.removeEventListener("mousemove", onColumnResizeMove);
+    window.removeEventListener("mouseup", onColumnResizeEnd);
+  }, [onColumnResizeMove]);
+
+  const startColumnResize = useCallback(
+    (key: LeadColumn, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizingRef.current = {
+        key,
+        startX: e.clientX,
+        startW: columnWidths[key],
+      };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", onColumnResizeMove);
+      window.addEventListener("mouseup", onColumnResizeEnd);
+    },
+    [columnWidths, onColumnResizeMove, onColumnResizeEnd]
+  );
+
+  const resetColumnWidth = useCallback((key: LeadColumn) => {
+    setColumnWidths((prev) => ({ ...prev, [key]: DEFAULT_COLUMN_WIDTHS[key] }));
+  }, []);
+
+  const colStyle = useCallback(
+    (col: LeadColumn): React.CSSProperties => {
+      const w = columnWidths[col];
+      return { width: w, minWidth: w, maxWidth: w };
+    },
+    [columnWidths]
+  );
+
+  const tableMinWidth =
+    CHECKBOX_COL_WIDTH +
+    columns.reduce((sum, col) => sum + columnWidths[col], 0);
 
   const fetchLeads = async () => {
     const data = await leadsApi.list({
@@ -1057,14 +1179,23 @@ export default function LeadsTable() {
         />
       ) : (
       <div className="vendor-form-card overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
-        <div className="max-w-full overflow-x-auto">
-          <div className="min-w-[2200px]">
-            <Table>
+        <div className="max-h-[min(70vh,720px)] max-w-full overflow-auto overscroll-contain [scrollbar-gutter:stable]">
+            <Table
+              className="table-fixed border-separate border-spacing-0 [&_td]:border-r [&_td]:border-[#f0e8db] [&_th]:border-r [&_th]:border-[#eadfcf] dark:[&_td]:border-[#3a342c] dark:[&_th]:border-[#3a342c] [&_td:last-child]:border-r-0 [&_th:last-child]:border-r-0"
+              style={{ width: tableMinWidth, minWidth: "100%" }}
+            >
+              <colgroup>
+                <col style={{ width: CHECKBOX_COL_WIDTH }} />
+                {columns.map((heading) => (
+                  <col key={heading} style={{ width: columnWidths[heading] }} />
+                ))}
+              </colgroup>
               <TableHeader className="border-b border-[#f0e8db] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#1c1914]">
                 <TableRow>
                   <TableCell
                     isHeader
-                    className="w-12 px-3 py-3.5 text-start"
+                    className="sticky left-0 top-0 z-30 border-b border-[#f0e8db] bg-[#fbf8f3] px-3 py-3.5 text-start dark:border-[#3a342c] dark:bg-[#1c1914]"
+                    style={{ width: CHECKBOX_COL_WIDTH, minWidth: CHECKBOX_COL_WIDTH }}
                   >
                     <input
                       type="checkbox"
@@ -1074,16 +1205,36 @@ export default function LeadsTable() {
                       aria-label="Select all"
                     />
                   </TableCell>
-                  {columns.map((heading) => (
-                    <TableCell
-                      key={heading}
-                      isHeader
-                      className="whitespace-nowrap px-3 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]"
-                    >
-                      {heading}
-                      {heading === "Latest Remark" ? " ✎" : ""}
-                    </TableCell>
-                  ))}
+                  {columns.map((heading) => {
+                    const isClient = heading === "Client Name";
+                    return (
+                      <TableCell
+                        key={heading}
+                        isHeader
+                        style={{
+                          ...colStyle(heading),
+                          ...(isClient ? { left: CHECKBOX_COL_WIDTH } : null),
+                        }}
+                        className={`relative sticky top-0 z-20 overflow-hidden border-b border-[#f0e8db] bg-[#fbf8f3] px-3 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914] ${
+                          isClient ? "z-30 shadow-[2px_0_6px_-2px_rgba(28,22,16,0.08)]" : ""
+                        }`}
+                      >
+                        <span className="block truncate pr-2">
+                          {heading}
+                          {heading === "Latest Remark" ? " ✎" : ""}
+                        </span>
+                        <span
+                          role="separator"
+                          aria-orientation="vertical"
+                          aria-label={`Resize ${heading} column`}
+                          title="Drag to resize · double-click to reset"
+                          onMouseDown={(e) => startColumnResize(heading, e)}
+                          onDoubleClick={() => resetColumnWidth(heading)}
+                          className="absolute inset-y-0 -right-px z-10 w-2 cursor-col-resize touch-none after:absolute after:inset-y-2 after:right-[3px] after:w-px after:bg-[#d9cbb8] after:opacity-70 hover:after:bg-[#9a7748] hover:after:opacity-100 active:after:bg-[#9a7748] active:after:opacity-100 dark:after:bg-[#5a5044]"
+                        />
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
 
@@ -1092,17 +1243,24 @@ export default function LeadsTable() {
                   const nextFu = lead.followUps[lead.followUps.length - 1];
                   const overdue = nextFu ? isOverdue(nextFu.nextDate) : false;
                   const isSelected = selected.includes(lead.id);
+                  const stickyTone =
+                    overdue || isSelected
+                      ? "bg-[#f6efe4] dark:bg-[#c4a574]/10"
+                      : "bg-white group-hover:bg-[#fbf8f3] dark:bg-[#161411] dark:group-hover:bg-white/[0.03]";
 
                   return (
                     <TableRow
                       key={lead.id}
-                      className={
+                      className={`group ${
                         overdue || isSelected
                           ? "bg-[#f6efe4] dark:bg-[#c4a574]/10"
                           : "hover:bg-[#fbf8f3] dark:hover:bg-white/[0.03]"
-                      }
+                      }`}
                     >
-                      <TableCell className="px-3 py-3">
+                      <TableCell
+                        className={`sticky left-0 z-10 px-3 py-3 ${stickyTone}`}
+                        style={{ width: CHECKBOX_COL_WIDTH, minWidth: CHECKBOX_COL_WIDTH }}
+                      >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -1112,9 +1270,12 @@ export default function LeadsTable() {
                         />
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1c1610] text-[#e8d5b5]">
+                      <TableCell
+                        className={`sticky z-10 overflow-hidden px-3 py-3 text-start shadow-[2px_0_6px_-2px_rgba(28,22,16,0.08)] ${stickyTone}`}
+                        style={{ ...colStyle("Client Name"), left: CHECKBOX_COL_WIDTH }}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1c1610] text-[#e8d5b5]">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                               <path
                                 d="M21 12c0 4.4-4 8-9 8-1.1 0-2.1-.2-3.1-.5L3 21l1.7-4.2C3.6 15.5 3 13.8 3 12c0-4.4 4-8 9-8s9 3.6 9 8Z"
@@ -1127,16 +1288,20 @@ export default function LeadsTable() {
                           <button
                             type="button"
                             onClick={() => setExplorerLead(lead)}
-                            className="font-semibold text-[#1c1610] text-theme-sm hover:text-[#9a7748] dark:text-[#f4efe6]"
+                            className="truncate font-semibold text-[#1c1610] text-theme-sm hover:text-[#9a7748] dark:text-[#f4efe6]"
+                            title={lead.clientName}
                           >
                             {lead.clientName}
                           </button>
                         </div>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <div className="inline-flex w-fit items-center gap-1 rounded-full border border-[#eadfcf] bg-[#f6efe4] px-2 py-0.5 dark:border-[#c4a574]/30 dark:bg-[#c4a574]/15">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Status")}
+                      >
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <div className="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-[#eadfcf] bg-[#f6efe4] px-2 py-0.5 dark:border-[#c4a574]/30 dark:bg-[#c4a574]/15">
                             <select
                               value={lead.status}
                               disabled={statusSavingId === lead.id}
@@ -1146,7 +1311,7 @@ export default function LeadsTable() {
                                   e.target.value as LeadStatus
                                 )
                               }
-                              className="bg-transparent text-xs font-semibold text-[#9a7748] focus:outline-hidden disabled:opacity-60 dark:text-[#e8d5b5]"
+                              className="max-w-full truncate bg-transparent text-xs font-semibold text-[#9a7748] focus:outline-hidden disabled:opacity-60 dark:text-[#e8d5b5]"
                             >
                               {(
                                 [
@@ -1175,27 +1340,38 @@ export default function LeadsTable() {
                         </div>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-700 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {maskPhone(lead.phone)}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-700 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Phone")}
+                      >
+                        <span className="block truncate">{maskPhone(lead.phone)}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400 whitespace-nowrap">
-                        {lead.email || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400"
+                        style={colStyle("Email")}
+                      >
+                        <span className="block truncate" title={lead.email || undefined}>
+                          {lead.email || "—"}
+                        </span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Follow Up")}
+                      >
                         {nextFu && nextFu.nextDate !== "-" ? (
-                          <div>
+                          <div className="min-w-0">
                             <button
                               type="button"
                               onClick={() => setHistoryLeadId(lead.id)}
-                              className="inline-flex items-center gap-1 rounded-full bg-[#f6efe4] px-2.5 py-1 text-xs font-medium text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]"
+                              className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-[#f6efe4] px-2.5 py-1 text-xs font-medium text-[#9a7748] dark:bg-[#c4a574]/15 dark:text-[#e8d5b5]"
                             >
                               {lead.followUps.length}{" "}
                               {nextFu.type.toLowerCase()}
                             </button>
                             <p
-                              className={`mt-1 text-theme-xs ${
+                              className={`mt-1 truncate text-theme-xs ${
                                 overdue
                                   ? "text-error-500"
                                   : "text-gray-500 dark:text-gray-400"
@@ -1219,22 +1395,25 @@ export default function LeadsTable() {
                         )}
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Project")}
+                      >
                         {lead.convertedProjectId ? (
-                          <div className="flex min-w-[140px] flex-col gap-1">
+                          <div className="flex min-w-0 flex-col gap-1">
                             <Badge size="sm" color="success">
                               Converted
                             </Badge>
                             <Link
                               href="/projects"
-                              className="text-sm font-medium text-gray-800 hover:text-[#9a7748] dark:text-white/90"
+                              className="truncate text-sm font-medium text-gray-800 hover:text-[#9a7748] dark:text-white/90"
                               title="Open in Projects"
                             >
                               {lead.convertedProjectName || lead.projectName}
                             </Link>
                           </div>
                         ) : (
-                          <div className="flex min-w-[140px] flex-col gap-1.5">
+                          <div className="flex min-w-0 flex-col gap-1.5">
                             <Badge size="sm" color="light">
                               No project
                             </Badge>
@@ -1249,10 +1428,13 @@ export default function LeadsTable() {
                         )}
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start">
-                        <div className="flex items-center gap-2" title={lead.assignedTo}>
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Lead Owner")}
+                      >
+                        <div className="flex min-w-0 items-center gap-2" title={lead.assignedTo}>
                           <span
-                            className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${avatarClass(lead.assignedTo)}`}
+                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarClass(lead.assignedTo)}`}
                           >
                             {getInitials(lead.assignedTo)}
                           </span>
@@ -1261,7 +1443,7 @@ export default function LeadsTable() {
                             onChange={(e) =>
                               void handleAssign(lead.id, e.target.value || null)
                             }
-                            className="h-8 max-w-[120px] rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
+                            className="h-8 min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
                           >
                             <option value="">Unassigned</option>
                             {assigneeOptions
@@ -1275,77 +1457,116 @@ export default function LeadsTable() {
                         </div>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.salesOwner || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Sales Owner")}
+                      >
+                        <span className="block truncate">{lead.salesOwner || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.budget || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Budget")}
+                      >
+                        <span className="block truncate">{lead.budget || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.scope || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Scope")}
+                      >
+                        <span className="block truncate">{lead.scope || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.projectType || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Project Type")}
+                      >
+                        <span className="block truncate">{lead.projectType || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.source || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Source")}
+                      >
+                        <span className="block truncate">{lead.source || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.store || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Store")}
+                      >
+                        <span className="block truncate">{lead.store || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400 max-w-[220px]">
-                        <span className="line-clamp-2">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400"
+                        style={colStyle("Description")}
+                      >
+                        <span className="line-clamp-2" title={lead.description || undefined}>
                           {lead.description || "—"}
                         </span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400 max-w-[240px]">
-                        <span className="line-clamp-2">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400"
+                        style={colStyle("Latest Remark")}
+                      >
+                        <span className="line-clamp-2" title={lead.latestRemark || undefined}>
                           {lead.latestRemark || "—"}
                         </span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.tentativeStart || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("Tentative Start")}
+                      >
+                        <span className="block truncate">{lead.tentativeStart || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300 whitespace-nowrap">
-                        {lead.financialYear || "—"}
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
+                        style={colStyle("FY")}
+                      >
+                        <span className="block truncate">{lead.financialYear || "—"}</span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <span className="block text-gray-700 text-theme-sm dark:text-gray-300">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Created Date")}
+                      >
+                        <span className="block truncate text-gray-700 text-theme-sm dark:text-gray-300">
                           {formatDateTime(lead.createdAt)}
                         </span>
-                        <span className="block text-theme-xs text-gray-400">
+                        <span className="block truncate text-theme-xs text-gray-400">
                           {relativeTime(lead.createdAt)}
                         </span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <span className="block text-gray-700 text-theme-sm dark:text-gray-300">
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Last Update")}
+                      >
+                        <span className="block truncate text-gray-700 text-theme-sm dark:text-gray-300">
                           {formatDateTime(lead.updatedAt)}
                         </span>
-                        <span className="block text-theme-xs text-gray-400">
+                        <span className="block truncate text-theme-xs text-gray-400">
                           {relativeTime(lead.updatedAt)}
                         </span>
                       </TableCell>
 
-                      <TableCell className="px-3 py-3 text-start whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
+                      <TableCell
+                        className="overflow-hidden px-3 py-3 text-start"
+                        style={colStyle("Actions")}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* <button
                             type="button"
                             onClick={() => openFollowUpModal(lead.id)}
                             className="text-sm font-medium text-[#9a7748] hover:underline"
                           >
                             Follow Up
-                          </button>
+                          </button> */}
                           {lead.followUps.length > 0 && (
                             <button
                               type="button"
@@ -1400,7 +1621,6 @@ export default function LeadsTable() {
                 })}
               </TableBody>
             </Table>
-          </div>
         </div>
         {filteredLeads.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f0e6d8] px-4 py-3 text-sm text-[#8a7b68]">

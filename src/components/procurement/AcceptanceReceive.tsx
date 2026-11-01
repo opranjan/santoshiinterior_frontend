@@ -18,7 +18,7 @@ function formatDate(iso?: string | null) {
 
 const STATE_LABEL: Record<string, string> = {
   ORDER_CREATED: "Order Created",
-  NOT_APPROVED: "Not Approved",
+  NOT_APPROVED: "Approval Pending",
   INTERNALLY_APPROVED: "Internally Approved",
   ORDER_ACCEPTED: "Order Accepted",
   PARTIALLY_DELIVERED: "Partially Delivered",

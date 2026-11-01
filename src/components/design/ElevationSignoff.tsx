@@ -1,8 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { printElevationSheet } from "@/lib/elevationPrint";
+import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
+import {
+  elevationSeriesApi,
+  type ElevationSeriesDto,
+} from "@/services/crmApi";
 
 type MaterialRow = {
   id: string;
@@ -13,21 +17,147 @@ type MaterialRow = {
   image?: string;
 };
 
-const DEFAULT_MATERIALS: MaterialRow[] = [
-  { id: "1", material: "MARINE PLYWOOD", sizes: "8x4", code: "", thickness: "18mm" },
-  { id: "2", material: "DECK PLY", sizes: "8x3", code: "", thickness: "6mm" },
-  { id: "3", material: "INNER LAMINATE (FABRICATED)", sizes: "8x4", code: "", thickness: "0.8" },
-  { id: "4", material: "OUTER LAMINATE", sizes: "8x4", code: "71731 PAS EARTH BROWN", thickness: "1mm" },
-  { id: "5", material: "OUTER LAMINATE", sizes: "8x4", code: "1154 SGL TANDEM GRAY", thickness: "1mm" },
-  { id: "6", material: "OUTER LAMINATE", sizes: "8x4", code: "CL 794 SF | BURNT WILD TEAK", thickness: "1mm" },
-  { id: "7", material: "FEVICOL", sizes: "", code: "", thickness: "" },
-  { id: "8", material: "MASKING TAPE", sizes: "1\"", code: "", thickness: "" },
-  { id: "9", material: "EDGE BINDING", sizes: "22MM", code: "WHITE COLOR", thickness: "0.8" },
-  { id: "10", material: "EDGE BINDING", sizes: "22MM", code: "AS PER LAMINATE", thickness: "0.8" },
-  { id: "11", material: "EDGE BINDING", sizes: "22MM", code: "AS PER LAMINATE", thickness: "0.8" },
-  { id: "12", material: "EDGE BINDING", sizes: "22MM", code: "AS PER LAMINATE", thickness: "0.8" },
-  { id: "13", material: "HEATEX", sizes: "", code: "", thickness: "" },
-];
+function CameraCaptureModal({
+  open,
+  onClose,
+  onCapture,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCapture: (file: File) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setError("");
+    setReady(false);
+
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Camera is not supported in this browser.");
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+          setReady(true);
+        }
+      } catch (err) {
+        const message =
+          err instanceof DOMException && err.name === "NotAllowedError"
+            ? "Camera permission denied. Allow camera access and try again."
+            : err instanceof Error
+              ? err.message
+              : "Could not open camera.";
+        setError(message);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+      setReady(false);
+    };
+  }, [open]);
+
+  const takePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !ready) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        onCapture(new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" }));
+        onClose();
+      },
+      "image/jpeg",
+      0.92
+    );
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-[#111111] text-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <h3 className="text-sm font-semibold tracking-wide">Camera</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-sm text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+        <div className="relative aspect-[4/3] bg-black">
+          {error ? (
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-rose-200">
+              {error}
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              autoPlay
+              className="h-full w-full object-cover"
+            />
+          )}
+          {!error && !ready ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
+              Opening camera…
+            </div>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-white/10 px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-white/20 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/80"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!ready || Boolean(error)}
+            onClick={takePhoto}
+            className="rounded-xl bg-[#e8d5b5] px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] disabled:opacity-40"
+          >
+            Capture
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 const TERMS = [
   {
@@ -139,14 +269,30 @@ export default function ElevationSignoff() {
   const [workingKicker, setWorkingKicker] = useState("WORKING SHEET");
   const [sheetTitle, setSheetTitle] = useState("1.MODULAR KITCHEN");
   const [drawingsTitle, setDrawingsTitle] = useState("COMMANDER KUBER KITCHEN");
-  const [materialTitle, setMaterialTitle] = useState("KITCHEN MATERIAL SHEET");
+  const [materialTitle, setMaterialTitle] = useState("MATERIAL SHEET");
   const [termsTitle, setTermsTitle] = useState("TERMS AND CONDITION");
-  const [rows, setRows] = useState(DEFAULT_MATERIALS);
+  const [rows, setRows] = useState<MaterialRow[]>([]);
   const [terms, setTerms] = useState(TERMS);
   const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [cameraRowId, setCameraRowId] = useState<string | null>(null);
+  const [seriesPickerOpen, setSeriesPickerOpen] = useState(false);
+  const [seriesOptions, setSeriesOptions] = useState<ElevationSeriesDto[]>([]);
+  const [seriesLoading, setSeriesLoading] = useState(false);
 
   const updateRow = (id: string, patch: Partial<MaterialRow>) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const setRowImage = (id: string, file: File | null | undefined) => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        if (row.image) URL.revokeObjectURL(row.image);
+        return { ...row, image: url };
+      })
+    );
   };
 
   const addPhoto = (files: FileList | null) => {
@@ -174,6 +320,41 @@ export default function ElevationSignoff() {
     });
   };
 
+  const openSeriesPicker = async () => {
+    setSeriesPickerOpen(true);
+    setSeriesLoading(true);
+    try {
+      const rows = await elevationSeriesApi.list();
+      setSeriesOptions(rows);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to load series");
+      setSeriesPickerOpen(false);
+    } finally {
+      setSeriesLoading(false);
+    }
+  };
+
+  const applySeries = (series: ElevationSeriesDto) => {
+    const imported = (series.materials || [])
+      .filter((item) => item.material || item.sizes || item.code || item.thickness)
+      .map((item, index) => ({
+        id: `${Date.now()}-${index}-${Math.random()}`,
+        material: item.material || "",
+        sizes: item.sizes || "",
+        code: item.code || "",
+        thickness: item.thickness || "",
+        image: item.imageUrl || undefined,
+      }));
+    if (!imported.length) {
+      toastError("This series has no materials.");
+      return;
+    }
+    setRows((prev) => [...prev, ...imported]);
+    setMaterialTitle(series.name || "MATERIAL SHEET");
+    setSeriesPickerOpen(false);
+    toastSuccess(`Added ${imported.length} material(s) from ${series.name}.`);
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -184,20 +365,6 @@ export default function ElevationSignoff() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-xl border border-[#eceae6] bg-white p-1 shadow-sm">
-            <Link
-              href="/design/designing"
-              className="rounded-lg px-3.5 py-1.5 text-sm font-medium text-[#6b6560] hover:text-[#111111]"
-            >
-              Designing
-            </Link>
-            <Link
-              href="/design/elevation"
-              className="rounded-lg bg-[#111111] px-3.5 py-1.5 text-sm font-medium text-white"
-            >
-              Elevation
-            </Link>
-          </div>
           <a
             href="/templates/signedpdf2.pdf"
             target="_blank"
@@ -222,7 +389,7 @@ export default function ElevationSignoff() {
         .elevation-print-sheet table th { background: #1c1610; color: #f4eadb; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
         .material-row-image { width: 56px; height: 42px; object-fit: contain; margin: 0 auto; display: block; }
       `}</style>
-      <div className="elevation-print-sheet mx-auto min-h-0 w-full max-w-[210mm] flex-1 space-y-4 overflow-y-auto bg-white">
+      <div className="elevation-print-sheet mx-auto min-h-0 w-full max-w-[210mm] flex-1 space-y-4 overflow-y-auto rounded-xl bg-white p-3 shadow-[0_0_0_1px_rgba(28,22,16,0.06)] md:p-4">
         <section className="elevation-cover overflow-hidden rounded-xl border border-[#eceae6]">
           <div className="elevation-cover-top flex flex-col items-center justify-center bg-black px-8 py-10 text-center text-white">
             <div className="cover-logo-wrap mb-8 flex h-[108px] w-[210px] items-center justify-center overflow-hidden">
@@ -327,13 +494,22 @@ export default function ElevationSignoff() {
         </section>
 
         <section className="doc-section rounded-xl border border-[#eceae6] p-4">
-          <input
-            aria-label="Material sheet title"
-            value={materialTitle}
-            onChange={(e) => setMaterialTitle(e.target.value)}
-            data-print-class="section-heading"
-            className={`${fieldClass} section-heading mb-3 font-semibold uppercase tracking-[0.08em]`}
-          />
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <input
+              aria-label="Material sheet title"
+              value={materialTitle}
+              onChange={(e) => setMaterialTitle(e.target.value)}
+              data-print-class="section-heading"
+              className={`${fieldClass} section-heading min-w-0 flex-1 font-semibold uppercase tracking-[0.08em]`}
+            />
+            <button
+              type="button"
+              onClick={() => void openSeriesPicker()}
+              className="no-print inline-flex h-9 shrink-0 items-center rounded-xl bg-[#1c1610] px-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5]"
+            >
+              + Add series
+            </button>
+          </div>
           <table className="w-full table-fixed border-collapse text-left text-sm">
             <thead>
               <tr>
@@ -347,6 +523,14 @@ export default function ElevationSignoff() {
               </tr>
             </thead>
             <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-6 text-center text-sm text-[#8a7b68]">
+                    No materials yet. Use <span className="font-semibold">+ Add series</span> to
+                    import from Elevation Collection.
+                  </td>
+                </tr>
+              ) : null}
               {rows.map((row, index) => (
                 <tr key={row.id}>
                   <td className="col-sr text-center text-[#8a7b68]">{index + 1}</td>
@@ -369,22 +553,28 @@ export default function ElevationSignoff() {
                       ) : (
                         <div className="empty-slot material-row-image border border-dashed border-[#eadfcf]" />
                       )}
-                      <label className="no-print cursor-pointer text-[11px] font-semibold text-[#9a7748]">
-                        {row.image ? "Change" : "Add"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            if (!file) return;
-                            const url = URL.createObjectURL(file);
-                            if (row.image) URL.revokeObjectURL(row.image);
-                            updateRow(row.id, { image: url });
-                          }}
-                        />
-                      </label>
+                      <div className="no-print flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+                        <label className="cursor-pointer text-[11px] font-semibold text-[#9a7748]">
+                          From file
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              setRowImage(row.id, e.target.files?.[0]);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        <span className="text-[11px] text-[#c4b8a8]">·</span>
+                        <button
+                          type="button"
+                          onClick={() => setCameraRowId(row.id)}
+                          className="text-[11px] font-semibold text-[#9a7748]"
+                        >
+                          Camera
+                        </button>
+                      </div>
                       {row.image ? (
                         <button
                           type="button"
@@ -394,7 +584,7 @@ export default function ElevationSignoff() {
                             updateRow(row.id, { image: undefined });
                           }}
                         >
-                          Remove
+                          Clear
                         </button>
                       ) : null}
                     </div>
@@ -408,15 +598,27 @@ export default function ElevationSignoff() {
               ))}
             </tbody>
           </table>
-          <button
-            type="button"
-            className="no-print mt-2 text-sm font-semibold text-[#9a7748]"
-            onClick={() =>
-              setRows((prev) => [...prev, { id: `${Date.now()}`, material: "", sizes: "", code: "", thickness: "" }])
-            }
-          >
-            + Add material
-          </button>
+          <div className="no-print mt-2 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="text-sm font-semibold text-[#9a7748]"
+              onClick={() => void openSeriesPicker()}
+            >
+              + Add series from collection
+            </button>
+            <button
+              type="button"
+              className="text-sm font-semibold text-[#9a7748]"
+              onClick={() =>
+                setRows((prev) => [
+                  ...prev,
+                  { id: `${Date.now()}`, material: "", sizes: "", code: "", thickness: "" },
+                ])
+              }
+            >
+              + Add material
+            </button>
+          </div>
         </section>
 
         <section className="doc-section rounded-xl border border-[#eceae6] p-4">
@@ -472,6 +674,69 @@ export default function ElevationSignoff() {
           </div>
         </section>
       </div>
+
+      <CameraCaptureModal
+        open={Boolean(cameraRowId)}
+        onClose={() => setCameraRowId(null)}
+        onCapture={(file) => {
+          if (cameraRowId) setRowImage(cameraRowId, file);
+        }}
+      />
+
+      {seriesPickerOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#161411]">
+            <div className="flex items-center justify-between border-b border-[#eadfcf] px-4 py-3 dark:border-[#3a342c]">
+              <div>
+                <h3 className="text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+                  Add series from collection
+                </h3>
+                <p className="text-xs text-[#8a7b68]">
+                  Pick a series to add all of its materials.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSeriesPickerOpen(false)}
+                className="rounded-lg px-2 py-1 text-sm text-[#8a7b68] hover:bg-[#f6efe4]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto p-4">
+              {seriesLoading ? (
+                <p className="py-6 text-center text-sm text-[#8a7b68]">Loading series…</p>
+              ) : seriesOptions.length === 0 ? (
+                <p className="py-6 text-center text-sm text-[#8a7b68]">
+                  No series yet. Create one under Design → Elevation Collection.
+                </p>
+              ) : (
+                seriesOptions.map((series) => (
+                  <button
+                    key={series.id}
+                    type="button"
+                    onClick={() => applySeries(series)}
+                    className="flex w-full items-center justify-between rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-4 py-3 text-left hover:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1c1914]"
+                  >
+                    <span>
+                      <span className="block text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+                        {series.name}
+                      </span>
+                      <span className="block text-xs text-[#8a7b68]">
+                        {(series.materials || []).length} material
+                        {(series.materials || []).length === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#9a7748]">
+                      Add
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

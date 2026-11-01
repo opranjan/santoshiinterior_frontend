@@ -15,7 +15,7 @@ const fieldClass =
 
 const ORDER_STATES: Array<{ value: string; label: string; className: string }> = [
   { value: "ORDER_CREATED", label: "Order Created", className: "border-[#eadfcf] bg-[#f6efe4] text-[#9a7748]" },
-  { value: "NOT_APPROVED", label: "Not Approved", className: "border-[#eadfcf] bg-[#f4f1eb] text-[#8a7b68]" },
+  { value: "NOT_APPROVED", label: "Approval Pending", className: "border-[#eadfcf] bg-[#f4f1eb] text-[#8a7b68]" },
   { value: "INTERNALLY_APPROVED", label: "Internally Approved", className: "border-[#eadfcf] bg-[#efe8dc] text-[#5c472c]" },
   { value: "ORDER_ACCEPTED", label: "Order Accepted", className: "border-[#1c1610] bg-[#1c1610] text-[#e8d5b5]" },
   { value: "PARTIALLY_DELIVERED", label: "Partially Delivered", className: "border-[#eadfcf] bg-[#fbf8f3] text-[#9a7748]" },
@@ -103,7 +103,10 @@ export default function ProcurementOrders() {
     const query: Record<string, string | number | undefined> = { limit: 100, search };
     if (mainTab === "pending") query.tab = "pending";
     else if (mainTab === "approved") query.tab = "approved";
-    else query.review = review;
+    else {
+      query.review = review;
+      query.mine = 1;
+    }
     if (kindFilter) query.kind = kindFilter;
     if (stateFilter) query.orderState = stateFilter;
     const data = await purchaseOrdersApi.list(query);
@@ -468,17 +471,29 @@ export default function ProcurementOrders() {
                         })()}
                       </td>
                       <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
-                        <select
-                          value={row.orderState}
-                          onChange={(e) => void updateState(row, e.target.value)}
-                          className={`h-9 max-w-[170px] rounded-full border px-2 text-xs font-medium ${stateMeta.className}`}
-                        >
-                          {(vendorView ? statesForVendor(row.orderState) : ORDER_STATES).map((state) => (
-                            <option key={state.value} value={state.value}>
-                              {state.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex min-w-[170px] flex-col gap-1.5">
+                          <select
+                            value={row.orderState}
+                            onChange={(e) => void updateState(row, e.target.value)}
+                            className={`h-9 max-w-[170px] rounded-full border px-2 text-xs font-medium ${stateMeta.className}`}
+                          >
+                            {(vendorView ? statesForVendor(row.orderState) : ORDER_STATES).map((state) => (
+                              <option key={state.value} value={state.value}>
+                                {state.label}
+                              </option>
+                            ))}
+                          </select>
+                          {!vendorView &&
+                          (row.orderState === "NOT_APPROVED" || row.orderState === "ORDER_CREATED") ? (
+                            <button
+                              type="button"
+                              onClick={() => void updateState(row, "INTERNALLY_APPROVED")}
+                              className="h-8 rounded-lg bg-[#1c1610] px-2.5 text-[11px] font-semibold text-[#e8d5b5] hover:opacity-90"
+                            >
+                              Approve
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                       {canDelete ? (
                         <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>

@@ -94,6 +94,9 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
   const [shippingAddress, setShippingAddress] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const autoScanTried = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const load = async () => {
@@ -107,11 +110,67 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
   };
 
   useEffect(() => {
+    autoScanTried.current = false;
     setLoading(true);
     load()
       .catch((err) => toastError(err instanceof Error ? err.message : "Failed to load order"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const applyScannedOrder = (updated: PurchaseOrderDto, prevCount: number) => {
+    setRow(updated);
+    const nextItems = fromDto(updated.items);
+    setItems(nextItems);
+    const added = Math.max(0, nextItems.filter((item) => item.name.trim()).length - prevCount);
+    if (added > 0) {
+      toastSuccess(`Added ${added} item(s) from receipt scan.`);
+    } else {
+      toastWarning("No new line items found in the attached receipt.");
+    }
+    return added;
+  };
+
+  const scanAttachedReceipts = async (opts?: { silentEmpty?: boolean }) => {
+    if (scanning || attaching) return 0;
+    const prevCount = items.filter((item) => item.name.trim()).length;
+    try {
+      setScanning(true);
+      const updated = await purchaseOrdersApi.scanAttachments(id);
+      return applyScannedOrder(updated, prevCount);
+    } catch (err) {
+      if (!opts?.silentEmpty) {
+        toastError(err instanceof Error ? err.message : "Scan failed");
+      }
+      return 0;
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (loading || !row || autoScanTried.current) return;
+    if ((row.items || []).length > 0) return;
+    const hasReceipt = (row.files || []).some((file) => {
+      const kind = String(file.kind || "RECEIPT").toUpperCase();
+      if (kind !== "RECEIPT" && kind !== "SCAN") return false;
+      const mime = String(file.mimeType || "").toLowerCase();
+      const name = String(file.fileName || "").toLowerCase();
+      return (
+        mime.startsWith("image/") ||
+        mime === "application/pdf" ||
+        mime === "text/plain" ||
+        name.endsWith(".pdf") ||
+        name.endsWith(".png") ||
+        name.endsWith(".jpg") ||
+        name.endsWith(".jpeg") ||
+        name.endsWith(".webp")
+      );
+    });
+    if (!hasReceipt) return;
+    autoScanTried.current = true;
+    void scanAttachedReceipts({ silentEmpty: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, row]);
 
   const namedItems = items.filter((item) => item.name.trim());
   const summary = useMemo(() => {
@@ -165,13 +224,33 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
   };
 
   const attach = async (files: FileList | null) => {
-    if (!files?.length) return;
+    if (!files?.length || attaching || scanning) return;
+    const prevCount = items.filter((item) => item.name.trim()).length;
     try {
+      setAttaching(true);
       const updated = await purchaseOrdersApi.uploadFiles(id, Array.from(files));
       setRow(updated);
-      toastSuccess("Receipt attached.");
+      const nextItems = fromDto(updated.items);
+      setItems(nextItems);
+      const added = Math.max(
+        0,
+        nextItems.filter((item) => item.name.trim()).length - prevCount
+      );
+      if (added > 0) {
+        toastSuccess(`Receipt attached. Added ${added} item(s) from scan.`);
+      } else {
+        // Upload saved the file; try dedicated scan (covers older API processes).
+        setAttaching(false);
+        const scanned = await scanAttachedReceipts({ silentEmpty: true });
+        if (scanned <= 0) {
+          toastSuccess("Receipt attached. No line items detected yet — use Scan for items.");
+        }
+      }
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setAttaching(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -281,12 +360,31 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
           ))}
           <button
             type="button"
+            disabled={attaching || scanning}
             onClick={() => fileRef.current?.click()}
-            className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-medium text-white"
+            className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
           >
-            + Attach new
+            {attaching ? "Uploading & scanning…" : "+ Attach new"}
           </button>
-          <input ref={fileRef} type="file" className="hidden" multiple onChange={(e) => void attach(e.target.files)} />
+          {(row.files || []).length > 0 ? (
+            <button
+              type="button"
+              disabled={attaching || scanning}
+              onClick={() => void scanAttachedReceipts()}
+              className="rounded-full border border-[#2563EB] bg-white px-3 py-1 text-xs font-medium text-[#2563EB] disabled:opacity-60"
+            >
+              {scanning ? "Scanning…" : "Scan for items"}
+            </button>
+          ) : null}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,application/pdf,text/plain"
+            className="hidden"
+            multiple
+            disabled={attaching || scanning}
+            onChange={(e) => void attach(e.target.files)}
+          />
         </div>
       </div>
 
@@ -409,7 +507,15 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
                       <td className="px-3 py-2">
                         <input value={item.discountPct} onChange={(e) => setItem(item.key, { discountPct: e.target.value })} placeholder="Enter %" className={fieldClass} />
                       </td>
-                      <td className="px-3 py-2">{item.taxPct || 18}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          value={item.taxPct}
+                          onChange={(e) => setItem(item.key, { taxPct: e.target.value })}
+                          placeholder="Tax %"
+                          inputMode="decimal"
+                          className={fieldClass}
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         <span className="inline-flex h-9 items-center rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-sm text-[#1c1610]">
                           {vendor?.name || row.vendor || "—"}

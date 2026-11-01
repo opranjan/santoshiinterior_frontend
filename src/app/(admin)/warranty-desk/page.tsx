@@ -1,18 +1,20 @@
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
-import WarrantyDeskTable from "@/components/warranty/WarrantyDeskTable";
+import WarrantyDesk from "@/components/warranty/WarrantyDesk";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Warranty Desk",
-  description: "Handle customer warranty and after-sales requests",
+  description: "Customer and vendor warranty coverage plus claim tickets",
 };
 
 export default function WarrantyDeskPage() {
   return (
     <div>
       <PageBreadcrumb pageTitle="Warranty Desk" />
-      <WarrantyDeskTable />
+      <Suspense fallback={<p className="text-sm text-[#8a7b68]">Loading warranty desk…</p>}>
+        <WarrantyDesk />
+      </Suspense>
     </div>
   );
 }

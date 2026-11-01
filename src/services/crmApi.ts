@@ -809,6 +809,47 @@ export const designApi = {
   },
 };
 
+export type ElevationSeriesMaterialDto = {
+  id?: string;
+  material: string;
+  sizes?: string;
+  code?: string;
+  thickness?: string;
+  imageUrl?: string | null;
+  sortOrder?: number;
+};
+
+export type ElevationSeriesDto = {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder?: number;
+  materials: ElevationSeriesMaterialDto[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export const elevationSeriesApi = {
+  list: () => api.get<ElevationSeriesDto[]>("/elevation-series"),
+  get: (id: string) => api.get<ElevationSeriesDto>(`/elevation-series/${id}`),
+  create: (body: {
+    name: string;
+    description?: string | null;
+    sortOrder?: number;
+    materials?: ElevationSeriesMaterialDto[];
+  }) => api.post<ElevationSeriesDto>("/elevation-series", body),
+  update: (
+    id: string,
+    body: {
+      name?: string;
+      description?: string | null;
+      sortOrder?: number;
+      materials?: ElevationSeriesMaterialDto[];
+    }
+  ) => api.put<ElevationSeriesDto>(`/elevation-series/${id}`, body),
+  remove: (id: string) => api.delete<{ id: string }>(`/elevation-series/${id}`),
+};
+
 export type ProjectTaskDto = {
   id: string;
   projectId: string;
@@ -1088,6 +1129,8 @@ export const purchaseOrdersApi = {
     }
     return json.data as PurchaseOrderDto;
   },
+  scanAttachments: (id: string) =>
+    api.post<PurchaseOrderDto>(`/purchase-orders/${id}/scan-attachments`, {}),
 };
 
 export type ProcurementRequestItemDto = {
@@ -1447,6 +1490,83 @@ export const warrantyApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/warranty/${id}`, body),
   remove: (id: string) => api.delete(`/warranty/${id}`),
+};
+
+export type WarrantyCoverageItemDto = {
+  title: string;
+  description?: string | null;
+  durationMonths?: number | null;
+  endsOn?: string | null;
+  vendorWarrantyId?: string | null;
+  vendorName?: string | null;
+};
+
+export type VendorWarrantyDto = {
+  id: string;
+  projectId: string;
+  vendorId?: string | null;
+  vendorName?: string | null;
+  materialName: string;
+  materialCategory?: string | null;
+  coverageSummary?: string | null;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  documentUrl?: string | null;
+  notes?: string | null;
+  purchaseOrderId?: string | null;
+  project?: {
+    id: string;
+    name: string;
+    clientName?: string | null;
+  } | null;
+  vendor?: { id: string; name: string; phone?: string | null } | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CustomerWarrantyDto = {
+  id: string;
+  projectId: string;
+  title: string;
+  coverageSummary?: string | null;
+  coverageItems?: WarrantyCoverageItemDto[] | null;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  notes?: string | null;
+  project?: {
+    id: string;
+    name: string;
+    clientName?: string | null;
+    phone?: string | null;
+  } | null;
+  vendorWarranties?: VendorWarrantyDto[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export const warrantyCoverageApi = {
+  listCustomer: (query?: Record<string, string | number | undefined>) =>
+    api.get<CustomerWarrantyDto[]>("/warranty-coverage/customer", query),
+  getCustomer: (id: string) =>
+    api.get<CustomerWarrantyDto>(`/warranty-coverage/customer/${id}`),
+  createCustomer: (body: Record<string, unknown>) =>
+    api.post<CustomerWarrantyDto>("/warranty-coverage/customer", body),
+  updateCustomer: (id: string, body: Record<string, unknown>) =>
+    api.put<CustomerWarrantyDto>(`/warranty-coverage/customer/${id}`, body),
+  removeCustomer: (id: string) =>
+    api.delete<{ id: string }>(`/warranty-coverage/customer/${id}`),
+  listVendor: (query?: Record<string, string | number | undefined>) =>
+    api.get<VendorWarrantyDto[]>("/warranty-coverage/vendor", query),
+  listVendorByProject: (projectId: string) =>
+    api.get<VendorWarrantyDto[]>(`/warranty-coverage/vendor/by-project/${projectId}`),
+  getVendor: (id: string) =>
+    api.get<VendorWarrantyDto>(`/warranty-coverage/vendor/${id}`),
+  createVendor: (body: Record<string, unknown>) =>
+    api.post<VendorWarrantyDto>("/warranty-coverage/vendor", body),
+  updateVendor: (id: string, body: Record<string, unknown>) =>
+    api.put<VendorWarrantyDto>(`/warranty-coverage/vendor/${id}`, body),
+  removeVendor: (id: string) =>
+    api.delete<{ id: string }>(`/warranty-coverage/vendor/${id}`),
 };
 
 export type HrCheckInLocation = {

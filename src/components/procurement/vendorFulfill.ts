@@ -96,7 +96,7 @@ async function createOrder(kind: "PO" | "WO", ctx: FulfillContext, items: Fulfil
     source: ctx.source || "MODULAR_CATALOG",
     remark: ctx.remark || null,
     status: "SENT",
-    orderState: "ORDER_CREATED",
+    orderState: "NOT_APPROVED",
     items: items.map((item) => ({
       name: item.name.trim(),
       code: item.code || null,

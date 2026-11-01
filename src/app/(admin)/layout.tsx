@@ -23,8 +23,9 @@ export default function AdminLayout({
   const hrPanel = isHrPanelUser(user);
   const casualPanel = isCasualPanelUser(user);
   const chatPage = pathname === "/chat";
-  const designPage =
-    pathname === "/design/designing" || pathname === "/design/elevation";
+  const designingPage = pathname === "/design/designing";
+  const elevationPage = pathname === "/design/elevation";
+  const designPage = designingPage || elevationPage;
   const lockedPage = chatPage || designPage;
 
   const mainContentMargin = isMobileOpen
@@ -55,8 +56,10 @@ export default function AdminLayout({
               className={`admin-page-content min-w-0 flex-1 mx-auto w-full max-w-(--breakpoint-2xl) ${
                 chatPage
                   ? "flex min-h-0 flex-col overflow-hidden p-0 max-lg:max-w-none lg:p-6"
-                  : designPage
+                  : designingPage
                     ? "flex min-h-0 flex-col overflow-hidden p-0 max-lg:max-w-none"
+                  : elevationPage
+                    ? "flex min-h-0 flex-col overflow-hidden px-4 pb-4 pt-3 max-lg:max-w-none md:px-6 md:pb-6 md:pt-4"
                   : partner
                     ? "overflow-x-hidden px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:p-6"
                     : "overflow-x-auto p-4 md:p-6"

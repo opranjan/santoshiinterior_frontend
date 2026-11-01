@@ -15,7 +15,7 @@ const PAGE_SIZE = 8;
 
 const ORDER_STATES = [
   { value: "ORDER_CREATED", label: "Order Created" },
-  { value: "NOT_APPROVED", label: "Not Approved" },
+  { value: "NOT_APPROVED", label: "Approval Pending" },
   { value: "INTERNALLY_APPROVED", label: "Internally Approved" },
   { value: "ORDER_ACCEPTED", label: "Order Accepted" },
   { value: "PARTIALLY_DELIVERED", label: "Partially Delivered" },
