@@ -243,7 +243,7 @@ export function buildWarrantyReceiptHtml(row: CustomerWarrantyDto) {
         <div>
           <p class="eyebrow">Project</p>
           <p class="name">${esc(project)}</p>
-          <p class="muted">${esc(items.length)} material${items.length === 1 ? "" : "s"} covered</p>
+          <p class="muted">${esc(String(items.length))} material${items.length === 1 ? "" : "s"} covered</p>
         </div>
       </div>
 
