@@ -349,12 +349,7 @@ const teamAssigneeOptions: AssigneeOption[] = [
   { id: "team-design", name: "Designing TEAM", kind: "team" },
 ];
 
-const LEAD_DELETE_PERMISSIONS = [
-  "sales.full",
-  "sales.manage",
-  "leads.manage",
-  "users.manage",
-];
+const LEAD_DELETE_PERMISSIONS = ["leads.delete"];
 
 function mapLeadDto(dto: LeadDto): Lead {
   return {
