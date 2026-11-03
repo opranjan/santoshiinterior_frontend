@@ -38,6 +38,10 @@ export default function AttendanceRecordingPlayer({ recordingId, employeeName, o
   const [transcriptStatus, setTranscriptStatus] = useState("PENDING");
   const [transcriptLanguage, setTranscriptLanguage] = useState("");
   const [transcriptError, setTranscriptError] = useState("");
+  const [aiSummary, setAiSummary] = useState("");
+  const [aiSummaryStatus, setAiSummaryStatus] = useState("PENDING");
+  const [aiSummaryError, setAiSummaryError] = useState("");
+  const [summarizing, setSummarizing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,10 +59,18 @@ export default function AttendanceRecordingPlayer({ recordingId, employeeName, o
         setTranscriptStatus(data.transcriptStatus || "PENDING");
         setTranscriptLanguage(data.transcriptLanguage || "");
         setTranscriptError(data.transcriptError || "");
+        setAiSummary(data.aiSummary || "");
+        setAiSummaryStatus(data.aiSummaryStatus || "PENDING");
+        setAiSummaryError(data.aiSummaryError || "");
         const status = data.transcriptStatus || "PENDING";
+        const summaryStatus = data.aiSummaryStatus || "PENDING";
         const englishReady =
           data.transcriptLanguage === "latn" || status === "FAILED" || status === "EMPTY";
-        const done = englishReady && ["READY", "EMPTY", "FAILED"].includes(status);
+        const transcriptDone = englishReady && ["READY", "EMPTY", "FAILED"].includes(status);
+        const summaryDone =
+          !data.transcript?.trim() ||
+          ["READY", "EMPTY", "FAILED"].includes(summaryStatus);
+        const done = transcriptDone && summaryDone;
         if (done && timer) window.clearInterval(timer);
         const ready = (data.chunks || []).filter((c) => c.status === "UPLOADED");
         setChunks(
@@ -142,13 +154,67 @@ export default function AttendanceRecordingPlayer({ recordingId, employeeName, o
         )}
 
         <div className="mt-5 rounded-xl border border-[#E8D5B5] bg-[#FBF6EE] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8C6239]">
+              {aiSummaryStatus === "PROCESSING" || summarizing
+                ? "Generating AI summary…"
+                : aiSummaryStatus === "FAILED"
+                  ? "AI summary failed"
+                  : "AI summary"}
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={summarizing || (!transcript && transcriptStatus !== "READY")}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    setSummarizing(true);
+                    setError("");
+                    const data = await hrApi.summarizeAttendanceRecording(recordingId, true);
+                    setTranscript(data.transcript || transcript);
+                    setTranscriptStatus(data.transcriptStatus || transcriptStatus);
+                    setAiSummary(data.aiSummary || "");
+                    setAiSummaryStatus(data.aiSummaryStatus || "READY");
+                    setAiSummaryError(data.aiSummaryError || "");
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "AI summary failed");
+                  } finally {
+                    setSummarizing(false);
+                  }
+                })();
+              }}
+            >
+              {summarizing ? "Summarizing…" : aiSummary ? "Refresh summary" : "Generate summary"}
+            </Button>
+          </div>
+          {aiSummaryError && !aiSummary ? (
+            <p className="mt-2 text-sm text-error-500">{aiSummaryError}</p>
+          ) : aiSummary ? (
+            <div className="mt-2 max-h-[28vh] overflow-y-auto pr-2">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-gray-800 dark:text-gray-200">
+                {aiSummary}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">
+              {aiSummaryStatus === "PROCESSING" || summarizing
+                ? "ChatGPT is reviewing this duty audio…"
+                : transcript
+                  ? "Click Generate summary for a ChatGPT overview of this recording."
+                  : "Transcript is needed before ChatGPT can summarize."}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-[#E8D5B5] bg-[#FBF6EE] p-4 dark:border-white/10 dark:bg-white/[0.03]">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#8C6239]">
             {transcriptLabel(transcriptStatus)}
           </p>
           {transcriptError && !transcript ? (
             <p className="mt-2 text-sm text-error-500">{transcriptError}</p>
           ) : transcript ? (
-            <div className="mt-2 max-h-[45vh] overflow-y-auto pr-2">
+            <div className="mt-2 max-h-[35vh] overflow-y-auto pr-2">
               <p className="whitespace-pre-wrap text-sm leading-6 text-gray-800 dark:text-gray-200">
                 {transcript}
               </p>

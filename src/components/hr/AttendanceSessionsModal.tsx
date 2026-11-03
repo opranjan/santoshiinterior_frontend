@@ -12,6 +12,9 @@ export type DutySession = {
   transcript?: string;
   transcriptStatus?: string;
   transcriptLanguage?: string;
+  aiSummary?: string;
+  aiSummaryStatus?: string;
+  aiSummaryError?: string;
   chunkCount: number;
 };
 
@@ -28,8 +31,18 @@ type Props = {
   status: string;
   sessions: DutySession[];
   onListen: (recordingId: string, label: string) => void;
+  onSummarize?: (recordingId: string) => void;
+  summarizingId?: string | null;
   onClose: () => void;
 };
+
+function summaryLabel(status?: string) {
+  if (status === "READY") return "AI summary";
+  if (status === "PROCESSING" || status === "PENDING") return "Generating AI summary…";
+  if (status === "FAILED") return "AI summary failed";
+  if (status === "EMPTY") return "No AI summary";
+  return "AI summary";
+}
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -88,6 +101,8 @@ export default function AttendanceSessionsModal({
   status,
   sessions,
   onListen,
+  onSummarize,
+  summarizingId,
   onClose,
 }: Props) {
   const totalSec = sessions.reduce((sum, row) => {
@@ -129,19 +144,61 @@ export default function AttendanceSessionsModal({
                   </p>
                 </div>
                 {row.recordingId && row.chunkCount > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => onListen(row.recordingId!, `Session ${row.index}`)}
-                    className="inline-flex h-8 items-center rounded-lg bg-[#8C6239] px-3 text-xs font-medium text-white hover:bg-[#5C3D2E]"
-                  >
-                    Listen
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onListen(row.recordingId!, `Session ${row.index}`)}
+                      className="inline-flex h-8 items-center rounded-lg bg-[#8C6239] px-3 text-xs font-medium text-white hover:bg-[#5C3D2E]"
+                    >
+                      Listen
+                    </button>
+                    {onSummarize ? (
+                      <button
+                        type="button"
+                        disabled={summarizingId === row.recordingId}
+                        onClick={() => onSummarize(row.recordingId!)}
+                        className="inline-flex h-8 items-center rounded-lg border border-[#8C6239] px-3 text-xs font-medium text-[#8C6239] hover:bg-[#8C6239]/hover:text-white disabled:opacity-50"
+                      >
+                        {summarizingId === row.recordingId
+                          ? "Summarizing…"
+                          : row.aiSummary?.trim()
+                            ? "Refresh summary"
+                            : "AI summary"}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : (
                   <span className="text-xs text-gray-400">
                     {row.recordingStatus === "RECORDING" ? "Recording…" : "No audio"}
                   </span>
                 )}
               </div>
+
+              <div className="mt-3 rounded-lg border border-[#e8d5b5]/60 bg-white/70 p-3 dark:border-white/10 dark:bg-black/20">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8C6239]">
+                  {summaryLabel(row.aiSummaryStatus)}
+                </p>
+                {row.aiSummary?.trim() ? (
+                  <div className="mt-1 max-h-40 overflow-y-auto pr-1">
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-gray-800 dark:text-gray-200">
+                      {row.aiSummary}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-gray-500">
+                    {row.aiSummaryStatus === "PROCESSING" || summarizingId === row.recordingId
+                      ? "ChatGPT is summarizing this duty audio…"
+                      : row.aiSummaryStatus === "FAILED"
+                        ? row.aiSummaryError || "Could not generate summary."
+                        : row.transcript?.trim()
+                          ? "Summary will appear here after ChatGPT reviews the transcript."
+                          : row.chunkCount > 0
+                            ? "Waiting for audio-to-text before summary."
+                            : "No recording yet."}
+                  </p>
+                )}
+              </div>
+
               <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-[#8C6239]">Audio to text</p>
               {row.transcriptStatus === "PROCESSING" ? (
                 <p className="mt-1 text-sm text-gray-500">Converting audio to text…</p>

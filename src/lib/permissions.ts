@@ -305,6 +305,8 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/settings", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "website.manage", "integrations.manage", "procurement.manage"] },
   /** Empty = any authenticated CRM user (videos still filtered by panel/role on API). */
   { prefix: "/training", permissions: [] },
+  /** Role/panel walkthroughs — any authenticated user. */
+  { prefix: "/tutorial", permissions: [] },
   /** Empty = any authenticated CRM user (published catalog videos). */
   { prefix: "/catalog-videos", permissions: [] },
   {
@@ -350,6 +352,8 @@ export const canAccessRoute = (
       path === "/profile" ||
       path === "/training" ||
       path.startsWith("/training/") ||
+      path === "/tutorial" ||
+      path.startsWith("/tutorial/") ||
       path === "/catalog-videos" ||
       path.startsWith("/catalog-videos/") ||
       path === "/hr" ||
@@ -362,6 +366,8 @@ export const canAccessRoute = (
       path === "/profile" ||
       path === "/training" ||
       path.startsWith("/training/") ||
+      path === "/tutorial" ||
+      path.startsWith("/tutorial/") ||
       path === "/catalog-videos" ||
       path.startsWith("/catalog-videos/") ||
       path === "/casual" ||
@@ -373,6 +379,8 @@ export const canAccessRoute = (
       vendorPanelOk ||
       path === "/training" ||
       path.startsWith("/training/") ||
+      path === "/tutorial" ||
+      path.startsWith("/tutorial/") ||
       path === "/catalog-videos" ||
       path.startsWith("/catalog-videos/")
     );

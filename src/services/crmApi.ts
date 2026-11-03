@@ -1636,6 +1636,10 @@ export const hrApi = {
       transcriptStatus: string;
       transcriptError: string;
       transcriptLanguage: string;
+      aiSummary: string;
+      aiSummaryStatus: string;
+      aiSummaryError: string;
+      aiSummaryAt?: string | null;
       chunks: {
         id: string;
         seq: number;
@@ -1645,6 +1649,16 @@ export const hrApi = {
         transcriptStatus: string;
       }[];
     }>(`/hr/attendance-recordings/${id}`),
+  summarizeAttendanceRecording: (id: string, force = false) =>
+    api.post<{
+      id: string;
+      transcript: string;
+      transcriptStatus: string;
+      aiSummary: string;
+      aiSummaryStatus: string;
+      aiSummaryError: string;
+      aiSummaryAt?: string | null;
+    }>(`/hr/attendance-recordings/${id}/summary`, { force }),
   upsertAttendance: (body: Record<string, unknown>) =>
     api.post<Record<string, unknown>>("/hr/attendance", body),
   listAttendanceAudits: (query?: Record<string, string | number | undefined>) =>

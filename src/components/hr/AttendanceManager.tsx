@@ -228,6 +228,9 @@ function mapSessions(row: Record<string, unknown>): DutySession[] {
       transcript: rec?.transcript ? String(rec.transcript) : "",
       transcriptStatus: rec?.transcriptStatus ? String(rec.transcriptStatus) : undefined,
       transcriptLanguage: rec?.transcriptLanguage ? String(rec.transcriptLanguage) : undefined,
+      aiSummary: rec?.aiSummary ? String(rec.aiSummary) : "",
+      aiSummaryStatus: rec?.aiSummaryStatus ? String(rec.aiSummaryStatus) : undefined,
+      aiSummaryError: rec?.aiSummaryError ? String(rec.aiSummaryError) : undefined,
       chunkCount: Number(rec?.chunkCount || 0),
     };
   });
@@ -243,6 +246,9 @@ function mapSessions(row: Record<string, unknown>): DutySession[] {
       transcript: rec.transcript ? String(rec.transcript) : "",
       transcriptStatus: rec.transcriptStatus ? String(rec.transcriptStatus) : undefined,
       transcriptLanguage: rec.transcriptLanguage ? String(rec.transcriptLanguage) : undefined,
+      aiSummary: rec.aiSummary ? String(rec.aiSummary) : "",
+      aiSummaryStatus: rec.aiSummaryStatus ? String(rec.aiSummaryStatus) : undefined,
+      aiSummaryError: rec.aiSummaryError ? String(rec.aiSummaryError) : undefined,
       chunkCount: Number(rec.chunkCount || 0),
     });
   });
@@ -267,15 +273,24 @@ function joinedTranscript(sessions: DutySession[]) {
 }
 
 function needsTranscriptPoll(sessions: DutySession[]) {
-  return sessions.some(
-    (row) =>
-      row.chunkCount > 0 &&
+  return sessions.some((row) => {
+    if (row.chunkCount <= 0) return false;
+    const waitingTranscript =
       row.transcriptStatus !== "FAILED" &&
       (row.transcriptStatus === "PENDING" ||
         row.transcriptStatus === "PROCESSING" ||
         !row.transcriptStatus ||
-        row.transcriptLanguage !== "latn")
-  );
+        row.transcriptLanguage !== "latn");
+    const waitingSummary =
+      Boolean(row.transcript?.trim()) &&
+      row.aiSummaryStatus !== "FAILED" &&
+      row.aiSummaryStatus !== "EMPTY" &&
+      (row.aiSummaryStatus === "PENDING" ||
+        row.aiSummaryStatus === "PROCESSING" ||
+        !row.aiSummaryStatus ||
+        !row.aiSummary?.trim());
+    return waitingTranscript || waitingSummary;
+  });
 }
 
 function recordKey(employeeId: string, date: string) {
@@ -356,6 +371,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
   const [officeStart, setOfficeStart] = useState(DEFAULT_CHECK_IN);
   const [officeEnd, setOfficeEnd] = useState(DEFAULT_CHECK_OUT);
   const [listening, setListening] = useState<{ id: string; name: string } | null>(null);
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
   const [sessionView, setSessionView] = useState<{
     emp: EmployeeLite;
     dateLabel: string;
@@ -1355,9 +1371,60 @@ export default function AttendanceManager({ employees = [] }: Props) {
           dateLabel={sessionView.dateLabel}
           status={sessionView.status}
           sessions={sessionView.sessions}
+          summarizingId={summarizingId}
           onListen={(id, label) =>
             setListening({ id, name: `${sessionView.emp.name} · ${label}` })
           }
+          onSummarize={async (recordingId) => {
+            try {
+              setSummarizingId(recordingId);
+              const data = await hrApi.summarizeAttendanceRecording(recordingId, true);
+              setSessionView((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  sessions: prev.sessions.map((row) =>
+                    row.recordingId === recordingId
+                      ? {
+                          ...row,
+                          transcript: data.transcript || row.transcript,
+                          transcriptStatus: data.transcriptStatus || row.transcriptStatus,
+                          aiSummary: data.aiSummary || "",
+                          aiSummaryStatus: data.aiSummaryStatus || "READY",
+                          aiSummaryError: data.aiSummaryError || "",
+                        }
+                      : row
+                  ),
+                };
+              });
+              setRecords((prev) => {
+                const next = { ...prev };
+                for (const [key, rec] of Object.entries(next)) {
+                  if (!(rec.sessions || []).some((s) => s.recordingId === recordingId)) continue;
+                  next[key] = {
+                    ...rec,
+                    sessions: (rec.sessions || []).map((row) =>
+                      row.recordingId === recordingId
+                        ? {
+                            ...row,
+                            transcript: data.transcript || row.transcript,
+                            transcriptStatus: data.transcriptStatus || row.transcriptStatus,
+                            aiSummary: data.aiSummary || "",
+                            aiSummaryStatus: data.aiSummaryStatus || "READY",
+                            aiSummaryError: data.aiSummaryError || "",
+                          }
+                        : row
+                    ),
+                  };
+                }
+                return next;
+              });
+            } catch (err) {
+              setLoadError(err instanceof Error ? err.message : "AI summary failed");
+            } finally {
+              setSummarizingId(null);
+            }
+          }}
           onClose={() => setSessionView(null)}
         />
       ) : null}

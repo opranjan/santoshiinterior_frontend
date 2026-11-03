@@ -5,8 +5,16 @@ import { printElevationSheet } from "@/lib/elevationPrint";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import {
   elevationSeriesApi,
+  projectsApi,
   type ElevationSeriesDto,
 } from "@/services/crmApi";
+
+type ProjectOption = {
+  id: string;
+  name: string;
+  clientName: string;
+  address: string;
+};
 
 type MaterialRow = {
   id: string;
@@ -263,12 +271,18 @@ function SignaturePad({ label }: { label: string }) {
 
 export default function ElevationSignoff() {
   const [docTitle, setDocTitle] = useState("PROJECT SIGNOFF");
-  const [clientName, setClientName] = useState("COMMANDER ANIL.");
-  const [siteAddress, setSiteAddress] = useState("BIANA");
-  const [date, setDate] = useState("14/06/2026");
+  const [clientName, setClientName] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [date, setDate] = useState(() =>
+    new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    })
+  );
   const [workingKicker, setWorkingKicker] = useState("WORKING SHEET");
   const [sheetTitle, setSheetTitle] = useState("1.MODULAR KITCHEN");
-  const [drawingsTitle, setDrawingsTitle] = useState("COMMANDER KUBER KITCHEN");
+  const [drawingsTitle, setDrawingsTitle] = useState("");
   const [materialTitle, setMaterialTitle] = useState("MATERIAL SHEET");
   const [termsTitle, setTermsTitle] = useState("TERMS AND CONDITION");
   const [rows, setRows] = useState<MaterialRow[]>([]);
@@ -278,6 +292,50 @@ export default function ElevationSignoff() {
   const [seriesPickerOpen, setSeriesPickerOpen] = useState(false);
   const [seriesOptions, setSeriesOptions] = useState<ElevationSeriesDto[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(false);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setProjectsLoading(true);
+        const data = await projectsApi.list({ limit: 200 });
+        if (cancelled) return;
+        setProjects(
+          (data.items || []).map((row) => {
+            const p = row as Record<string, unknown>;
+            return {
+              id: String(p.id || ""),
+              name: String(p.name || "Untitled project"),
+              clientName: String(p.clientName || "").trim(),
+              address: String(p.address || "").trim(),
+            };
+          }).filter((p) => p.id)
+        );
+      } catch (err) {
+        if (!cancelled) {
+          toastError(err instanceof Error ? err.message : "Failed to load projects");
+        }
+      } finally {
+        if (!cancelled) setProjectsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const applyProject = (id: string) => {
+    setProjectId(id);
+    if (!id) return;
+    const project = projects.find((p) => p.id === id);
+    if (!project) return;
+    if (project.clientName) setClientName(project.clientName);
+    if (project.address) setSiteAddress(project.address);
+    if (!drawingsTitle.trim() && project.name) setDrawingsTitle(project.name);
+  };
 
   const updateRow = (id: string, patch: Partial<MaterialRow>) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -357,14 +415,35 @@ export default function ElevationSignoff() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="no-print mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-[#b0a89d]">Architecture</p>
           <h1 className="mt-1 text-[32px] font-semibold leading-none tracking-tight text-[#111111] dark:text-white">
             Elevation
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block min-w-[220px]">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+              Project
+            </span>
+            <select
+              value={projectId}
+              onChange={(e) => applyProject(e.target.value)}
+              disabled={projectsLoading}
+              className="h-9 w-full min-w-[240px] rounded-xl border border-[#eadfcf] bg-white px-3 text-sm text-[#1c1610] outline-none focus:border-[#c4a574] dark:border-white/10 dark:bg-[#1c1610] dark:text-white"
+            >
+              <option value="">
+                {projectsLoading ? "Loading projects…" : "Select project"}
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.clientName ? ` · ${p.clientName}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
           <a
             href="/templates/signedpdf2.pdf"
             target="_blank"
@@ -411,8 +490,9 @@ export default function ElevationSignoff() {
                   aria-label="Client name"
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Select project"
                   data-print-class="cover-meta-value"
-                  className="w-full bg-transparent text-center text-[11px] uppercase tracking-[0.12em] text-white outline-none"
+                  className="w-full bg-transparent text-center text-[11px] uppercase tracking-[0.12em] text-white outline-none placeholder:text-white/35"
                 />
               </label>
               <label className="text-center">
@@ -421,8 +501,9 @@ export default function ElevationSignoff() {
                   aria-label="Site address"
                   value={siteAddress}
                   onChange={(e) => setSiteAddress(e.target.value)}
+                  placeholder="Select project"
                   data-print-class="cover-meta-value"
-                  className="w-full bg-transparent text-center text-[11px] uppercase tracking-[0.12em] text-white outline-none"
+                  className="w-full bg-transparent text-center text-[11px] uppercase tracking-[0.12em] text-white outline-none placeholder:text-white/35"
                 />
               </label>
               <label className="text-center">

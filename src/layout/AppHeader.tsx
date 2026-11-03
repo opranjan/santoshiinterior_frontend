@@ -2,6 +2,7 @@
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
+import PanelTutorialButton from "@/components/training/PanelTutorialButton";
 import { useAuth } from "@/context/AuthContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { isCasualPanelUser, isHrPanelUser, isIsolatedShellUser } from "@/lib/permissions";
@@ -116,6 +117,7 @@ const AppHeader: React.FC = () => {
 
           {partner ? (
             <div className="flex shrink-0 items-center gap-0 lg:hidden">
+              <PanelTutorialButton compact />
               {hrPanel || casualPanel ? null : <ThemeToggleButton />}
               <NotificationDropdown />
               <UserDropdown />
@@ -235,13 +237,13 @@ const AppHeader: React.FC = () => {
           } items-center justify-between w-full gap-4 px-5 py-4 shadow-theme-md lg:justify-end lg:px-0 lg:shadow-none`}
         >
           <div className="flex items-center gap-2 2xsm:gap-3">
+            <PanelTutorialButton />
             {hrPanel || casualPanel ? null : <ThemeToggleButton />}
-           <NotificationDropdown /> 
+            <NotificationDropdown />
             {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}
-          <UserDropdown /> 
-    
+          <UserDropdown />
         </div>
       </div>
     </header>
