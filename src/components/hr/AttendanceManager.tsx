@@ -372,6 +372,7 @@ export default function AttendanceManager({ employees = [] }: Props) {
   const [officeEnd, setOfficeEnd] = useState(DEFAULT_CHECK_OUT);
   const [listening, setListening] = useState<{ id: string; name: string } | null>(null);
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const [transcribingId, setTranscribingId] = useState<string | null>(null);
   const [sessionView, setSessionView] = useState<{
     emp: EmployeeLite;
     dateLabel: string;
@@ -1258,11 +1259,26 @@ export default function AttendanceManager({ employees = [] }: Props) {
 
                       <TableCell className="px-3 py-3">
                         {joinedTranscript(record.sessions || []) ? (
-                          <div className="max-h-28 max-w-[280px] overflow-y-auto pr-1">
-                            <p className="whitespace-pre-wrap text-xs leading-5 text-gray-700 dark:text-gray-300">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSessionView({
+                                emp,
+                                dateLabel: formatDisplayDate(date),
+                                status: record.status,
+                                sessions: record.sessions,
+                              })
+                            }
+                            className="max-w-[280px] text-left"
+                            title="Open full text"
+                          >
+                            <p className="line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-gray-700 underline-offset-2 hover:underline dark:text-gray-300">
                               {joinedTranscript(record.sessions || [])}
                             </p>
-                          </div>
+                            <span className="mt-1 inline-block text-[11px] font-medium text-[#8C6239]">
+                              View full text
+                            </span>
+                          </button>
                         ) : needsTranscriptPoll(record.sessions || []) ? (
                           <span className="text-xs text-gray-400">Converting…</span>
                         ) : (
@@ -1372,9 +1388,69 @@ export default function AttendanceManager({ employees = [] }: Props) {
           status={sessionView.status}
           sessions={sessionView.sessions}
           summarizingId={summarizingId}
+          transcribingId={transcribingId}
           onListen={(id, label) =>
             setListening({ id, name: `${sessionView.emp.name} · ${label}` })
           }
+          onTranscribe={async (recordingId) => {
+            try {
+              setTranscribingId(recordingId);
+              const data = await hrApi.transcribeAttendanceRecording(recordingId);
+              const fromChunks = (data.chunks || [])
+                .filter((c) => c.status === "UPLOADED")
+                .sort((a, b) => a.seq - b.seq)
+                .map((c) => String(c.transcript || "").trim())
+                .filter(Boolean)
+                .join("\n\n");
+              const fullText = fromChunks || String(data.transcript || "").trim();
+              setSessionView((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  sessions: prev.sessions.map((row) =>
+                    row.recordingId === recordingId
+                      ? {
+                          ...row,
+                          transcript: fullText,
+                          transcriptStatus: data.transcriptStatus || row.transcriptStatus,
+                          transcriptLanguage: data.transcriptLanguage || row.transcriptLanguage,
+                          aiSummary: data.aiSummary || row.aiSummary,
+                          aiSummaryStatus: data.aiSummaryStatus || row.aiSummaryStatus,
+                          aiSummaryError: data.aiSummaryError || row.aiSummaryError,
+                        }
+                      : row
+                  ),
+                };
+              });
+              setRecords((prev) => {
+                const next = { ...prev };
+                for (const [key, rec] of Object.entries(next)) {
+                  if (!(rec.sessions || []).some((s) => s.recordingId === recordingId)) continue;
+                  next[key] = {
+                    ...rec,
+                    sessions: (rec.sessions || []).map((row) =>
+                      row.recordingId === recordingId
+                        ? {
+                            ...row,
+                            transcript: fullText,
+                            transcriptStatus: data.transcriptStatus || row.transcriptStatus,
+                            transcriptLanguage: data.transcriptLanguage || row.transcriptLanguage,
+                            aiSummary: data.aiSummary || row.aiSummary,
+                            aiSummaryStatus: data.aiSummaryStatus || row.aiSummaryStatus,
+                            aiSummaryError: data.aiSummaryError || row.aiSummaryError,
+                          }
+                        : row
+                    ),
+                  };
+                }
+                return next;
+              });
+            } catch (err) {
+              setLoadError(err instanceof Error ? err.message : "Full audio convert failed");
+            } finally {
+              setTranscribingId(null);
+            }
+          }}
           onSummarize={async (recordingId) => {
             try {
               setSummarizingId(recordingId);

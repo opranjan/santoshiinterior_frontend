@@ -5,7 +5,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { designApi, type DesignGenerationDto } from "@/services/crmApi";
 import { designAssetUrl } from "@/lib/designAssets";
 import DesignGeneratingLoader from "@/components/design/DesignGeneratingLoader";
-import DesignResultDescription from "@/components/design/DesignResultDescription";
+import DesignResultDescription, {
+  splitChatGptReply,
+} from "@/components/design/DesignResultDescription";
 import { useAuth } from "@/context/AuthContext";
 import { isVendorPanelUser } from "@/lib/permissions";
 
@@ -29,11 +31,13 @@ const defaultPrompts = {
 };
 
 function buildGeneratingIntro(mode: AiStudioMode, userPrompt: string) {
-  const brief = userPrompt.trim() || (mode === "elevation" ? "redesign this elevation" : "redesign this room");
+  const brief =
+    userPrompt.trim() ||
+    (mode === "elevation" ? "redesign this elevation" : "redesign this room");
   if (mode === "elevation") {
-    return `I'll update your building photo based on: “${brief}”. I'll keep the same structure and camera angle, then refine materials, facade detail, and lighting.`;
+    return `Got it — I'll edit your building photo for: “${brief}”. I'll keep the same structure and camera angle, apply those changes, then explain what I did.`;
   }
-  return `I'll update your room photo based on: “${brief}”. I'll keep the same layout and camera angle, then adjust colors, materials, furniture, and lighting to match.`;
+  return `Got it — I'll edit your room photo for: “${brief}”. I'll keep the same layout and camera angle, apply those changes, then explain what I did — just like in ChatGPT.`;
 }
 
 function TypewriterText({ text }: { text: string }) {
@@ -49,7 +53,7 @@ function TypewriterText({ text }: { text: string }) {
     return () => window.clearInterval(timer);
   }, [text]);
   return (
-    <p className="whitespace-pre-wrap text-[15px] leading-6 text-[#0d0d0d]">
+    <p className="whitespace-pre-wrap text-[16px] leading-[1.75] text-[#0d0d0d]">
       {shown}
       {shown.length < text.length ? (
         <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-[#0d0d0d] align-middle" />
@@ -107,20 +111,17 @@ type ChatTurn = {
 };
 
 function buildTurns(messages: DesignGenerationDto[]): ChatTurn[] {
-  const turns: ChatTurn[] = [];
-  messages.forEach((item) => {
-    const prompt = item.userPrompt || "";
-    const last = turns[turns.length - 1];
-    if (last && last.prompt === prompt) {
-      last.results.push(item);
-      return;
-    }
+  // One generation = one ChatGPT reply (never merge into a multi-image grid).
+  return messages.map((item) => {
     const sources = (
       item.sourceImageUrls?.length ? item.sourceImageUrls : [item.sourceImageUrl]
     ).filter(Boolean) as string[];
-    turns.push({ prompt, sources, results: [item] });
+    return {
+      prompt: item.userPrompt || "",
+      sources,
+      results: [item],
+    };
   });
-  return turns;
 }
 
 async function filesFromUrls(urls: string[]) {
@@ -307,6 +308,7 @@ export default function AiDesignStudio({ mode }: Props) {
   };
 
   const generate = async (override?: { prompt?: string; files?: File[]; asVariations?: boolean }) => {
+    if (loading || varying) return;
     const text = (override?.prompt ?? prompt).trim();
     const images = override?.files ?? (await resolveFiles());
     if (!images.length) {
@@ -326,6 +328,7 @@ export default function AiDesignStudio({ mode }: Props) {
         clearComposer();
         if (inputRef.current) inputRef.current.style.height = "auto";
       }
+      // Always one image per request (OpenAI n=1) — never batch into a 2-up grid.
       const data = await designApi.generate(
         {
           mode,
@@ -525,7 +528,7 @@ export default function AiDesignStudio({ mode }: Props) {
   );
 
   const composer = (
-    <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
+    <div className="mx-auto w-full max-w-[48rem] px-3 sm:px-4">
       {sources.length ? (
         <div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto px-1">
           {sources.map((item) => (
@@ -675,7 +678,7 @@ export default function AiDesignStudio({ mode }: Props) {
 
         <div ref={listRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
           {error ? (
-            <div className="mx-auto mt-4 max-w-3xl px-4">
+            <div className="mx-auto mt-4 max-w-[48rem] px-4 sm:px-6">
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>
@@ -696,124 +699,146 @@ export default function AiDesignStudio({ mode }: Props) {
               <div className="mt-10 w-full">{composer}</div>
             </div>
           ) : (
-            <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 pb-4 sm:px-5">
+            <div className="mx-auto w-full max-w-[48rem] space-y-8 px-4 py-6 pb-6 sm:px-6">
               {turns.map((turn, index) => {
-                const gallery = turn.results;
-                const lastResult = gallery[gallery.length - 1];
+                const lastResult = turn.results[turn.results.length - 1];
+                const reply = splitChatGptReply(lastResult.analysis);
+                const fallbackLead = turn.prompt
+                  ? `Here's the updated ${isDesign ? "design" : "elevation"} for “${turn.prompt}”.`
+                  : `Here's the updated ${isDesign ? "design" : "elevation"} from your photo.`;
+                const lead = reply.lead || (reply.body ? "" : fallbackLead);
+                const body = reply.body || (!reply.lead ? lastResult.analysis : "");
                 return (
-                  <div key={`${turn.prompt}-${index}`} className="space-y-5">
+                  <div key={`${turn.prompt}-${index}`} className="space-y-6">
+                    {/* User bubble — ChatGPT style */}
                     <div className="flex justify-end">
-                      <div className="max-w-[85%] rounded-[22px] bg-[#f4f4f4] px-4 py-3 sm:max-w-[75%]">
-                        {turn.sources.slice(0, 1).map((url) => (
-                          <button
-                            key={url}
-                            type="button"
-                            onClick={() =>
-                              setPreview({ urls: turn.sources.map(designAssetUrl), index: 0 })
-                            }
-                            className="mb-2 block"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={designAssetUrl(url)}
-                              alt=""
-                              className="h-28 w-40 rounded-xl object-cover"
-                            />
-                          </button>
-                        ))}
-                        <p className="whitespace-pre-wrap text-[15px] leading-6 text-[#0d0d0d]">
+                      <div className="max-w-[min(100%,32rem)] rounded-[24px] bg-[#f4f4f4] px-4 py-3">
+                        {turn.sources.length ? (
+                          <div className="mb-2.5 flex flex-wrap gap-2">
+                            {turn.sources.map((url, sourceIndex) => (
+                              <button
+                                key={`${url}-${sourceIndex}`}
+                                type="button"
+                                onClick={() =>
+                                  setPreview({
+                                    urls: turn.sources.map(designAssetUrl),
+                                    index: sourceIndex,
+                                  })
+                                }
+                                className="overflow-hidden rounded-2xl"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={designAssetUrl(url)}
+                                  alt={`Reference ${sourceIndex + 1}`}
+                                  className="h-[112px] w-[148px] object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                        <p className="whitespace-pre-wrap text-[16px] leading-[1.7] text-[#0d0d0d]">
                           {turn.prompt || "Make this space look better."}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex gap-3">
-                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
+                    {/* Assistant reply — ChatGPT image + explanation pattern */}
+                    <div className="flex gap-3 sm:gap-4">
+                      <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
                         <IconSparkle className="h-3.5 w-3.5" />
                       </span>
-                      <div className="min-w-0 flex-1">
-                        {gallery.length === 1 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPreview({
-                                urls: [designAssetUrl(gallery[0].resultImageUrl)],
-                                index: 0,
-                              })
-                            }
-                            className="block w-full overflow-hidden rounded-2xl"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={designAssetUrl(gallery[0].resultImageUrl)}
-                              alt="Generated concept"
-                              className="max-h-[480px] w-full object-cover"
-                            />
-                          </button>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {gallery.map((item, imageIndex) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                onClick={() =>
-                                  setPreview({
-                                    urls: gallery.map((row) => designAssetUrl(row.resultImageUrl)),
-                                    index: imageIndex,
-                                  })
-                                }
-                                className="overflow-hidden rounded-xl"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={designAssetUrl(item.resultImageUrl)}
-                                  alt=""
-                                  className="aspect-[4/3] w-full object-cover"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                      <div className="min-w-0 flex-1 space-y-3">
+                        {lead ? (
+                          <p className="max-w-[46rem] text-[16px] leading-[1.75] text-[#0d0d0d]">
+                            {lead}
+                          </p>
+                        ) : null}
 
-                        <DesignResultDescription
-                          text={lastResult.analysis}
-                          fallback={`Here is a ${isDesign ? "design" : "elevation"} based on your photo${
-                            turn.prompt ? `: ${turn.prompt}` : "."
-                          }`}
-                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPreview({
+                              urls: [designAssetUrl(lastResult.resultImageUrl)],
+                              index: 0,
+                            })
+                          }
+                          className="group relative block max-w-[min(100%,32rem)] overflow-hidden rounded-2xl border border-black/[0.06] bg-[#f7f7f8] text-left shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={designAssetUrl(lastResult.resultImageUrl)}
+                            alt="Generated concept"
+                            className="h-auto max-h-[min(70vh,36rem)] w-full object-contain"
+                          />
+                        </button>
+
+                        {body ? (
+                          <DesignResultDescription text={body} className="!mt-1" />
+                        ) : !lead ? (
+                          <DesignResultDescription
+                            text={null}
+                            fallback={fallbackLead}
+                            className="!mt-1"
+                          />
+                        ) : null}
 
                         {index === turns.length - 1 ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-0.5 text-[#6b6b6b]">
+                          <div className="flex flex-wrap items-center gap-1 pt-1 text-[#5d5d5d]">
                             <button
                               type="button"
+                              title="Copy explanation"
+                              disabled={!lastResult.analysis}
+                              onClick={() => {
+                                void navigator.clipboard?.writeText(
+                                  String(lastResult.analysis || lead || fallbackLead)
+                                );
+                              }}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/[0.05]"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                <rect x="9" y="9" width="11" height="11" rx="2" />
+                                <path d="M5 15V5a2 2 0 012-2h10" strokeLinecap="round" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              title="Regenerate"
                               disabled={loading}
                               onClick={() =>
                                 void generate({ prompt: lastResult.userPrompt || undefined })
                               }
-                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
                             >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                <path strokeLinecap="round" d="M4 12a8 8 0 0113.66-5.66M20 12a8 8 0 01-13.66 5.66" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 5v5h5M20 19v-5h-5" />
+                              </svg>
                               Regenerate
                             </button>
                             <button
                               type="button"
+                              title="Download"
                               disabled={downloading}
                               onClick={() => void downloadResult(lastResult)}
-                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
                             >
                               Download
                             </button>
                             <button
                               type="button"
+                              title="Edit prompt"
                               onClick={editPrompt}
-                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
+                              title="Make variations"
                               disabled={varying || loading}
                               onClick={() => void makeVariations()}
-                              className="rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
                             >
                               {varying ? "Making variations…" : "Make variations"}
                             </button>
@@ -836,28 +861,32 @@ export default function AiDesignStudio({ mode }: Props) {
                     if (!showPendingUser) return null;
                     return (
                       <div className="flex justify-end">
-                        <div className="max-w-[85%] rounded-[22px] bg-[#f4f4f4] px-4 py-3 sm:max-w-[75%]">
-                          {sources.slice(0, 1).map((item) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              key={item.id}
-                              src={item.url}
-                              alt=""
-                              className="mb-2 h-28 w-40 rounded-xl object-cover"
-                            />
-                          ))}
-                          <p className="whitespace-pre-wrap text-[15px] leading-6 text-[#0d0d0d]">
+                        <div className="max-w-[min(100%,32rem)] rounded-[24px] bg-[#f4f4f4] px-4 py-3">
+                          {sources.length ? (
+                            <div className="mb-2.5 flex flex-wrap gap-2">
+                              {sources.map((item) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={item.id}
+                                  src={item.url}
+                                  alt=""
+                                  className="h-[112px] w-[148px] rounded-2xl object-cover"
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                          <p className="whitespace-pre-wrap text-[16px] leading-[1.7] text-[#0d0d0d]">
                             {pendingText}
                           </p>
                         </div>
                       </div>
                     );
                   })()}
-                  <div className="flex gap-3">
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
+                  <div className="flex gap-3 sm:gap-4">
+                    <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
                       <IconSparkle className="h-3.5 w-3.5" />
                     </span>
-                    <div className="min-w-0 flex-1 space-y-4 pt-0.5">
+                    <div className="min-w-0 flex-1 space-y-3 pt-0.5">
                       <TypewriterText
                         text={buildGeneratingIntro(
                           mode,
@@ -865,9 +894,6 @@ export default function AiDesignStudio({ mode }: Props) {
                         )}
                       />
                       <DesignGeneratingLoader key={varying ? "vary" : "gen"} mode={mode} />
-                      <p className="text-[13px] text-[#8e8e8e]">
-                        After the image is ready, I&apos;ll explain what changed and the key features.
-                      </p>
                     </div>
                   </div>
                 </div>

@@ -1649,6 +1649,25 @@ export const hrApi = {
         transcriptStatus: string;
       }[];
     }>(`/hr/attendance-recordings/${id}`),
+  transcribeAttendanceRecording: (id: string) =>
+    api.post<{
+      id: string;
+      transcript: string;
+      transcriptStatus: string;
+      transcriptError: string;
+      transcriptLanguage: string;
+      aiSummary: string;
+      aiSummaryStatus: string;
+      aiSummaryError: string;
+      chunks: {
+        id: string;
+        seq: number;
+        durationSec: number;
+        status: string;
+        transcript: string;
+        transcriptStatus: string;
+      }[];
+    }>(`/hr/attendance-recordings/${id}/transcribe`),
   summarizeAttendanceRecording: (id: string, force = false) =>
     api.post<{
       id: string;

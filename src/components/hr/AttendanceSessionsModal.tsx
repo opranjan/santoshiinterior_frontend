@@ -32,7 +32,9 @@ type Props = {
   sessions: DutySession[];
   onListen: (recordingId: string, label: string) => void;
   onSummarize?: (recordingId: string) => void;
+  onTranscribe?: (recordingId: string) => void;
   summarizingId?: string | null;
+  transcribingId?: string | null;
   onClose: () => void;
 };
 
@@ -102,7 +104,9 @@ export default function AttendanceSessionsModal({
   sessions,
   onListen,
   onSummarize,
+  onTranscribe,
   summarizingId,
+  transcribingId,
   onClose,
 }: Props) {
   const totalSec = sessions.reduce((sum, row) => {
@@ -152,6 +156,20 @@ export default function AttendanceSessionsModal({
                     >
                       Listen
                     </button>
+                    {onTranscribe ? (
+                      <button
+                        type="button"
+                        disabled={transcribingId === row.recordingId}
+                        onClick={() => onTranscribe(row.recordingId!)}
+                        className="inline-flex h-8 items-center rounded-lg border border-[#8C6239] px-3 text-xs font-medium text-[#8C6239] hover:bg-[#8C6239]/hover:text-white disabled:opacity-50"
+                      >
+                        {transcribingId === row.recordingId
+                          ? "Converting…"
+                          : row.transcript?.trim()
+                            ? "Reconvert full audio"
+                            : "Convert full audio"}
+                      </button>
+                    ) : null}
                     {onSummarize ? (
                       <button
                         type="button"
@@ -199,13 +217,15 @@ export default function AttendanceSessionsModal({
                 )}
               </div>
 
-              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-[#8C6239]">Audio to text</p>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-[#8C6239]">
+                Full text · Audio to text
+              </p>
               {row.transcriptStatus === "PROCESSING" ? (
                 <p className="mt-1 text-sm text-gray-500">Converting audio to text…</p>
               ) : null}
               {row.transcript?.trim() ? (
-                <div className="mt-1 max-h-56 overflow-y-auto pr-1">
-                  <p className="whitespace-pre-wrap text-sm leading-6 text-gray-800 dark:text-gray-200">
+                <div className="mt-1 rounded-lg bg-white/80 p-3 dark:bg-black/20">
+                  <p className="whitespace-pre-wrap break-words text-sm leading-7 text-gray-800 dark:text-gray-200">
                     {row.transcript}
                   </p>
                 </div>
