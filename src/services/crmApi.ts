@@ -141,6 +141,8 @@ export type WhatsAppInboxItemDto = {
   projectId?: string | null;
   projectName?: string | null;
   projectStatus?: string | null;
+  assignedToId?: string | null;
+  salesOwnerId?: string | null;
   assigneeName?: string | null;
   leadOwnerName?: string | null;
   updatedAt: string;

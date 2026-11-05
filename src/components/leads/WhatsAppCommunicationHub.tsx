@@ -260,20 +260,32 @@ export default function WhatsAppCommunicationHub({
   }, [activeLeadId, selectedLeadProp, initialMessagesProp]);
 
   useEffect(() => {
-    if (!activeLeadId || loadedLead?.id === activeLeadId) return;
+    if (!activeLeadId) return;
     const item = inbox.find((row) => row.id === activeLeadId);
     if (!item) return;
-    setLoadedLead({
-      id: item.id,
-      clientName: item.clientName,
-      phone: item.phone,
-      projectName: item.projectName,
-      campaignName: item.campaignName,
-      status: item.status,
-      assigneeName: item.assigneeName,
-      leadOwnerName: item.leadOwnerName || item.assigneeName,
+    setLoadedLead((prev) => {
+      if (
+        prev?.id === item.id &&
+        prev.assignedToId === item.assignedToId &&
+        prev.salesOwnerId === item.salesOwnerId &&
+        prev.phone === item.phone
+      ) {
+        return prev;
+      }
+      return {
+        id: item.id,
+        clientName: item.clientName,
+        phone: item.phone,
+        assignedToId: item.assignedToId,
+        salesOwnerId: item.salesOwnerId,
+        projectName: item.projectName,
+        campaignName: item.campaignName,
+        status: item.status,
+        assigneeName: item.assigneeName,
+        leadOwnerName: item.leadOwnerName || item.assigneeName,
+      };
     });
-  }, [inbox, activeLeadId, loadedLead?.id]);
+  }, [inbox, activeLeadId]);
 
   const closeChat = () => {
     if (selectedLeadProp) return;
@@ -308,6 +320,8 @@ export default function WhatsAppCommunicationHub({
           id: lead.id,
           clientName: lead.clientName,
           phone: lead.phone,
+          assignedToId: lead.assignedToId ?? user?.id,
+          salesOwnerId: lead.salesOwnerId ?? user?.id,
           projectName: lead.projectName,
           campaignName: lead.campaignName,
           status: lead.status,
@@ -336,6 +350,8 @@ export default function WhatsAppCommunicationHub({
       id: item.id,
       clientName: item.clientName,
       phone: item.phone,
+      assignedToId: item.assignedToId,
+      salesOwnerId: item.salesOwnerId,
       projectName: item.projectName,
       campaignName: item.campaignName,
       status: item.status,

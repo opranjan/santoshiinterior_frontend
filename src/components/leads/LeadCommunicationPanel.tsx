@@ -764,15 +764,18 @@ export default function LeadCommunicationPanel({
     "messages.whatsapp.vendors",
   ]);
   const isAssignee =
-    user?.id === assignedToId ||
-    user?.id === salesOwnerId ||
-    user?.role === "SUPER_ADMIN";
+    Boolean(user?.id) &&
+    (user?.id === assignedToId ||
+      user?.id === salesOwnerId ||
+      user?.role === "SUPER_ADMIN");
   const canSend =
     hasAnyPermission(user, [
       "messages.send",
       "leads.manage",
       "sales.manage",
+      "sales.view",
       "sales.full",
+      "messages.whatsapp.leads",
       "messages.whatsapp.all",
       "messages.whatsapp.vendors",
     ]) &&
