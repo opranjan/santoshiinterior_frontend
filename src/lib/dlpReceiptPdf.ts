@@ -415,7 +415,10 @@ function buildDlpReceiptPdf(
 export async function downloadDlpReceiptPdf(data: DlpReceiptData) {
   const logo = await loadLogo();
   const pdf = buildDlpReceiptPdf(data, logo);
-  const blob = new Blob([pdf], { type: "application/pdf" });
+  // Copy into a plain ArrayBuffer so BlobPart typing accepts it under stricter TS/DOM libs.
+  const ab = new ArrayBuffer(pdf.byteLength);
+  new Uint8Array(ab).set(pdf);
+  const blob = new Blob([ab], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
