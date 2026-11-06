@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
-import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
-import { enumToLabel, formatDate } from "@/lib/mappers";
+import { formatDate } from "@/lib/mappers";
 import { parseMoney, splitVendorPayout } from "@/lib/dlpHolding";
 
 type ProjectRow = {
@@ -38,14 +37,11 @@ type PaymentRow = {
     name: string;
     clientName?: string | null;
     address?: string | null;
-    budget?: string | null;
-    vendorBudget?: string | null;
-    dlpHoldingPercent?: number | string | null;
   } | null;
   createdBy?: { id: string; name: string } | null;
 };
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 8;
 
 const formatINR = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -73,29 +69,9 @@ function codeFromId(prefix: string, id: string) {
   return `${prefix}-${digits}`;
 }
 
-function methodLabel(method?: string) {
-  const key = String(method || "").toUpperCase();
-  if (key === "BANK_TRANSFER") return "NEFT";
-  return enumToLabel(method || "UPI");
-}
-
 function projectPayStatus(row: ProjectPay) {
   if (row.paid > 0 && row.pending <= 0) return { label: "Paid", color: "success" as const };
   if (row.paid > 0) return { label: "Partially Paid", color: "warning" as const };
-  return { label: "Unpaid", color: "error" as const };
-}
-
-function txnStatus(row: PaymentRow) {
-  const key = String(row.status || "").toUpperCase();
-  const amount = money(row.amount);
-  const paid = money(row.paidAmount) || (key === "PAID" ? amount : 0);
-  if (key === "PAID" || (amount > 0 && paid >= amount)) {
-    return { label: "Paid", color: "success" as const };
-  }
-  if (key === "PARTIAL" || paid > 0) {
-    return { label: "Partially Paid", color: "warning" as const };
-  }
-  if (key === "OVERDUE") return { label: "Overdue", color: "error" as const };
   return { label: "Unpaid", color: "error" as const };
 }
 
@@ -103,6 +79,7 @@ type ProjectPay = {
   id: string;
   name: string;
   location: string;
+  clientName: string;
   vendorBudget: number;
   dlpPercent: number;
   dlpHold: number;
@@ -112,13 +89,15 @@ type ProjectPay = {
   paid: number;
   pending: number;
   lastPaidAt: string | null;
+  txnCount: number;
 };
 
-const card = "vendor-card p-4";
 const dateClass =
   "h-10 w-full min-w-0 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-3 text-sm text-[#111] sm:w-auto dark:border-[var(--vendor-line)] dark:bg-black/20";
 const selectClass =
-  "h-9 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-2 text-sm text-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20";
+  "h-10 rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] px-3 text-sm text-[#111] dark:border-[var(--vendor-line)] dark:bg-black/20";
+const searchClass =
+  "h-10 w-full min-w-[200px] rounded-lg border border-[#e4d9c8] bg-[#fbf8f2] pl-10 pr-3 text-sm text-[#111] outline-none focus:border-[#c4a574] dark:border-[var(--vendor-line)] dark:bg-black/20";
 
 export default function FranchiseePayments() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -127,8 +106,8 @@ export default function FranchiseePayments() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [projectPage, setProjectPage] = useState(1);
-  const [showAllTxn, setShowAllTxn] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,6 +178,7 @@ export default function FranchiseePayments() {
         id: project.id,
         name: project.name,
         location: project.address || "",
+        clientName: project.clientName || "",
         vendorBudget: split.value,
         dlpPercent: split.percent,
         dlpHold: split.dlp,
@@ -208,6 +188,7 @@ export default function FranchiseePayments() {
         paid: 0,
         pending: 0,
         lastPaidAt: null,
+        txnCount: 0,
       });
     }
     for (const row of rangedPayments) {
@@ -216,6 +197,7 @@ export default function FranchiseePayments() {
       const item = map.get(id)!;
       const paid = money(row.paidAmount) || (row.status === "PAID" ? money(row.amount) : 0);
       item.paid += paid;
+      item.txnCount += 1;
       const at = row.paidDate || row.createdAt || null;
       if (at && (!item.lastPaidAt || at > item.lastPaidAt)) item.lastPaidAt = at;
     }
@@ -226,13 +208,22 @@ export default function FranchiseePayments() {
   }, [projects, rangedPayments]);
 
   const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return byProject.filter((row) => {
-      if (statusFilter === "paid") return row.pending <= 0 && row.paid > 0;
-      if (statusFilter === "partial") return row.paid > 0 && row.pending > 0;
-      if (statusFilter === "unpaid") return row.paid <= 0;
-      return true;
+      if (statusFilter === "paid") {
+        if (!(row.pending <= 0 && row.paid > 0)) return false;
+      } else if (statusFilter === "partial") {
+        if (!(row.paid > 0 && row.pending > 0)) return false;
+      } else if (statusFilter === "unpaid") {
+        if (!(row.paid <= 0)) return false;
+      }
+      if (!q) return true;
+      return [row.name, row.location, row.clientName, codeFromId("PROJ", row.id)]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
     });
-  }, [byProject, statusFilter]);
+  }, [byProject, statusFilter, search]);
 
   const totals = useMemo(() => {
     const vendorBudget = byProject.reduce((sum, row) => sum + row.vendorBudget, 0);
@@ -246,6 +237,7 @@ export default function FranchiseePayments() {
       payable,
       paid,
       pending: Math.max(0, payable - paid),
+      pct: payable > 0 ? Math.min(100, Math.round((paid / payable) * 100)) : 0,
     };
   }, [byProject]);
 
@@ -254,7 +246,6 @@ export default function FranchiseePayments() {
     (projectPage - 1) * PAGE_SIZE,
     projectPage * PAGE_SIZE
   );
-  const txnRows = showAllTxn ? rangedPayments : rangedPayments.slice(0, 5);
 
   const downloadCsv = () => {
     const header = [
@@ -281,40 +272,13 @@ export default function FranchiseePayments() {
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
         .join(",")
     );
-    const txnHeader = [
-      "Project",
-      "Transaction ID",
-      "Amount",
-      "Payment Date",
-      "Paid By",
-      "Payment Mode",
-      "Status",
-      "Remarks",
-    ];
-    const lines = rangedPayments.map((row) =>
-      [
-        row.project?.name || row.clientName || "",
-        row.invoiceNo || codeFromId("PAY", row.id),
-        money(row.paidAmount || row.amount),
-        formatDate(row.paidDate || row.createdAt),
-        row.createdBy?.name || "Santoshi Interior Pvt. Ltd.",
-        methodLabel(row.method),
-        txnStatus(row).label,
-        row.remark || "",
-      ]
-        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-        .join(",")
-    );
-    const blob = new Blob(
-      [[header.join(","), ...summaryLines, "", txnHeader.join(","), ...lines].join("\n")],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
+    const blob = new Blob([[header.join(","), ...summaryLines].join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "franchisee-payments.csv";
+    a.download = "vendor-payments-by-project.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -324,59 +288,169 @@ export default function FranchiseePayments() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="vendor-rise">
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#9a7748]">Vendor panel</p>
-          <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">Payments</h1>
+          <h1 className="vendor-serif mt-2 text-2xl text-[#111] sm:text-3xl md:text-4xl">
+            Payments
+          </h1>
           <div className="vendor-gold-rule mt-3" />
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6b645b]">
-            Vendor budget is the full amount for your work. DLP is a holding payment — a percent of that
-            budget is kept until the DLP period ends (see DLP Payment). This page is the rest, which can be
-            paid now. Example: budget ₹1,50,000 with 20% DLP hold → ₹30,000 held, ₹1,20,000 payable here.
+            Track payable amounts by project. Open any row to see that project’s full payment
+            history.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={dateClass} />
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className={dateClass}
+            aria-label="From date"
+          />
           <span className="text-[#c4a574]">–</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={dateClass} />
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={dateClass}
+            aria-label="To date"
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-        <div className={`${card} vendor-rise`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Vendor budget</p>
-          <p className="vendor-serif mt-2 text-3xl text-[#111]">{loading ? "—" : formatINR(totals.vendorBudget)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">{totals.projects} assigned project{totals.projects === 1 ? "" : "s"}</p>
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[var(--vendor-line)] dark:bg-[#161411]">
+        <div className="grid grid-cols-2 divide-x divide-y divide-[#eadfcf] sm:grid-cols-3 lg:grid-cols-5 lg:divide-y-0 dark:divide-[var(--vendor-line)]">
+          {[
+            {
+              label: "Vendor budget",
+              value: loading ? "—" : formatINR(totals.vendorBudget),
+              hint: `${totals.projects} project${totals.projects === 1 ? "" : "s"}`,
+            },
+            {
+              label: "DLP holding",
+              value: loading ? "—" : formatINR(totals.dlpHold),
+              hint: "Held until DLP",
+              href: "/dlp-payment",
+              tone: "warn",
+            },
+            {
+              label: "Payable now",
+              value: loading ? "—" : formatINR(totals.payable),
+              hint: "After DLP hold",
+              tone: "success",
+            },
+            {
+              label: "Received",
+              value: loading ? "—" : formatINR(totals.paid),
+              hint: "Paid by company",
+              tone: "received",
+            },
+            {
+              label: "Still due",
+              value: loading ? "—" : formatINR(totals.pending),
+              hint: "Pending receivable",
+              tone: "due",
+            },
+          ].map((item) => {
+            const body = (
+              <div
+                className={`px-4 py-4 ${
+                  item.tone === "received"
+                    ? "bg-[#eef7f0] dark:bg-[#1a2a1c]"
+                    : item.tone === "due"
+                      ? "bg-[#fff6f0] dark:bg-[#2a1c16]"
+                      : ""
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <p
+                    className={`vendor-serif text-2xl ${
+                      item.tone === "success"
+                        ? "text-[#2f6b3a]"
+                        : item.tone === "received"
+                          ? "text-[#1f7a3a]"
+                          : item.tone === "due" || item.tone === "warn"
+                            ? "text-[#c45c2a]"
+                            : "text-[#111]"
+                    }`}
+                  >
+                    {item.value}
+                  </p>
+                  {item.tone === "received" && !loading && totals.paid > 0 ? (
+                    <span className="rounded-full bg-[#1f7a3a] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-white">
+                      Received
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a8175]">
+                  {item.label}
+                </p>
+                <p
+                  className={`mt-1 text-xs ${
+                    item.tone === "received" ? "text-[#3d5a3a]" : "text-[#8a8175]"
+                  }`}
+                >
+                  {item.hint}
+                </p>
+              </div>
+            );
+            return item.href ? (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="transition hover:bg-[#f4efe6] dark:hover:bg-white/[0.03]"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div key={item.label}>{body}</div>
+            );
+          })}
         </div>
-        <Link href="/dlp-payment" className={`${card} vendor-rise vendor-rise-delay-1`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">DLP holding</p>
-          <p className="vendor-serif mt-2 text-3xl text-warning-600">{loading ? "—" : formatINR(totals.dlpHold)}</p>
-          <p className="mt-2 text-xs font-medium text-[#9a7748]">Held until DLP · View</p>
-        </Link>
-        <div className={`${card} vendor-rise vendor-rise-delay-2`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Payable now</p>
-          <p className="vendor-serif mt-2 text-3xl text-success-600">{loading ? "—" : formatINR(totals.payable)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">Budget minus DLP hold</p>
-        </div>
-        <div className={`${card} vendor-rise vendor-rise-delay-3`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Paid by company</p>
-          <p className="vendor-serif mt-2 text-3xl text-[#9a7748]">{loading ? "—" : formatINR(totals.paid)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">Against payable now</p>
-        </div>
-        <div className={`${card} vendor-rise vendor-rise-delay-4`}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#9a7748]">Pending receivable</p>
-          <p className="vendor-serif mt-2 text-3xl text-warning-600">{loading ? "—" : formatINR(totals.pending)}</p>
-          <p className="mt-2 text-xs text-[#8a8175]">Still due on payable now</p>
+        <div className="border-t border-[#eadfcf] px-4 py-3 dark:border-[var(--vendor-line)]">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#8a8175]">
+            <span>Overall settlement</span>
+            <span className="tabular-nums font-medium text-[#1f7a3a]">{totals.pct}% received</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[#eadfcf] dark:bg-[#3a342c]">
+            <div
+              className="h-full rounded-full bg-[#2f9e57] transition-all"
+              style={{ width: `${Math.max(totals.pct ? 4 : 0, totals.pct)}%` }}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="vendor-card vendor-rise overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[var(--vendor-line)] dark:bg-[#161411]">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#eadfcf] px-5 py-4 dark:border-[var(--vendor-line)]">
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Assigned payouts</p>
-            <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payment by Project</h2>
-            <p className="mt-1 text-xs text-[#8a8175]">
-              Payable now = vendor budget − DLP holding. The held amount is paid later from DLP Payment.
+            <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payment by project</h2>
+            <p className="mt-1 text-sm text-[#8a8175]">
+              Click <span className="font-medium text-[#6b645b]">History</span> to open payouts for
+              that project.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#b3a594]">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"
+                  />
+                </svg>
+              </span>
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setProjectPage(1);
+                }}
+                placeholder="Search project"
+                className={searchClass}
+              />
+            </div>
             <select
               value={statusFilter}
               onChange={(e) => {
@@ -387,7 +461,7 @@ export default function FranchiseePayments() {
             >
               <option value="all">All statuses</option>
               <option value="paid">Paid</option>
-              <option value="partial">Partially Paid</option>
+              <option value="partial">Partially paid</option>
               <option value="unpaid">Unpaid</option>
             </select>
             <Button size="sm" variant="outline" onClick={downloadCsv}>
@@ -395,157 +469,196 @@ export default function FranchiseePayments() {
             </Button>
           </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-[#fbf8f2] text-left text-[11px] uppercase tracking-[0.12em] text-[#9a7748] dark:bg-white/[0.02]">
+            <thead className="bg-[#fbf8f2] text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9a7748] dark:bg-white/[0.02]">
               <tr>
-                <th className="px-5 py-2.5">Sr. No.</th>
-                <th className="px-4 py-2.5">Site / Project Name</th>
-                <th className="px-4 py-2.5">Project ID</th>
-                <th className="px-4 py-2.5">Vendor budget (₹)</th>
-                <th className="px-4 py-2.5">DLP hold</th>
-                <th className="px-4 py-2.5">Retention</th>
-                <th className="px-4 py-2.5">Payable now (₹)</th>
-                <th className="px-4 py-2.5">Paid by company</th>
-                <th className="px-4 py-2.5">Pending (₹)</th>
-                <th className="px-4 py-2.5">Last payment</th>
-                <th className="px-4 py-2.5">Status</th>
+                <th className="px-5 py-3">Project</th>
+                <th className="px-4 py-3">Budget</th>
+                <th className="px-4 py-3">DLP</th>
+                <th className="px-4 py-3">Payable</th>
+                <th className="px-4 py-3">Received</th>
+                <th className="px-4 py-3">Pending</th>
+                <th className="px-4 py-3">Progress</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
-              {pagedProjects.map((row, index) => {
+              {pagedProjects.map((row) => {
                 const status = projectPayStatus(row);
+                const pct =
+                  row.payable > 0
+                    ? Math.min(100, Math.round((row.paid / row.payable) * 100))
+                    : row.paid > 0
+                      ? 100
+                      : 0;
+                const statusStyles =
+                  status.label === "Paid"
+                    ? "bg-[#e7f6ec] text-[#1f7a3a] ring-[#b7e0c3]"
+                    : status.label === "Partially Paid"
+                      ? "bg-[#fff4e5] text-[#b86a16] ring-[#f0d4a8]"
+                      : "bg-[#fdeceb] text-[#b42318] ring-[#f3c6c2]";
                 return (
-                  <tr key={row.id} className="border-t border-[#eee6d8] dark:border-[var(--vendor-line)]">
-                    <td className="px-5 py-3 text-[#8a8175]">
-                      {(projectPage - 1) * PAGE_SIZE + index + 1}
+                  <tr
+                    key={row.id}
+                    className="border-t border-[#eee6d8] transition hover:bg-[#faf6ef] dark:border-[var(--vendor-line)]"
+                  >
+                    <td className="px-5 py-3.5">
+                      <Link href={`/payments/${row.id}`} className="group block">
+                        <p className="font-medium text-[#111] group-hover:text-[#9a7748]">
+                          {row.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[#8a8175]">
+                          {codeFromId("PROJ", row.id)}
+                          {row.location ? ` · ${row.location}` : ""}
+                          {row.clientName ? ` · ${row.clientName}` : ""}
+                        </p>
+                        <p className="mt-1 text-[11px] text-[#8a8175]">
+                          {row.txnCount} payment{row.txnCount === 1 ? "" : "s"}
+                          {row.lastPaidAt ? ` · last ${formatDate(row.lastPaidAt)}` : ""}
+                        </p>
+                      </Link>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-[#111]">{row.name}</p>
-                      {row.location ? <p className="text-xs text-[#8a8175]">{row.location}</p> : null}
+                    <td className="px-4 py-3.5">
+                      <p className="vendor-serif text-base text-[#111]">
+                        {formatAmount(row.vendorBudget)}
+                      </p>
                     </td>
-                    <td className="px-4 py-3 text-[#6b645b]">{codeFromId("PROJ", row.id)}</td>
-                    <td className="px-4 py-3 vendor-serif text-lg text-[#111]">{formatAmount(row.vendorBudget)}</td>
-                    <td className="px-4 py-3 text-[#6b645b]">
+                    <td className="px-4 py-3.5 text-[#6b645b]">
                       <p className="font-medium text-[#111]">{formatAmount(row.dlpHold)}</p>
                       <p className="text-[11px] text-[#8a8175]">{row.dlpPercent}% held</p>
                     </td>
-                    <td className="px-4 py-3 text-[#6b645b]">
-                      <p className="font-medium text-[#111]">{formatAmount(row.retention)}</p>
-                      <p className="text-[11px] text-[#8a8175]">{row.retentionPercent || 0}% deducted</p>
+                    <td className="px-4 py-3.5 vendor-serif text-base text-[#2f6b3a]">
+                      {formatAmount(row.payable)}
                     </td>
-                    <td className="px-4 py-3 vendor-serif text-lg text-success-600">{formatAmount(row.payable)}</td>
-                    <td className="px-4 py-3 font-medium text-success-600">{formatAmount(row.paid)}</td>
-                    <td className="px-4 py-3 font-medium text-error-500">
-                      {row.pending ? formatAmount(row.pending) : "0"}
+                    <td className="px-4 py-3.5">
+                      <div className="inline-flex min-w-[5.5rem] flex-col rounded-lg bg-[#e7f6ec] px-2.5 py-1.5 ring-1 ring-[#b7e0c3]">
+                        <span className="vendor-serif text-base leading-none text-[#1f7a3a]">
+                          {formatAmount(row.paid)}
+                        </span>
+                        <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#2f9e57]">
+                          {row.paid > 0 ? "Received" : "None yet"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-[#6b645b]">
-                      {row.lastPaidAt ? formatDate(row.lastPaidAt) : "—"}
+                    <td className="px-4 py-3.5">
+                      <div
+                        className={`inline-flex min-w-[5.5rem] flex-col rounded-lg px-2.5 py-1.5 ring-1 ${
+                          row.pending > 0
+                            ? "bg-[#fff1e8] ring-[#f0cbb0]"
+                            : "bg-[#f4efe6] ring-[#eadfcf]"
+                        }`}
+                      >
+                        <span
+                          className={`vendor-serif text-base leading-none ${
+                            row.pending > 0 ? "text-[#c45c2a]" : "text-[#8a8175]"
+                          }`}
+                        >
+                          {row.pending ? formatAmount(row.pending) : "0"}
+                        </span>
+                        <span
+                          className={`mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] ${
+                            row.pending > 0 ? "text-[#d9773a]" : "text-[#8a8175]"
+                          }`}
+                        >
+                          {row.pending > 0 ? "Due" : "Cleared"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge size="sm" color={status.color}>
+                    <td className="px-4 py-3.5">
+                      <div className="w-32">
+                        <div className="mb-1 flex items-center justify-between text-[10px]">
+                          <span className="font-semibold text-[#1f7a3a]">{pct}%</span>
+                          <span className="text-[#8a8175]">{100 - pct}% due</span>
+                        </div>
+                        <div className="flex h-2 overflow-hidden rounded-full bg-[#eadfcf]">
+                          <div
+                            className="h-full bg-[#2f9e57] transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                          <div
+                            className="h-full bg-[#f0a060]/80 transition-all"
+                            style={{ width: `${Math.max(0, 100 - pct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ring-1 ${statusStyles}`}
+                      >
                         {status.label}
-                      </Badge>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <Link
+                        href={`/payments/${row.id}`}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#c4a574] bg-[#fffaf2] px-3.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8a6430] shadow-sm transition hover:border-[#1c1610] hover:bg-[#1c1610] hover:text-[#e8d5b5]"
+                      >
+                        History
+                        <svg
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2.2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </Link>
                     </td>
                   </tr>
                 );
               })}
               {!loading && !pagedProjects.length ? (
                 <tr>
-                  <td colSpan={11} className="px-5 py-10 text-center text-[#8a8175]">
-                    No project payments yet.
+                  <td colSpan={9} className="px-5 py-12 text-center text-[#8a8175]">
+                    No projects match your filters.
+                  </td>
+                </tr>
+              ) : null}
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-12 text-center text-[#8a8175]">
+                    Loading…
                   </td>
                 </tr>
               ) : null}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-5 py-3 text-sm text-[#8a8175]">
+
+        <div className="flex items-center justify-between border-t border-[#eadfcf] px-5 py-3 text-sm text-[#8a8175] dark:border-[var(--vendor-line)]">
           <p>
             Showing {filteredProjects.length ? (projectPage - 1) * PAGE_SIZE + 1 : 0} to{" "}
-            {Math.min(projectPage * PAGE_SIZE, filteredProjects.length)} of {filteredProjects.length}{" "}
-            entries
+            {Math.min(projectPage * PAGE_SIZE, filteredProjects.length)} of{" "}
+            {filteredProjects.length}
           </p>
-          <div className="flex gap-1">
-            {Array.from({ length: projectPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setProjectPage(page)}
-                className={`h-8 w-8 rounded-lg text-sm ${
-                  page === projectPage
-                    ? "bg-[#c4a574] text-black"
-                    : "text-[#6b645b] hover:bg-[#f4efe6]"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="vendor-card vendor-rise overflow-hidden">
-        <div className="px-5 py-4">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#9a7748]">Company payouts</p>
-          <h2 className="vendor-serif mt-1 text-2xl text-[#111]">Payment Transactions</h2>
-          <p className="mt-1 text-xs text-[#8a8175]">All payouts received from the company for your assigned projects.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-[#fbf8f2] text-left text-[11px] uppercase tracking-[0.12em] text-[#9a7748] dark:bg-white/[0.02]">
-              <tr>
-                <th className="px-5 py-2.5">Sr. No.</th>
-                <th className="px-4 py-2.5">Site / Project Name</th>
-                <th className="px-4 py-2.5">Transaction ID</th>
-                <th className="px-4 py-2.5">Amount (₹)</th>
-                <th className="px-4 py-2.5">Payment Date</th>
-                <th className="px-4 py-2.5">Paid By</th>
-                <th className="px-4 py-2.5">Payment Mode</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Remarks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {txnRows.map((row, index) => (
-                <tr key={row.id} className="border-t border-[#eee6d8] dark:border-[var(--vendor-line)]">
-                  <td className="px-5 py-3 text-[#8a8175]">{index + 1}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-[#111]">{row.project?.name || row.clientName || "—"}</p>
-                    {row.project?.address ? <p className="text-xs text-[#8a8175]">{row.project.address}</p> : null}
-                  </td>
-                  <td className="px-4 py-3 text-[#6b645b]">{row.invoiceNo || codeFromId("PAY", row.id)}</td>
-                  <td className="px-4 py-3 vendor-serif text-lg text-success-600">
-                    {formatAmount(money(row.paidAmount || row.amount))}
-                  </td>
-                  <td className="px-4 py-3 text-[#6b645b]">{formatDate(row.paidDate || row.createdAt)}</td>
-                  <td className="px-4 py-3 text-[#6b645b]">Santoshi Interior Pvt. Ltd.</td>
-                  <td className="px-4 py-3 text-[#6b645b]">{methodLabel(row.method)}</td>
-                  <td className="px-4 py-3">
-                    <Badge size="sm" color={txnStatus(row).color}>
-                      {txnStatus(row).label}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-[#6b645b]">{row.remark || "—"}</td>
-                </tr>
+          {projectPages > 1 ? (
+            <div className="flex gap-1">
+              {Array.from({ length: projectPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setProjectPage(page)}
+                  className={`h-8 w-8 rounded-lg text-sm ${
+                    page === projectPage
+                      ? "bg-[#c4a574] text-black"
+                      : "text-[#6b645b] hover:bg-[#f4efe6]"
+                  }`}
+                >
+                  {page}
+                </button>
               ))}
-              {!loading && !txnRows.length ? (
-                <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-[#8a8175]">
-                    No payment transactions yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+            </div>
+          ) : null}
         </div>
-        {rangedPayments.length > 5 ? (
-          <div className="px-5 py-3">
-            <Button size="sm" variant="outline" onClick={() => setShowAllTxn((v) => !v)}>
-              {showAllTxn ? "Show less" : "View All Transactions"}
-            </Button>
-          </div>
-        ) : null}
       </div>
     </div>
   );

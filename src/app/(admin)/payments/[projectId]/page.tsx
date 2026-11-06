@@ -1,10 +1,10 @@
-import ProjectPayments from "@/components/payments/ProjectPayments";
+import ProjectPaymentsPageView from "@/components/payments/ProjectPaymentsPageView";
 import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
   title: "Project Payments",
-  description: "Project expenses and funds",
+  description: "Project payment history and funds",
 };
 
 export default async function ProjectPaymentsPage({
@@ -13,5 +13,5 @@ export default async function ProjectPaymentsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  return <ProjectPayments projectId={projectId} />;
+  return <ProjectPaymentsPageView projectId={projectId} />;
 }

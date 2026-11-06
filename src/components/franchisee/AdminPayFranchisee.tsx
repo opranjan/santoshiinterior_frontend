@@ -47,6 +47,9 @@ type PaymentRow = {
   project?: { id: string; name: string; clientName?: string | null } | null;
   payee?: { id: string; name: string } | null;
   payeeUserId?: string | null;
+  vendorName?: string | null;
+  vendor?: { id: string; name: string } | null;
+  sourceExpenseId?: string | null;
 };
 
 const METHODS = [
@@ -129,6 +132,7 @@ export default function AdminPayFranchisee() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -154,12 +158,15 @@ export default function AdminPayFranchisee() {
   const load = async (nextKind: Kind) => {
     setLoading(true);
     setError("");
+    setFormError("");
     try {
-      const [projectRes, payoutRes, dlpRes] = await Promise.all([
-        projectsApi.list({ limit: 200 }),
-        paymentsApi.list({ limit: 200, type: "FRANCHISEE_PAYOUT" }),
-        paymentsApi.list({ limit: 200, type: "DLP" }),
-      ]);
+      const [projectRes, franchiseePayoutRes, vendorPayoutRes, dlpRes] =
+        await Promise.all([
+          projectsApi.list({ limit: 200 }),
+          paymentsApi.list({ limit: 200, type: "FRANCHISEE_PAYOUT" }),
+          paymentsApi.list({ limit: 200, type: "VENDOR" }),
+          paymentsApi.list({ limit: 200, type: "DLP" }),
+        ]);
       let people: AuthUser[] = [];
       try {
         const usersRes = await usersApi.list({ limit: 200, isActive: "true" });
@@ -187,7 +194,14 @@ export default function AdminPayFranchisee() {
       }
       setFranchisees(people);
       setProjects(rows);
-      const payoutItems = (payoutRes.items || []) as PaymentRow[];
+      const payoutItems = [
+        ...((franchiseePayoutRes.items || []) as PaymentRow[]),
+        ...((vendorPayoutRes.items || []) as PaymentRow[]),
+      ].sort(
+        (a, b) =>
+          new Date(b.paidDate || b.createdAt || 0).getTime() -
+          new Date(a.paidDate || a.createdAt || 0).getTime()
+      );
       const dlpItems = (dlpRes.items || []) as PaymentRow[];
       setPayouts(payoutItems);
       setDlpRows(dlpItems);
@@ -260,6 +274,7 @@ export default function AdminPayFranchisee() {
     const payoutPaid = payouts
       .filter(
         (row) =>
+          !row.sourceExpenseId &&
           row.id !== editingId &&
           (row.projectId || row.project?.id) === project.id &&
           (row.payeeUserId === form.payeeUserId || row.payee?.id === form.payeeUserId)
@@ -303,7 +318,15 @@ export default function AdminPayFranchisee() {
       const status = String(row.status || "PENDING").toUpperCase();
       if (statusFilter !== "all" && status !== statusFilter) return false;
       if (!q) return true;
-      return [row.invoiceNo, row.payee?.name, row.project?.name, row.project?.clientName, row.remark]
+      return [
+        row.invoiceNo,
+        row.payee?.name,
+        row.vendor?.name,
+        row.vendorName,
+        row.project?.name,
+        row.project?.clientName,
+        row.remark,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(q);
@@ -333,6 +356,7 @@ export default function AdminPayFranchisee() {
     const payoutPaid = payouts
       .filter(
         (row) =>
+          !row.sourceExpenseId &&
           row.id !== editingId &&
           (row.projectId || row.project?.id) === projectId &&
           (row.payeeUserId === form.payeeUserId || row.payee?.id === form.payeeUserId)
@@ -346,15 +370,12 @@ export default function AdminPayFranchisee() {
           (row.payeeUserId === form.payeeUserId || row.payee?.id === form.payeeUserId)
       )
       .reduce((sum, row) => sum + paidOf(row), 0);
-    const remaining =
-      kind === "DLP"
-        ? Math.max(0, (split?.dlp || 0) - dlpPaid)
-        : Math.max(0, (split?.payable || 0) - payoutPaid);
     setForm((f) => ({
       ...f,
       projectId,
       holdingPercent: pct,
-      amount: keepAmount ? f.amount : remaining ? String(remaining) : "",
+      /** Never auto-fill the full remaining — that accidentally saved full budgets as paid. */
+      amount: keepAmount ? f.amount : "",
     }));
   };
 
@@ -368,6 +389,7 @@ export default function AdminPayFranchisee() {
   const closeForm = () => {
     setFormOpen(false);
     setEditingId(null);
+    setFormError("");
   };
 
   const openPay = () => {
@@ -385,9 +407,19 @@ export default function AdminPayFranchisee() {
     });
     setFormOpen(true);
     setError("");
+    setFormError("");
+    setNotice("");
   };
 
   const openEdit = (row: PaymentRow) => {
+    if (row.sourceExpenseId) {
+      setNotice(
+        "This payout came from a project expense. Edit or delete it under Project payments → Expenses."
+      );
+      setError("");
+      setFormError("");
+      return;
+    }
     const projectId = row.projectId || row.project?.id || "";
     const project = projects.find((item) => item.id === projectId);
     const paid = paidOf(row);
@@ -409,6 +441,7 @@ export default function AdminPayFranchisee() {
     });
     setFormOpen(true);
     setError("");
+    setFormError("");
   };
 
   const savePay = async () => {
@@ -417,29 +450,41 @@ export default function AdminPayFranchisee() {
       ? amount
       : Math.min(amount, Number(form.paidAmount) || 0);
     if (!form.payeeUserId) {
-      setError("Select the vendor to pay.");
+      setFormError("Select the vendor to pay.");
       return;
     }
     if (!form.projectId) {
-      setError("Select the assigned project.");
+      setFormError("Select the assigned project.");
       return;
     }
     if (amount <= 0) {
-      setError("Enter a payment amount.");
+      setFormError("Enter a payment amount.");
       return;
     }
-    const cap = kind === "DLP" ? selectedSplit?.dlpRemaining : selectedSplit?.payoutRemaining;
-    if (selectedSplit && cap !== undefined && amount > cap + 0.01) {
-      setError(
-        kind === "DLP"
-          ? `DLP holding left on this project is ${formatINR(cap)}.`
-          : `Vendor payment left after DLP holding is ${formatINR(cap)}.`
-      );
-      return;
+    const vendorBudget = form.projectId ? vendorValueOf(form.projectId) : 0;
+    /** Only enforce remaining-budget cap when a Vendor Project budget is set. */
+    if (vendorBudget > 0 && selectedSplit) {
+      const cap =
+        kind === "DLP" ? selectedSplit.dlpRemaining : selectedSplit.payoutRemaining;
+      if (amount > cap + 0.01) {
+        const already = kind === "DLP" ? selectedSplit.dlpPaid : selectedSplit.payoutPaid;
+        const total = kind === "DLP" ? selectedSplit.dlp : selectedSplit.payable;
+        setFormError(
+          kind === "DLP"
+            ? cap <= 0
+              ? `DLP holding is fully recorded (${formatINR(already)} of ${formatINR(total)}). Left: ₹0.`
+              : `Only ${formatINR(cap)} DLP holding left on this project.`
+            : cap <= 0
+              ? `Vendor payable is fully paid (${formatINR(already)} of ${formatINR(total)}). Edit or delete the existing payout if this was a mistake.`
+              : `Only ${formatINR(cap)} left to pay after DLP holding.`
+        );
+        return;
+      }
     }
     const project = projects.find((row) => row.id === form.projectId);
     const payee = franchisees.find((row) => row.id === form.payeeUserId);
     setSaving(true);
+    setFormError("");
     setError("");
     try {
       if (project?.id) {
@@ -481,7 +526,7 @@ export default function AdminPayFranchisee() {
       closeForm();
       await load(kind);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save payment");
+      setFormError(err instanceof Error ? err.message : "Failed to save payment");
     } finally {
       setSaving(false);
     }
@@ -562,6 +607,9 @@ export default function AdminPayFranchisee() {
               setKind(tab.key);
               setSearch("");
               setStatusFilter("all");
+              setError("");
+              setFormError("");
+              setNotice("");
             }}
             className={`rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] ${
               kind === tab.key
@@ -575,13 +623,27 @@ export default function AdminPayFranchisee() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <span>{error}</span>
+          <button
+            type="button"
+            className="shrink-0 text-xs font-semibold uppercase tracking-[0.1em] text-rose-700/80 hover:text-rose-900"
+            onClick={() => setError("")}
+          >
+            Dismiss
+          </button>
         </div>
       ) : null}
       {notice ? (
-        <div className="rounded-xl border border-[#d8e4d4] bg-[#f4f8f2] px-4 py-3 text-sm text-[#3d5a3a]">
-          {notice}
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-[#d8e4d4] bg-[#f4f8f2] px-4 py-3 text-sm text-[#3d5a3a]">
+          <span>{notice}</span>
+          <button
+            type="button"
+            className="shrink-0 text-xs font-semibold uppercase tracking-[0.1em] text-[#3d5a3a]/80 hover:text-[#1c1610]"
+            onClick={() => setNotice("")}
+          >
+            Dismiss
+          </button>
         </div>
       ) : null}
 
@@ -712,11 +774,23 @@ export default function AdminPayFranchisee() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1c1610] text-[10px] font-semibold text-[#e8d5b5]">
-                          {initials(row.payee?.name)}
+                          {initials(
+                            row.payee?.name || row.vendor?.name || row.vendorName
+                          )}
                         </span>
-                        <span className="text-[#1c1610] dark:text-[#f3ece2]">
-                          {row.payee?.name || "—"}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="block text-[#1c1610] dark:text-[#f3ece2]">
+                            {row.payee?.name ||
+                              row.vendor?.name ||
+                              row.vendorName ||
+                              "—"}
+                          </span>
+                          {row.sourceExpenseId ? (
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-[#9a7748]">
+                              From project expense
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -752,29 +826,46 @@ export default function AdminPayFranchisee() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9a7748] hover:text-[#1c1610]"
-                          onClick={() => openEdit(row)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs font-semibold uppercase tracking-[0.1em] text-rose-700 hover:text-rose-900"
-                          onClick={() => setDeleteRow(row)}
-                        >
-                          Delete
-                        </button>
-                        {pending > 0 ? (
-                          <button
-                            type="button"
-                            className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8a7b68] hover:text-[#1c1610]"
-                            onClick={() => void markPaid(row)}
-                          >
-                            Mark paid
-                          </button>
-                        ) : null}
+                        {row.sourceExpenseId ? (
+                          <>
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8a7b68]">
+                              Edit in project expenses
+                            </span>
+                            <button
+                              type="button"
+                              className="text-xs font-semibold uppercase tracking-[0.1em] text-rose-700 hover:text-rose-900"
+                              onClick={() => setDeleteRow(row)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9a7748] hover:text-[#1c1610]"
+                              onClick={() => openEdit(row)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-semibold uppercase tracking-[0.1em] text-rose-700 hover:text-rose-900"
+                              onClick={() => setDeleteRow(row)}
+                            >
+                              Delete
+                            </button>
+                            {pending > 0 ? (
+                              <button
+                                type="button"
+                                className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8a7b68] hover:text-[#1c1610]"
+                                onClick={() => void markPaid(row)}
+                              >
+                                Mark paid
+                              </button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -845,6 +936,11 @@ export default function AdminPayFranchisee() {
             </button>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+            {formError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                {formError}
+              </div>
+            ) : null}
             <div>
               <label className={paymentLabelClass}>Vendor</label>
               <select
@@ -896,6 +992,16 @@ export default function AdminPayFranchisee() {
                     tone: "gold",
                   },
                   { label: "Vendor payable", value: formatINR(selectedSplit.payable), tone: "olive" },
+                  {
+                    label: "Already paid",
+                    value: formatINR(selectedSplit.payoutPaid),
+                    tone: "olive",
+                  },
+                  {
+                    label: "Left to pay",
+                    value: formatINR(selectedSplit.payoutRemaining),
+                    tone: selectedSplit.payoutRemaining > 0 ? "olive" : "rose",
+                  },
                 ].map((item) => (
                   <div
                     key={item.label}
@@ -910,7 +1016,9 @@ export default function AdminPayFranchisee() {
                           ? "text-[#9a7748]"
                           : item.tone === "olive"
                             ? "text-[#3d5a3a]"
-                            : "text-[#1c1610] dark:text-[#f3ece2]"
+                            : item.tone === "rose"
+                              ? "text-rose-700"
+                              : "text-[#1c1610] dark:text-[#f3ece2]"
                       }`}
                       style={paymentSerif}
                     >
@@ -920,7 +1028,7 @@ export default function AdminPayFranchisee() {
                 ))}
                 <p className="col-span-2 text-xs text-[#8a7b68]">
                   {selectedSplit.value
-                    ? `DLP pending ${formatINR(selectedSplit.dlpRemaining)} · Payment pending ${formatINR(selectedSplit.payoutRemaining)}`
+                    ? `DLP pending ${formatINR(selectedSplit.dlpRemaining)} · Left to pay ${formatINR(selectedSplit.payoutRemaining)}`
                     : "Set a vendor budget on Operations → Vendors → Vendor Projects before paying."}
                 </p>
               </div>
@@ -948,6 +1056,13 @@ export default function AdminPayFranchisee() {
                   min={1}
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder={
+                    selectedSplit
+                      ? `Max ${formatINR(
+                          isDlp ? selectedSplit.dlpRemaining : selectedSplit.payoutRemaining
+                        )}`
+                      : undefined
+                  }
                   className={paymentFieldClass}
                 />
               </div>
@@ -1054,9 +1169,16 @@ export default function AdminPayFranchisee() {
           </h3>
           <p className="mt-2 text-sm text-[#8a7b68]">
             {deleteRow?.invoiceNo || "This record"} for{" "}
-            {deleteRow?.payee?.name || "the vendor"}
+            {deleteRow?.payee?.name ||
+              deleteRow?.vendor?.name ||
+              deleteRow?.vendorName ||
+              "the vendor"}
             {deleteRow?.project?.name ? ` · ${deleteRow.project.name}` : ""} will be
-            removed. This cannot be undone.
+            removed
+            {deleteRow?.sourceExpenseId
+              ? ", including the linked project expense"
+              : ""}
+            . This cannot be undone.
           </p>
           <div className="mt-5 flex justify-end gap-2">
             <button

@@ -86,6 +86,7 @@ export default function AddExpenseModal({
         paidDate,
         source,
         expenseType,
+        vendorId: vendor?.id || undefined,
         vendorName: vendor?.name || "",
         contractName,
         category,

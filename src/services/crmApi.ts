@@ -735,6 +735,84 @@ export type DesignGenerationDto = {
   createdAt: string;
 };
 
+function postDesignGenerateWithTimeout(
+  url: string,
+  form: FormData,
+  token: string | null,
+  options?: { signal?: AbortSignal; timeoutMs?: number }
+): Promise<DesignGenerationDto> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    /** Multi-image edits commonly take 3–8 minutes end-to-end. */
+    xhr.timeout = options?.timeoutMs ?? 10 * 60 * 1000;
+
+    const onAbort = () => {
+      try {
+        xhr.abort();
+      } catch {
+        /* ignore */
+      }
+    };
+    options?.signal?.addEventListener("abort", onAbort);
+
+    xhr.onload = () => {
+      options?.signal?.removeEventListener("abort", onAbort);
+      let json: {
+        data?: DesignGenerationDto;
+        error?: { message?: string };
+        message?: string;
+      } | null = null;
+      try {
+        json = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        json = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && json?.data) {
+        resolve(json.data);
+        return;
+      }
+      reject(
+        new Error(
+          json?.error?.message ||
+            json?.message ||
+            (xhr.status === 413
+              ? "Images are too large to upload."
+              : "Image generation failed")
+        )
+      );
+    };
+    xhr.onerror = () => {
+      options?.signal?.removeEventListener("abort", onAbort);
+      reject(
+        new Error(
+          "Failed to fetch. The image may still be generating — checking history…"
+        )
+      );
+    };
+    xhr.ontimeout = () => {
+      options?.signal?.removeEventListener("abort", onAbort);
+      reject(
+        new Error(
+          "Generation timed out. The image may still be generating — checking history…"
+        )
+      );
+    };
+    xhr.onabort = () => {
+      options?.signal?.removeEventListener("abort", onAbort);
+      reject(
+        new Error(
+          options?.signal?.aborted
+            ? "Generation cancelled"
+            : "Generation timed out. Please try again."
+        )
+      );
+    };
+    xhr.send(form);
+  });
+}
+
 export const designApi = {
   history: () => api.get<DesignGenerationDto[]>("/design/history"),
   generate: async (
@@ -761,39 +839,12 @@ export const designApi = {
     if (payload.threadId?.trim()) form.append("threadId", payload.threadId.trim());
     payload.images.forEach((file) => form.append("image", file));
 
-    /** Image edits often take 60–120s — abort only after a hard ceiling. */
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 3 * 60 * 1000);
-    const onOuterAbort = () => controller.abort();
-    options?.signal?.addEventListener("abort", onOuterAbort);
-    try {
-      const res = await fetch(`${base}/design/generate`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-        signal: controller.signal,
-      });
-      const text = await res.text();
-      const json = text ? JSON.parse(text) : null;
-      if (!res.ok) {
-        throw new Error(
-          json?.error?.message || json?.message || "Image generation failed"
-        );
-      }
-      return json.data as DesignGenerationDto;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        throw new Error(
-          options?.signal?.aborted
-            ? "Generation cancelled"
-            : "Generation timed out. Please try again."
-        );
-      }
-      throw err;
-    } finally {
-      window.clearTimeout(timeout);
-      options?.signal?.removeEventListener("abort", onOuterAbort);
-    }
+    return postDesignGenerateWithTimeout(
+      `${base}/design/generate`,
+      form,
+      token,
+      { signal: options?.signal, timeoutMs: 10 * 60 * 1000 }
+    );
   },
   download: async (id: string, mode: "designing" | "elevation") => {
     const { tokenStorage } = await import("@/lib/auth");
@@ -862,7 +913,7 @@ export type ProjectTaskDto = {
   startDate?: string | null;
   dueDate?: string | null;
   assignedToId?: string | null;
-  assignedTo?: { id: string; name: string } | null;
+  assignedTo?: { id: string; name: string; vendorId?: string | null } | null;
   createdBy?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
@@ -2534,11 +2585,20 @@ export type VendorChatMessageDto = {
   } | null;
 };
 
+export type VendorChatTeam =
+  | "vendor"
+  | "procurement"
+  | "sales"
+  | "design"
+  | "hr"
+  | "other";
+
 export type VendorChatThreadDto = {
   id: string;
   name: string;
   roleLabel?: string | null;
   vendorName?: string | null;
+  team?: VendorChatTeam | string | null;
   lastMessage?: string | null;
   lastSenderId?: string | null;
   lastAt?: string | null;
@@ -2554,7 +2614,8 @@ export type VendorChatSendBody = {
 };
 
 export const vendorChatApi = {
-  threads: () => api.get<{ items: VendorChatThreadDto[] }>("/vendor-chat/threads"),
+  threads: () =>
+    api.get<{ items: VendorChatThreadDto[]; teams?: string[] }>("/vendor-chat/threads"),
   directory: (threadUserId?: string) =>
     api.get<{ items: VendorChatPersonDto[] }>(
       "/vendor-chat/directory",

@@ -309,6 +309,7 @@ export default function WhatsAppCommunicationHub({
         leadId: item.id,
       });
       const lead = result.lead;
+      setPendingPromote(null);
       setInbox((prev) =>
         prev.filter((row) => row.id !== item.id && row.contactId !== item.contactId)
       );
@@ -330,10 +331,12 @@ export default function WhatsAppCommunicationHub({
       onRefresh?.();
       void loadInbox(true);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "Could not add to leads");
+      setChatError(
+        err instanceof Error ? err.message : "Could not add to leads"
+      );
+      setPendingPromote(null);
     } finally {
       setPromotingId(null);
-      setPendingPromote(null);
     }
   };
 

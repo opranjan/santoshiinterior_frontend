@@ -84,7 +84,8 @@ const IMPLIES: Record<string, string[]> = {
   "customers.manage": ["customers.view"],
   "projects.manage": ["projects.view"],
   "quotations.manage": ["quotations.create", "quotations.approve"],
-  "settings.manage": ["settings.view", "website.manage", "integrations.manage"],
+  /** website.manage is separate so Super Admin can grant Web & App without full settings. */
+  "settings.manage": ["settings.view", "integrations.manage"],
   "users.manage": ["users.view", "roles.manage"],
   "workorders.manage": ["workorders.update", "warranty.manage", "issues.manage"],
   "purchaseorders.manage": ["procurement.manage", "vendors.manage"],
@@ -156,6 +157,8 @@ export const canAccessWhatsAppView = (
 ): boolean => {
   if (!user) return false;
   if (user.role === "SUPER_ADMIN") return true;
+  /** Sales role: Lead/Project only — Campaign inbox is for managers/admins. */
+  if (user.role === "SALES" && viewMode === "campaign") return false;
   // Procurement panel: WhatsApp → Projects + Vendor only
   if (isProcurementPanelUser(user)) {
     return viewMode === "project" || viewMode === "vendor";
@@ -297,7 +300,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/franchisees", permissions: ["users.manage", "users.view", "procurement.manage"] },
   { prefix: "/settings/modular-catalog", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create", "procurement.manage", "purchaseorders.manage"] },
   { prefix: "/settings/quotations", permissions: ["settings.manage", "settings.view", "quotations.manage", "quotations.create"] },
-  { prefix: "/settings/website", permissions: ["settings.manage", "settings.view", "website.manage", "quotations.manage"] },
+  { prefix: "/settings/website", permissions: ["website.manage", "settings.manage"] },
   { prefix: "/settings/integrations", permissions: ["settings.manage", "settings.view", "integrations.manage"] },
   { prefix: "/settings/general", permissions: ["settings.manage", "settings.view"] },
   { prefix: "/settings/projects", permissions: ["settings.manage", "settings.view", "projects.manage"] },
@@ -338,6 +341,7 @@ export const canAccessRoute = (
     path === "/projects" ||
     (path.startsWith("/projects/") && path !== "/projects/new") ||
     path === "/payments" ||
+    path.startsWith("/payments/") ||
     path === "/profile" ||
     path === "/customer-issues" ||
     path.startsWith("/customer-issues/") ||
@@ -619,37 +623,28 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Web & App",
-    permissions: [
-      "customers.manage",
-      "sales.full",
-      "sales.manage",
-      "sales.view",
-      "quotations.manage",
-      "quotations.create",
-      "settings.manage",
-      "settings.view",
-      "website.manage",
-    ],
+    /** Sales / quotations alone must not unlock this menu — grant website.manage in Roles. */
+    permissions: ["website.manage"],
     subItems: [
       {
         name: "Customer",
         path: "/customers",
-        permissions: ["customers.manage", "sales.full", "sales.manage", "sales.view"],
+        permissions: ["website.manage"],
       },
       {
         name: "Catalogue",
         path: "/settings/quotations/catalogs",
-        permissions: ["quotations.manage", "quotations.create", "settings.manage", "settings.view"],
+        permissions: ["website.manage"],
       },
       {
         name: "Home Banner",
         path: "/settings/website/hero",
-        permissions: ["settings.manage", "settings.view", "quotations.manage", "website.manage"],
+        permissions: ["website.manage"],
       },
       {
         name: "Testimonials",
         path: "/settings/website/testimonials",
-        permissions: ["settings.manage", "settings.view", "quotations.manage", "website.manage"],
+        permissions: ["website.manage"],
       },
     ],
   },
@@ -719,7 +714,6 @@ const VENDOR_PANEL_PERMS = [
 
 export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Dashboard", path: "/", permissions: VENDOR_PANEL_PERMS },
-  { name: "Design", path: "/design/designing", permissions: VENDOR_PANEL_PERMS },
   { name: "Projects", path: "/projects", permissions: VENDOR_PANEL_PERMS },
   {
     name: "Procurement",
@@ -734,8 +728,6 @@ export const VENDOR_NAV_ITEMS: NavPermissionGroup[] = [
   { name: "Chat Box", path: "/chat", permissions: VENDOR_PANEL_PERMS },
   { name: "Customer Issue", path: "/customer-issues", permissions: VENDOR_PANEL_PERMS },
   { name: "Documents", path: "/documents", permissions: ["documents.manage", "franchisee.portal", "vendor.portal"] },
-  { name: "Training", path: "/training", permissions: [] },
-  { name: "Catalog Video", path: "/catalog-videos", permissions: [] },
   { name: "Profile Settings", path: "/profile", permissions: VENDOR_PANEL_PERMS },
 ];
 

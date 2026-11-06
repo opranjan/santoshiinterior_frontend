@@ -40,7 +40,7 @@ export default function AdminLayout({
         <div
           className={`overflow-x-hidden xl:flex ${
             lockedPage
-              ? `${chatPage ? "is-chat-page" : "is-design-page"} flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden`
+              ? `${chatPage ? "is-chat-page" : "is-design-page"} ${designingPage ? "is-designing-studio" : ""} flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden`
               : "min-h-screen"
           } ${isMobileOpen ? "max-lg:h-dvh max-lg:overflow-hidden" : ""} ${partner ? "vendor-shell" : ""} ${hrPanel ? "hr-shell" : ""} ${casualPanel ? "hr-shell casual-shell" : ""}`}
         >

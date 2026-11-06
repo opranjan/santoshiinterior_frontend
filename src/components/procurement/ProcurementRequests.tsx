@@ -78,7 +78,9 @@ export default function ProcurementRequests() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProcurementRequestDto | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
+  const [projects, setProjects] = useState<
+    Array<{ id: string; name: string; clientName?: string }>
+  >([]);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
@@ -111,8 +113,19 @@ export default function ProcurementRequests() {
       .then((data) =>
         setProjects(
           (data.items || []).map((row) => {
-            const item = row as { id: string; name?: string };
-            return { id: item.id, name: item.name || "Untitled project" };
+            const item = row as {
+              id: string;
+              name?: string;
+              clientName?: string | null;
+              customer?: { name?: string | null } | null;
+            };
+            const clientName =
+              String(item.clientName || item.customer?.name || "").trim() || undefined;
+            return {
+              id: item.id,
+              name: item.name || "Untitled project",
+              clientName,
+            };
           })
         )
       )
@@ -722,7 +735,7 @@ function NewRequestModal({
   open: boolean;
   form: FormState;
   saving: boolean;
-  projects: Array<{ id: string; name: string }>;
+  projects: Array<{ id: string; name: string; clientName?: string }>;
   onChange: (next: FormState) => void;
   onClose: () => void;
   onNext: () => void;
@@ -783,7 +796,9 @@ function NewRequestModal({
               <option value="">Select project</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
-                  {project.name}
+                  {project.clientName
+                    ? `${project.name} — ${project.clientName}`
+                    : project.name}
                 </option>
               ))}
             </select>

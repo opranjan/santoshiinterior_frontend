@@ -155,7 +155,6 @@ function DashIcon({ name }: { name: string }) {
 
 const QUICK_ACTIONS = [
   { label: "Projects", hint: "Assigned sites & progress", href: "/projects", icon: "projects" },
-  { label: "Design", hint: "Open design studio", href: "/design/designing", icon: "design" },
   { label: "Procurement", hint: "Requests and orders", href: "/operations/procurement/requests", icon: "procurement" },
   { label: "Payments", hint: "Vendor payouts", href: "/payments", icon: "payments" },
   { label: "Chat Box", hint: "Message the company", href: "/chat", icon: "chat" },

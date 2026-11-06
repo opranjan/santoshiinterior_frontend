@@ -202,69 +202,264 @@ const fieldClass =
   "w-full border-0 border-b border-[#d9cbb8] bg-transparent px-0 py-1 text-sm text-[#1c1610] outline-none focus:border-[#c4a574]";
 const serif = { fontFamily: "Georgia, 'Times New Roman', serif" } as const;
 
-function SignaturePad({ label }: { label: string }) {
+function SignatureDialog({
+  open,
+  label,
+  initialDataUrl,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  label: string;
+  initialDataUrl: string | null;
+  onClose: () => void;
+  onSave: (dataUrl: string | null) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const drawing = useRef(false);
+  const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const [hasInk, setHasInk] = useState(Boolean(initialDataUrl));
+
+  const resizeCanvas = () => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.max(280, Math.floor(wrap.clientWidth));
+    const height = Math.max(180, Math.floor(Math.min(wrap.clientWidth * 0.45, 280)));
+    const prev = canvas.toDataURL("image/png");
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#1c1610";
+    ctx.lineWidth = 2.5;
+    if (prev && prev !== "data:,") {
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+      };
+      img.src = prev;
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    setHasInk(Boolean(initialDataUrl));
+    const id = window.requestAnimationFrame(() => {
+      resizeCanvas();
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext("2d");
+      if (!canvas || !ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+      if (initialDataUrl) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, width, height);
+          setHasInk(true);
+        };
+        img.src = initialDataUrl;
+      }
+    });
+    const onResize = () => resizeCanvas();
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.cancelAnimationFrame(id);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, initialDataUrl]);
 
   const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     return {
-      x: ((e.clientX - rect.left) * canvas.width) / rect.width,
-      y: ((e.clientY - rect.top) * canvas.height) / rect.height,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     };
   };
 
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     drawing.current = true;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const p = pos(e);
+    lastPoint.current = p;
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
   };
 
   const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawing.current) return;
+    e.preventDefault();
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const p = pos(e);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#1c1610";
+    const prev = lastPoint.current || p;
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
+    lastPoint.current = p;
+    if (!hasInk) setHasInk(true);
   };
 
-  const end = () => {
+  const end = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
     drawing.current = false;
+    lastPoint.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
   };
 
   const clear = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    setHasInk(false);
   };
+
+  const save = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !hasInk) {
+      onSave(null);
+      onClose();
+      return;
+    }
+    onSave(canvas.toDataURL("image/png"));
+    onClose();
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+      <div className="flex max-h-[96vh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-[#eadfcf] px-4 py-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[#1c1610]">{label}</h3>
+            <p className="text-xs text-[#8a7b68]">Draw with your finger or stylus</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-sm text-[#8a7b68] hover:bg-[#f4efe6] hover:text-[#1c1610]"
+          >
+            Close
+          </button>
+        </div>
+        <div className="px-4 py-3">
+          <div
+            ref={wrapRef}
+            className="overflow-hidden rounded-xl border border-[#d9cbb8] bg-[#fbf8f3]"
+          >
+            <canvas
+              ref={canvasRef}
+              className="block w-full touch-none cursor-crosshair"
+              style={{ touchAction: "none" }}
+              onPointerDown={start}
+              onPointerMove={move}
+              onPointerUp={end}
+              onPointerCancel={end}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eadfcf] px-4 py-3">
+          <button
+            type="button"
+            onClick={clear}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-[#8a7b68] hover:bg-[#f4efe6]"
+          >
+            Clear
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-[#d9cbb8] px-4 py-2 text-sm font-medium text-[#1c1610]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={!hasInk}
+              className="rounded-lg bg-[#1c1610] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              Use signature
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignaturePad({ label }: { label: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="sign-box">
-      <canvas
-        ref={canvasRef}
-        width={420}
-        height={110}
-        className="h-20 w-full cursor-crosshair border-b border-[#1c1610] bg-transparent"
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerLeave={end}
-      />
+      {dataUrl ? (
+        <img
+          src={dataUrl}
+          alt={label}
+          className="h-20 w-full border-b border-[#1c1610] object-contain bg-transparent"
+        />
+      ) : (
+        <div className="flex h-20 w-full items-center justify-center border-b border-dashed border-[#c4a574] bg-[#fbf8f3] text-xs text-[#8a7b68]">
+          No signature yet
+        </div>
+      )}
       <p className="sign-label mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">{label}</p>
-      <button type="button" onClick={clear} className="no-print mt-1 text-xs text-[#8a7b68] hover:text-[#1c1610]">
-        Clear
-      </button>
+      <div className="no-print mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-lg bg-[#1c1610] px-3 py-1.5 text-xs font-semibold text-white"
+        >
+          {dataUrl ? "Re-sign" : "Tap to sign"}
+        </button>
+        {dataUrl ? (
+          <button
+            type="button"
+            onClick={() => setDataUrl(null)}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-[#8a7b68] hover:bg-[#f4efe6] hover:text-[#1c1610]"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <SignatureDialog
+        open={open}
+        label={label}
+        initialDataUrl={dataUrl}
+        onClose={() => setOpen(false)}
+        onSave={setDataUrl}
+      />
     </div>
   );
 }

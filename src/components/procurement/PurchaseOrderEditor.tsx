@@ -291,7 +291,7 @@ export default function PurchaseOrderEditor({ id }: { id: string }) {
             onClick={() => void save(true)}
             className="h-9 rounded-xl bg-[#1c1610] px-4 text-sm font-medium text-[#e8d5b5] disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Create"}
+            {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
       </div>

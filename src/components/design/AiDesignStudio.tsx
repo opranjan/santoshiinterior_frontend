@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { designApi, type DesignGenerationDto } from "@/services/crmApi";
 import { designAssetUrl } from "@/lib/designAssets";
 import DesignGeneratingLoader from "@/components/design/DesignGeneratingLoader";
+import DesignPaintMarkup from "@/components/design/DesignPaintMarkup";
 import DesignResultDescription, {
   splitChatGptReply,
 } from "@/components/design/DesignResultDescription";
@@ -140,6 +141,77 @@ async function filesFromUrls(urls: string[]) {
   return files;
 }
 
+function filesFromClipboardData(data: DataTransfer | null): File[] {
+  if (!data) return [];
+
+  const fromFiles = data.files
+    ? Array.from(data.files).filter((file) => file.type.startsWith("image/"))
+    : [];
+
+  /** Multi-file paste from Explorer — keep distinct files only. */
+  if (fromFiles.length > 1) {
+    const seen = new Set<string>();
+    return fromFiles.filter((file) => {
+      const key = `${file.name}|${file.size}|${file.lastModified}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  if (fromFiles.length === 1) return fromFiles;
+
+  /**
+   * Screenshot / single Ctrl+V image: Chrome/Edge often expose the same
+   * bitmap as image/png AND image/jpeg — take one (prefer png).
+   */
+  const items = data.items ? Array.from(data.items) : [];
+  const preferred =
+    items.find((item) => item.kind === "file" && item.type === "image/png") ||
+    items.find((item) => item.kind === "file" && item.type === "image/webp") ||
+    items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
+  const file = preferred?.getAsFile();
+  if (!file) return [];
+  return [
+    file.name
+      ? file
+      : new File([file], `pasted-${Date.now()}.png`, {
+          type: file.type || "image/png",
+        }),
+  ];
+}
+
+async function copyImageUrlToClipboard(url: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Could not copy image");
+  const blob = await res.blob();
+  const type = blob.type.startsWith("image/") ? blob.type : "image/png";
+  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
+    throw new Error("Copy image is not supported in this browser");
+  }
+  await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
+}
+
+function hasTextSelection() {
+  const sel = window.getSelection?.()?.toString() || "";
+  if (sel.trim()) return true;
+  const el = document.activeElement;
+  if (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement
+  ) {
+    return el.selectionStart !== el.selectionEnd;
+  }
+  return false;
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
 function voiceToPrompt(base: string, spoken: string) {
   const cleaned = spoken.replace(/\s+/g, " ").trim();
   return [base, cleaned].filter(Boolean).join(" ").trim();
@@ -178,7 +250,11 @@ export default function AiDesignStudio({ mode }: Props) {
   const [preview, setPreview] = useState<{ urls: string[]; index: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState("");
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  const [paintImageUrl, setPaintImageUrl] = useState<string | null>(null);
   const generateAbortRef = useRef<AbortController | null>(null);
+  const composerWrapRef = useRef<HTMLDivElement>(null);
 
   promptRef.current = prompt;
 
@@ -186,6 +262,32 @@ export default function AiDesignStudio({ mode }: Props) {
     return () => {
       generateAbortRef.current?.abort();
       generateAbortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    const sync = () => setIsCoarsePointer(Boolean(mq.matches));
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+
+  /** Keep composer above the on-screen keyboard on phones/tablets. */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const sync = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardInset(inset > 48 ? inset : 0);
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
     };
   }, []);
 
@@ -200,6 +302,17 @@ export default function AiDesignStudio({ mode }: Props) {
   const threadMessages = activeThread?.messages || [];
   const turns = useMemo(() => buildTurns(threadMessages), [threadMessages]);
   const latest = threadMessages[threadMessages.length - 1] || null;
+
+  useEffect(() => {
+    if (!keyboardInset) return;
+    const id = window.setTimeout(() => {
+      listRef.current?.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [keyboardInset, loading, varying, turns.length]);
 
   useEffect(() => {
     return () => {
@@ -275,6 +388,97 @@ export default function AiDesignStudio({ mode }: Props) {
     setError("");
   };
 
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (paintImageUrl || loading || varying) return;
+      const images = filesFromClipboardData(event.clipboardData);
+      if (!images.length) return;
+      /**
+       * Don't steal text paste from unrelated inputs (header search, etc.).
+       * Image paste into the studio composer (or page background) attaches photos.
+       * Single window listener only — do not also handle on the textarea (that
+       * duplicated every paste).
+       */
+      if (
+        isEditableTarget(event.target) &&
+        event.target !== inputRef.current
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      addFiles(images);
+      inputRef.current?.focus();
+    };
+
+    const onCopyKey = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod || event.altKey) return;
+      if (event.key.toLowerCase() !== "c") return;
+      if (paintImageUrl) return;
+      /** Selected text → native copy. No selection → copy current/latest image. */
+      if (hasTextSelection()) return;
+
+      const imageUrl =
+        preview?.urls?.[preview.index] ||
+        (latest?.resultImageUrl ? designAssetUrl(latest.resultImageUrl) : null) ||
+        sources[sources.length - 1]?.url ||
+        null;
+      if (!imageUrl) return;
+
+      event.preventDefault();
+      void copyImageUrlToClipboard(imageUrl)
+        .then(() => setError(""))
+        .catch((err) =>
+          setError(err instanceof Error ? err.message : "Could not copy image")
+        );
+    };
+
+    window.addEventListener("paste", onPaste);
+    window.addEventListener("keydown", onCopyKey);
+    return () => {
+      window.removeEventListener("paste", onPaste);
+      window.removeEventListener("keydown", onCopyKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    paintImageUrl,
+    loading,
+    varying,
+    preview,
+    latest?.resultImageUrl,
+    sources,
+  ]);
+
+  const useMarkedImage = (file: File) => {
+    setSources((prev) => {
+      prev.forEach((item) => {
+        if (item.url.startsWith("blob:")) URL.revokeObjectURL(item.url);
+      });
+      return [
+        {
+          id: `marked-${Date.now()}`,
+          file,
+          url: URL.createObjectURL(file),
+        },
+      ];
+    });
+    setPaintImageUrl(null);
+    setError("");
+    setPrompt((prev) => {
+      const text = prev.trim();
+      if (text) return text;
+      return "Change only the areas I marked on the image.";
+    });
+    window.setTimeout(() => {
+      inputRef.current?.focus();
+      if (inputRef.current) {
+        inputRef.current.style.height = "auto";
+        inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 160)}px`;
+      }
+    }, 80);
+  };
+
   const removeSource = (id: string) => {
     setSources((prev) => {
       const target = prev.find((item) => item.id === id);
@@ -295,16 +499,66 @@ export default function AiDesignStudio({ mode }: Props) {
 
   const resolveFiles = async () => {
     if (sources.length) return sources.map((item) => item.file);
+
+    /** Follow-up in a chat: edit the last result, keep original room as extra context. */
     if (latest?.resultImageUrl) {
       const fromResult = await filesFromUrls([latest.resultImageUrl]);
-      if (fromResult.length) return fromResult;
+      if (fromResult.length) {
+        const first = threadMessages[0];
+        const originalUrl =
+          first?.sourceImageUrls?.[0] || first?.sourceImageUrl || null;
+        if (
+          originalUrl &&
+          originalUrl !== latest.resultImageUrl &&
+          fromResult.length < MAX_IMAGES
+        ) {
+          const originals = await filesFromUrls([originalUrl]);
+          return [...fromResult, ...originals].slice(0, 2);
+        }
+        return fromResult;
+      }
     }
+
     const urls = latest?.sourceImageUrls?.length
       ? latest.sourceImageUrls
       : latest?.sourceImageUrl
         ? [latest.sourceImageUrl]
         : [];
     return filesFromUrls(urls);
+  };
+
+  const recoverGenerationFromHistory = async (opts: {
+    beforeIds: Set<string>;
+    startedAt: number;
+    threadId: string | null;
+    promptText: string;
+    signal: AbortSignal;
+  }): Promise<DesignGenerationDto | null> => {
+    const deadline = Date.now() + 90_000;
+    const promptKey = opts.promptText.trim().toLowerCase();
+    while (Date.now() < deadline) {
+      if (opts.signal.aborted) return null;
+      try {
+        const items = await designApi.history();
+        const rows = items.filter((item) => item.mode === mode);
+        const match = rows.find((row) => {
+          if (opts.beforeIds.has(row.id)) return false;
+          const created = new Date(row.createdAt).getTime();
+          if (Number.isFinite(created) && created + 5000 < opts.startedAt) return false;
+          if (opts.threadId && row.threadId && row.threadId !== opts.threadId) return false;
+          if (promptKey && row.userPrompt?.trim().toLowerCase() !== promptKey) return false;
+          return Boolean(row.resultImageUrl);
+        });
+        if (match) {
+          setHistory(rows);
+          return match;
+        }
+      } catch {
+        /* keep polling */
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+    return null;
   };
 
   const generate = async (override?: { prompt?: string; files?: File[]; asVariations?: boolean }) => {
@@ -318,6 +572,9 @@ export default function AiDesignStudio({ mode }: Props) {
     generateAbortRef.current?.abort();
     const abort = new AbortController();
     generateAbortRef.current = abort;
+    const beforeIds = new Set(history.map((row) => row.id));
+    const startedAt = Date.now();
+    const threadAtStart = activeThreadId;
     try {
       setPendingPrompt(text);
       if (override?.asVariations) setVarying(true);
@@ -341,9 +598,40 @@ export default function AiDesignStudio({ mode }: Props) {
       if (abort.signal.aborted) return;
       setActiveThreadId(data.threadId || data.id);
       setHistory((prev) => [data, ...prev.filter((row) => row.id !== data.id)].slice(0, 200));
+      /** Caption is written async on the server — soft-refresh once it lands. */
+      window.setTimeout(() => {
+        if (generateAbortRef.current && generateAbortRef.current !== abort) return;
+        void loadHistory(false);
+      }, 8000);
     } catch (err) {
       if (abort.signal.aborted) return;
-      setError(err instanceof Error ? err.message : "Generation failed");
+      const message = err instanceof Error ? err.message : "Generation failed";
+      const maybeSaved =
+        /failed to fetch|network error|timed out|checking history/i.test(message);
+      if (maybeSaved) {
+        setError("Connection interrupted — looking up your generated image…");
+        const recovered = await recoverGenerationFromHistory({
+          beforeIds,
+          startedAt,
+          threadId: threadAtStart,
+          promptText: text,
+          signal: abort.signal,
+        });
+        if (abort.signal.aborted) return;
+        if (recovered) {
+          setError("");
+          setActiveThreadId(recovered.threadId || recovered.id);
+          setHistory((prev) =>
+            [recovered, ...prev.filter((row) => row.id !== recovered.id)].slice(0, 200)
+          );
+          return;
+        }
+        setError(
+          "Connection was interrupted. Refresh the page — if generation finished, your image will be in history."
+        );
+        return;
+      }
+      setError(message);
     } finally {
       if (generateAbortRef.current === abort) generateAbortRef.current = null;
       setLoading(false);
@@ -365,6 +653,8 @@ export default function AiDesignStudio({ mode }: Props) {
     setMenuId(null);
     setError("");
     setHistoryOpen(false);
+    /** Close soft keyboard drawer focus after picking a chat on mobile. */
+    window.setTimeout(() => inputRef.current?.blur(), 0);
   };
 
   const downloadResult = async (item = latest) => {
@@ -455,8 +745,24 @@ export default function AiDesignStudio({ mode }: Props) {
     recognition.start();
   };
 
-  const canSend = Boolean(sources.length || latest?.resultImageUrl || latest?.sourceImageUrl) && !loading;
+  const hasImageContext = Boolean(
+    sources.length || latest?.resultImageUrl || latest?.sourceImageUrl
+  );
+  const canSend = hasImageContext && !loading && !varying;
   const showEmpty = !activeThreadId && !loading && !varying;
+
+  const submitFromComposer = () => {
+    if (loading || varying) return;
+    if (!hasImageContext) {
+      setError(
+        isCoarsePointer
+          ? "Attach a photo first, then tap Send."
+          : "Upload a photo first, then press Enter to generate."
+      );
+      return;
+    }
+    void generate();
+  };
 
   const renderHistory = () => (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -500,8 +806,11 @@ export default function AiDesignStudio({ mode }: Props) {
                 <button
                   type="button"
                   title="More"
-                  onClick={() => setMenuId(menuId === thread.threadId ? null : thread.threadId)}
-                  className="absolute right-1 top-1/2 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-[#6b6b6b] hover:bg-black/10 group-hover:flex"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setMenuId(menuId === thread.threadId ? null : thread.threadId);
+                  }}
+                  className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-[#6b6b6b] hover:bg-black/10 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
                 >
                   ⋯
                 </button>
@@ -530,15 +839,16 @@ export default function AiDesignStudio({ mode }: Props) {
   const composer = (
     <div className="mx-auto w-full max-w-[48rem] px-3 sm:px-4">
       {sources.length ? (
-        <div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto px-1">
+        <div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto overscroll-x-contain px-1 touch-pan-x">
           {sources.map((item) => (
-            <div key={item.id} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-black/10">
+            <div key={item.id} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-black/10 sm:h-16 sm:w-16">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={item.url} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => removeSource(item.id)}
-                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[11px] text-white"
+                className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-[12px] text-white sm:h-5 sm:w-5 sm:text-[11px]"
+                aria-label="Remove photo"
               >
                 ×
               </button>
@@ -546,11 +856,11 @@ export default function AiDesignStudio({ mode }: Props) {
           ))}
         </div>
       ) : null}
-      <div className="rounded-[28px] border border-black/10 bg-[#f4f4f4] px-2.5 py-2 shadow-[0_0_0_1px_rgba(0,0,0,0.02)] focus-within:bg-white focus-within:shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)]">
+      <div className="rounded-[28px] border border-black/10 bg-[#f4f4f4] px-2 py-2 shadow-[0_0_0_1px_rgba(0,0,0,0.02)] focus-within:bg-white focus-within:shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.06)] sm:px-2.5">
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/jpg"
+          accept="image/*,image/png,image/jpeg,image/webp,image/jpg"
           multiple
           className="hidden"
           onChange={(e) => {
@@ -558,12 +868,12 @@ export default function AiDesignStudio({ mode }: Props) {
             e.target.value = "";
           }}
         />
-        <div className="flex items-end gap-1.5">
+        <div className="flex items-end gap-1 sm:gap-1.5">
           <button
             type="button"
             title="Attach photo"
             onClick={() => fileRef.current?.click()}
-            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#0d0d0d] hover:bg-black/[0.06]"
+            className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#0d0d0d] hover:bg-black/[0.06] active:bg-black/[0.08] sm:h-9 sm:w-9"
           >
             <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path strokeLinecap="round" d="M12 5v14M5 12h14" />
@@ -573,26 +883,49 @@ export default function AiDesignStudio({ mode }: Props) {
             ref={inputRef}
             rows={1}
             value={prompt}
+            enterKeyHint={isCoarsePointer ? "enter" : "send"}
+            autoComplete="off"
+            autoCorrect="on"
+            spellCheck
             onChange={(e) => {
               setPrompt(e.target.value);
               const el = e.target;
               el.style.height = "auto";
-              el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              el.style.height = `${Math.min(el.scrollHeight, isCoarsePointer ? 120 : 160)}px`;
+            }}
+            onFocus={() => {
+              window.setTimeout(() => {
+                inputRef.current?.scrollIntoView({
+                  block: "nearest",
+                  behavior: "smooth",
+                });
+                listRef.current?.scrollTo({
+                  top: listRef.current.scrollHeight,
+                  behavior: "smooth",
+                });
+              }, 250);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (canSend) void generate();
-              }
+              const isEnter =
+                e.key === "Enter" || e.code === "Enter" || e.keyCode === 13;
+              if (!isEnter || e.nativeEvent.isComposing) return;
+              /**
+               * Phone/tablet soft keyboards: Enter = new line, Send button submits.
+               * Desktop/laptop: Enter sends, Shift+Enter = new line.
+               */
+              if (isCoarsePointer || e.shiftKey) return;
+              e.preventDefault();
+              e.stopPropagation();
+              submitFromComposer();
             }}
             placeholder={showEmpty ? "Ask anything" : defaultPrompts[mode]}
-            className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2.5 text-[16px] leading-6 text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] sm:text-[15px]"
+            className="max-h-28 min-h-[44px] flex-1 resize-none bg-transparent py-2.5 text-[16px] leading-6 text-[#0d0d0d] outline-none placeholder:text-[#8e8e8e] sm:max-h-40 sm:min-h-[40px] sm:text-[15px]"
           />
           <button
             type="button"
             title={listening ? "Stop voice" : "Voice"}
             onClick={listen}
-            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-black/[0.06] ${
+            className={`mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-black/[0.06] active:bg-black/[0.08] sm:h-9 sm:w-9 ${
               listening ? "bg-[#ffe8e0] text-[#c2410c]" : "text-[#0d0d0d]"
             }`}
           >
@@ -604,8 +937,8 @@ export default function AiDesignStudio({ mode }: Props) {
             type="button"
             title="Send"
             disabled={!canSend}
-            onClick={() => void generate()}
-            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white disabled:bg-[#d9d9d9] disabled:text-[#8e8e8e]"
+            onClick={() => submitFromComposer()}
+            className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0d0d0d] text-white active:opacity-90 disabled:bg-[#d9d9d9] disabled:text-[#8e8e8e] sm:h-9 sm:w-9"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
@@ -613,32 +946,37 @@ export default function AiDesignStudio({ mode }: Props) {
           </button>
         </div>
       </div>
-      <p className="mt-2 text-center text-[11px] text-[#8e8e8e]">
+      <p className="mt-2 hidden text-center text-[11px] text-[#8e8e8e] sm:block">
         AI can make mistakes. Check important details.
+      </p>
+      <p className="mt-1.5 text-center text-[11px] text-[#8e8e8e] sm:hidden">
+        {isCoarsePointer
+          ? "Tap Send to generate. Attach a photo to start or continue this chat."
+          : "AI can make mistakes. Check important details."}
       </p>
     </div>
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-white">
-      <aside className="hidden w-[260px] shrink-0 flex-col border-r border-black/[0.06] bg-[#f9f9f9] lg:flex">
+    <div className="design-studio-shell flex h-full min-h-0 flex-1 overflow-hidden bg-white">
+      <aside className="hidden w-[240px] shrink-0 flex-col border-r border-black/[0.06] bg-[#f9f9f9] md:flex lg:w-[260px]">
         {renderHistory()}
       </aside>
 
       {historyOpen ? (
-        <div className="fixed inset-0 z-[90] lg:hidden">
+        <div className="fixed inset-0 z-[90] md:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
             aria-label="Close chats"
             onClick={() => setHistoryOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,280px)] flex-col bg-[#f9f9f9] shadow-2xl">
+          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,300px)] flex-col bg-[#f9f9f9] pt-[env(safe-area-inset-top)] shadow-2xl">
             <div className="flex items-center justify-between px-3 pt-3">
               <p className="text-sm font-medium text-[#0d0d0d]">Chats</p>
               <button
                 type="button"
-                className="rounded-lg px-2.5 py-1.5 text-sm text-[#6b6b6b]"
+                className="min-h-10 rounded-lg px-3 py-2 text-sm text-[#6b6b6b]"
                 onClick={() => setHistoryOpen(false)}
               >
                 Close
@@ -650,11 +988,11 @@ export default function AiDesignStudio({ mode }: Props) {
       ) : null}
 
       <section className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-white">
-        <div className="flex shrink-0 items-center gap-2 px-3 py-2 lg:hidden">
+        <div className="flex shrink-0 items-center gap-2 border-b border-black/[0.04] px-2 py-1.5 md:hidden">
           <button
             type="button"
             onClick={() => setHistoryOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/[0.05]"
+            className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-black/[0.05] active:bg-black/[0.08]"
             aria-label="Open chats"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -662,12 +1000,12 @@ export default function AiDesignStudio({ mode }: Props) {
             </svg>
           </button>
           <p className="min-w-0 flex-1 truncate text-center text-sm font-medium text-[#0d0d0d]">
-            {activeThread?.title || "ChatGPT"}
+            {activeThread?.title || (isDesign ? "Designing" : "Elevation")}
           </p>
           <button
             type="button"
             onClick={startNewChat}
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-black/[0.05]"
+            className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-black/[0.05] active:bg-black/[0.08]"
             aria-label="New chat"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -676,9 +1014,12 @@ export default function AiDesignStudio({ mode }: Props) {
           </button>
         </div>
 
-        <div ref={listRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <div
+          ref={listRef}
+          className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+        >
           {error ? (
-            <div className="mx-auto mt-4 max-w-[48rem] px-4 sm:px-6">
+            <div className="mx-auto mt-4 max-w-[48rem] px-3 sm:px-6">
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>
@@ -686,20 +1027,25 @@ export default function AiDesignStudio({ mode }: Props) {
           ) : null}
 
           {showEmpty ? (
-            <div className="flex h-full min-h-[420px] flex-col items-center justify-center px-4 pb-28">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-[#0d0d0d] text-white">
+            <div
+              className="flex h-full min-h-[min(420px,70dvh)] flex-col items-center justify-center px-3 pt-6 sm:px-4 sm:pb-28"
+              style={{
+                paddingBottom: `max(2rem, calc(env(safe-area-inset-bottom, 0px) + ${keyboardInset + 16}px))`,
+              }}
+            >
+              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-full bg-[#0d0d0d] text-white sm:mb-6 sm:h-12 sm:w-12">
                 <IconSparkle className="h-5 w-5" />
               </div>
-              <h1 className="text-center text-[28px] font-semibold tracking-tight text-[#0d0d0d] sm:text-[32px]">
+              <h1 className="text-center text-[24px] font-semibold tracking-tight text-[#0d0d0d] sm:text-[32px]">
                 What can I help with?
               </h1>
-              <p className="mt-2 max-w-md text-center text-sm text-[#8e8e8e]">
+              <p className="mt-2 max-w-md px-2 text-center text-sm text-[#8e8e8e]">
                 Attach a room photo and describe the change you want.
               </p>
-              <div className="mt-10 w-full">{composer}</div>
+              <div className="mt-8 w-full sm:mt-10">{composer}</div>
             </div>
           ) : (
-            <div className="mx-auto w-full max-w-[48rem] space-y-8 px-4 py-6 pb-6 sm:px-6">
+            <div className="mx-auto w-full max-w-[48rem] space-y-6 px-3 py-4 pb-6 sm:space-y-8 sm:px-6 sm:py-6">
               {turns.map((turn, index) => {
                 const lastResult = turn.results[turn.results.length - 1];
                 const reply = splitChatGptReply(lastResult.analysis);
@@ -731,7 +1077,7 @@ export default function AiDesignStudio({ mode }: Props) {
                                 <img
                                   src={designAssetUrl(url)}
                                   alt={`Reference ${sourceIndex + 1}`}
-                                  className="h-[112px] w-[148px] object-cover"
+                                  className="h-[88px] w-[116px] object-cover sm:h-[112px] sm:w-[148px]"
                                 />
                               </button>
                             ))}
@@ -755,23 +1101,52 @@ export default function AiDesignStudio({ mode }: Props) {
                           </p>
                         ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPreview({
-                              urls: [designAssetUrl(lastResult.resultImageUrl)],
-                              index: 0,
-                            })
-                          }
-                          className="group relative block max-w-[min(100%,32rem)] overflow-hidden rounded-2xl border border-black/[0.06] bg-[#f7f7f8] text-left shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={designAssetUrl(lastResult.resultImageUrl)}
-                            alt="Generated concept"
-                            className="h-auto max-h-[min(70vh,36rem)] w-full object-contain"
-                          />
-                        </button>
+                        <div className="group relative max-w-[min(100%,32rem)] overflow-hidden rounded-2xl border border-black/[0.06] bg-[#f7f7f8] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreview({
+                                urls: [designAssetUrl(lastResult.resultImageUrl)],
+                                index: 0,
+                              })
+                            }
+                            className="block w-full text-left"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={designAssetUrl(lastResult.resultImageUrl)}
+                              alt="Generated concept"
+                              className="h-auto max-h-[min(55dvh,36rem)] w-full object-contain sm:max-h-[min(70vh,36rem)]"
+                            />
+                          </button>
+                          {index === turns.length - 1 && !loading && !varying ? (
+                            <button
+                              type="button"
+                              title="Mark area to change"
+                              onClick={() =>
+                                setPaintImageUrl(
+                                  designAssetUrl(lastResult.resultImageUrl)
+                                )
+                              }
+                              className="absolute bottom-3 right-3 inline-flex h-10 items-center gap-1.5 rounded-full bg-[#0d0d0d]/92 px-3 text-[13px] font-medium text-white shadow-lg backdrop-blur-sm hover:bg-black sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9.5 15.5L4 21m9.5-9.5l2.5-2.5a3.5 3.5 0 10-5-5L8.5 7.5"
+                                />
+                              </svg>
+                              Mark
+                            </button>
+                          ) : null}
+                        </div>
 
                         {body ? (
                           <DesignResultDescription text={body} className="!mt-1" />
@@ -784,7 +1159,7 @@ export default function AiDesignStudio({ mode }: Props) {
                         ) : null}
 
                         {index === turns.length - 1 ? (
-                          <div className="flex flex-wrap items-center gap-1 pt-1 text-[#5d5d5d]">
+                          <div className="flex flex-wrap items-center gap-0.5 pt-1 text-[#5d5d5d] sm:gap-1">
                             <button
                               type="button"
                               title="Copy explanation"
@@ -794,7 +1169,7 @@ export default function AiDesignStudio({ mode }: Props) {
                                   String(lastResult.analysis || lead || fallbackLead)
                                 );
                               }}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/[0.05]"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg hover:bg-black/[0.05] active:bg-black/[0.08] sm:h-8 sm:w-8"
                             >
                               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
                                 <rect x="9" y="9" width="11" height="11" rx="2" />
@@ -808,7 +1183,7 @@ export default function AiDesignStudio({ mode }: Props) {
                               onClick={() =>
                                 void generate({ prompt: lastResult.userPrompt || undefined })
                               }
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05] active:bg-black/[0.08] sm:h-8"
                             >
                               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
                                 <path strokeLinecap="round" d="M4 12a8 8 0 0113.66-5.66M20 12a8 8 0 01-13.66 5.66" />
@@ -821,15 +1196,41 @@ export default function AiDesignStudio({ mode }: Props) {
                               title="Download"
                               disabled={downloading}
                               onClick={() => void downloadResult(lastResult)}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05] active:bg-black/[0.08] sm:h-8"
                             >
                               Download
                             </button>
                             <button
                               type="button"
+                              title="Mark area to change"
+                              disabled={loading || varying}
+                              onClick={() =>
+                                setPaintImageUrl(
+                                  designAssetUrl(lastResult.resultImageUrl)
+                                )
+                              }
+                              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05] active:bg-black/[0.08] sm:h-8"
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9.5 15.5L4 21m9.5-9.5l2.5-2.5a3.5 3.5 0 10-5-5L8.5 7.5"
+                                />
+                              </svg>
+                              Mark
+                            </button>
+                            <button
+                              type="button"
                               title="Edit prompt"
                               onClick={editPrompt}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05] active:bg-black/[0.08] sm:h-8"
                             >
                               Edit
                             </button>
@@ -838,7 +1239,7 @@ export default function AiDesignStudio({ mode }: Props) {
                               title="Make variations"
                               disabled={varying || loading}
                               onClick={() => void makeVariations()}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05]"
+                              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[13px] hover:bg-black/[0.05] active:bg-black/[0.08] sm:h-8"
                             >
                               {varying ? "Making variations…" : "Make variations"}
                             </button>
@@ -903,29 +1304,58 @@ export default function AiDesignStudio({ mode }: Props) {
         </div>
 
         {!showEmpty ? (
-          <div className="shrink-0 bg-gradient-to-t from-white via-white to-white/80 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+          <div
+            ref={composerWrapRef}
+            className="shrink-0 border-t border-black/[0.04] bg-gradient-to-t from-white via-white to-white/90 pt-2"
+            style={{
+              paddingBottom: `max(${keyboardInset ? 0.5 : 0.75}rem, calc(env(safe-area-inset-bottom, 0px) + ${keyboardInset}px))`,
+            }}
+          >
             {composer}
           </div>
         ) : null}
       </section>
 
+      {paintImageUrl ? (
+        <DesignPaintMarkup
+          imageUrl={paintImageUrl}
+          onCancel={() => setPaintImageUrl(null)}
+          onDone={useMarkedImage}
+        />
+      ) : null}
+
       {preview ? (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-2 sm:p-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4"
           onClick={() => setPreview(null)}
         >
-          <button
-            type="button"
-            className="absolute right-4 top-4 rounded-full bg-white/15 px-3 py-1.5 text-sm text-white hover:bg-white/25"
-            onClick={() => setPreview(null)}
-          >
-            Close
-          </button>
+          <div className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex items-center gap-2 sm:right-4">
+            <button
+              type="button"
+              className="min-h-10 rounded-full bg-white px-4 py-2 text-sm font-medium text-[#0d0d0d] hover:bg-white/90"
+              onClick={(event) => {
+                event.stopPropagation();
+                const url = preview.urls[preview.index];
+                if (!url) return;
+                setPreview(null);
+                setPaintImageUrl(url);
+              }}
+            >
+              Mark
+            </button>
+            <button
+              type="button"
+              className="min-h-10 rounded-full bg-white/15 px-4 py-2 text-sm text-white hover:bg-white/25"
+              onClick={() => setPreview(null)}
+            >
+              Close
+            </button>
+          </div>
           {preview.urls.length > 1 ? (
             <>
               <button
                 type="button"
-                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/15 px-3 py-2 text-white hover:bg-white/25"
+                className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-xl text-white hover:bg-white/25 sm:left-3"
                 onClick={(event) => {
                   event.stopPropagation();
                   setPreview((prev) =>
@@ -939,7 +1369,7 @@ export default function AiDesignStudio({ mode }: Props) {
               </button>
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/15 px-3 py-2 text-white hover:bg-white/25"
+                className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-xl text-white hover:bg-white/25 sm:right-3"
                 onClick={(event) => {
                   event.stopPropagation();
                   setPreview((prev) =>
@@ -955,7 +1385,7 @@ export default function AiDesignStudio({ mode }: Props) {
           <img
             src={preview.urls[preview.index]}
             alt="Large view"
-            className="max-h-[82vh] max-w-[96vw] rounded-xl object-contain sm:max-h-[90vh] sm:max-w-[92vw]"
+            className="max-h-[min(82dvh,82vh)] max-w-[96vw] rounded-xl object-contain sm:max-h-[90vh] sm:max-w-[92vw]"
             onClick={(event) => event.stopPropagation()}
           />
         </div>

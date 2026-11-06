@@ -3185,6 +3185,38 @@ span.flatpickr-weekday,
     overflow: hidden !important;
   }
 
+  /* Designing studio: full-bleed like chat (no padded frame on phone/tablet). */
+  .is-designing-studio .admin-page-content {
+    padding: 0 !important;
+    max-width: none !important;
+    overflow: hidden !important;
+  }
+
+  .design-studio-shell {
+    position: fixed !important;
+    top: 3.5rem;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 45;
+    display: flex !important;
+    flex-direction: column;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    background: #fff;
+  }
+
+  /* Tablet landscape with sidebar open: keep studio under the app header. */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .design-studio-shell {
+      top: 3.5rem;
+    }
+  }
+
   .chat-page,
   .is-chat-page .chat-page {
     position: fixed !important;

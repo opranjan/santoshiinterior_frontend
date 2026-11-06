@@ -10,12 +10,28 @@ import {
   vendorChatApi,
   type VendorChatMessageDto,
   type VendorChatPersonDto,
+  type VendorChatTeam,
   type VendorChatThreadDto,
 } from "@/services/crmApi";
 import { useAuth } from "@/context/AuthContext";
 import { useVendorChatSocket, useVendorChatTypers } from "@/hooks/useVendorChatSocket";
 
 type FilterTab = "all" | "unread" | "online";
+type TeamTab = VendorChatTeam;
+
+const TEAM_TABS: Array<{ id: TeamTab; label: string }> = [
+  { id: "vendor", label: "Vendor" },
+  { id: "sales", label: "Sales" },
+  { id: "procurement", label: "Procurement" },
+  { id: "hr", label: "HR" },
+  { id: "design", label: "Design" },
+  { id: "other", label: "Other" },
+];
+
+function teamLabel(team?: string | null) {
+  const row = TEAM_TABS.find((tab) => tab.id === team);
+  return row?.label || "Team";
+}
 
 function stamp(iso?: string | null) {
   if (!iso) return "";
@@ -77,6 +93,7 @@ export default function AdminVendorChat() {
   const [sending, setSending] = useState(false);
   const [people, setPeople] = useState<VendorChatPersonDto[]>([]);
   const [query, setQuery] = useState("");
+  const [teamTab, setTeamTab] = useState<TeamTab>("vendor");
   const [tab, setTab] = useState<FilterTab>("all");
   const [unread, setUnread] = useState<Record<string, number>>({});
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
@@ -236,11 +253,35 @@ export default function AdminVendorChat() {
 
   const isOnline = (id: string) => Boolean(presence.online[id]);
 
+  const teamCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    TEAM_TABS.forEach((team) => {
+      counts[team.id] = threads.filter((row) => (row.team || "other") === team.id).length;
+    });
+    return counts;
+  }, [threads]);
+
+  const visibleTeams = useMemo(
+    () => TEAM_TABS.filter((team) => team.id === "vendor" || (teamCounts[team.id] || 0) > 0),
+    [teamCounts]
+  );
+
+  const teamScoped = useMemo(
+    () => threads.filter((row) => (row.team || "other") === teamTab),
+    [threads, teamTab]
+  );
+
+  useEffect(() => {
+    if (!visibleTeams.some((team) => team.id === teamTab) && visibleTeams[0]) {
+      setTeamTab(visibleTeams[0].id);
+    }
+  }, [visibleTeams, teamTab]);
+
   const counts = useMemo(() => {
-    const online = threads.filter((row) => isOnline(row.id)).length;
-    const unreadCount = threads.filter((row) => (unread[row.id] || 0) > 0).length;
-    return { all: threads.length, unread: unreadCount, online };
-  }, [threads, unread, presence.online]);
+    const online = teamScoped.filter((row) => isOnline(row.id)).length;
+    const unreadCount = teamScoped.filter((row) => (unread[row.id] || 0) > 0).length;
+    return { all: teamScoped.length, unread: unreadCount, online };
+  }, [teamScoped, unread, presence.online]);
 
   const active = threads.find((row) => row.id === activeId);
   const activeTypers = typers.filter((row) => row.threadUserId === activeId);
@@ -248,8 +289,8 @@ export default function AdminVendorChat() {
   const online = active ? isOnline(active.id) : false;
   const seenAt = active ? presence.lastSeen[active.id] || active.lastSeenAt : null;
 
-  const filtered = threads.filter((row) => {
-    const hay = `${row.name} ${row.vendorName || ""} ${row.roleLabel || ""}`.toLowerCase();
+  const filtered = teamScoped.filter((row) => {
+    const hay = `${row.name} ${row.vendorName || ""} ${row.roleLabel || ""} ${row.team || ""}`.toLowerCase();
     if (!hay.includes(query.trim().toLowerCase())) return false;
     if (tab === "unread") return (unread[row.id] || 0) > 0;
     if (tab === "online") return isOnline(row.id);
@@ -264,11 +305,39 @@ export default function AdminVendorChat() {
         } w-full shrink-0 flex-col border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#1c1914] md:w-[22rem] md:border-r`}
       >
         <div className="px-4 pt-4 md:px-5 md:pt-5">
-          <h1 className="font-serif text-[1.55rem] leading-none text-[#1c1610] md:text-[1.75rem] dark:text-[#f3ece2]">
-            Chat Box
-          </h1>
-          <p className="mt-1.5 text-[12px] text-[#8a8175]">Private line with your vendors</p>
-          <div className="relative mt-4">
+          <div className="flex items-center gap-2">
+            <h1 className="font-serif text-[1.55rem] leading-none text-[#1c1610] md:text-[1.75rem] dark:text-[#f3ece2]">
+              Chat Box
+            </h1>
+            <span className="ml-auto text-[11px] text-[#8a8175]">{counts.all || ""}</span>
+          </div>
+          <p className="mt-1.5 text-[12px] text-[#8a8175]">Switch team like WhatsApp views</p>
+
+          <div className="mt-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="inline-flex h-9 min-w-full rounded-lg bg-[#efe8dc] p-0.5 dark:bg-[#2a241c]">
+              {visibleTeams.map((team) => (
+                <button
+                  key={team.id}
+                  type="button"
+                  onClick={() => {
+                    setTeamTab(team.id);
+                    setTab("all");
+                    setActiveId("");
+                    setMobileThreadOpen(false);
+                  }}
+                  className={`shrink-0 rounded-md px-3 text-xs font-semibold capitalize transition ${
+                    teamTab === team.id
+                      ? "bg-white text-[#1c1610] shadow-sm dark:bg-[#3a342c] dark:text-[#f3ece2]"
+                      : "text-[#6b645b] hover:text-[#1c1610]"
+                  }`}
+                >
+                  {team.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative mt-3">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#c4a574]">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
@@ -278,29 +347,31 @@ export default function AdminVendorChat() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search vendors…"
-              className="h-10 w-full rounded-full border border-[#eadfcf] bg-white pl-9 pr-3 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] focus:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#161411] dark:text-[#f3ece2]"
+              placeholder={`Search ${teamLabel(teamTab).toLowerCase()}…`}
+              className="h-10 w-full rounded-lg border-0 bg-white pl-9 pr-3 text-sm text-[#1c1610] outline-none placeholder:text-[#b3a594] ring-1 ring-[#eadfcf] focus:ring-2 focus:ring-[#c4a574]/40 dark:bg-[#161411] dark:text-[#f3ece2] dark:ring-[#3a342c]"
             />
           </div>
-          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2 flex gap-1.5">
             {(
               [
-                ["all", `All (${counts.all})`],
-                ["unread", `Unread (${counts.unread})`],
-                ["online", `Online (${counts.online})`],
+                ["all", "All"],
+                ["unread", "Unread"],
+                ["online", "Online"],
               ] as Array<[FilterTab, string]>
             ).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-medium ${
+                className={`rounded-md px-2.5 py-1 text-[11px] font-medium ${
                   tab === id
                     ? "bg-[#1c1610] text-[#e8d5b5]"
-                    : "bg-white text-[#6b645b] ring-1 ring-[#eadfcf]"
+                    : "text-[#6b645b] hover:bg-white/70"
                 }`}
               >
                 {label}
+                {id === "unread" && counts.unread ? ` (${counts.unread})` : ""}
+                {id === "online" && counts.online ? ` (${counts.online})` : ""}
               </button>
             ))}
           </div>
@@ -331,7 +402,7 @@ export default function AdminVendorChat() {
                     <span className="shrink-0 text-[10px] text-[#8a8175]">{stamp(row.lastAt)}</span>
                   </span>
                   <span className="block truncate text-[11px] uppercase tracking-[0.12em] text-[#c4a574]">
-                    {row.vendorName || row.roleLabel || "Vendor"}
+                    {[teamLabel(row.team), row.vendorName || row.roleLabel].filter(Boolean).join(" · ")}
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span
@@ -353,7 +424,9 @@ export default function AdminVendorChat() {
           })}
           {!filtered.length ? (
             <p className="px-3 py-8 text-center text-sm text-[#8a8175]">
-              {threads.length ? "No matching vendors." : "No vendor logins yet."}
+              {threads.length
+                ? "No matching people in this team."
+                : "No chat contacts yet."}
             </p>
           ) : null}
         </div>
@@ -378,7 +451,7 @@ export default function AdminVendorChat() {
           <div className="min-w-0 flex-1">
             <p className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-2">
               <span className="truncate font-serif text-[1.05rem] leading-none text-[#1c1610] md:text-lg dark:text-[#f3ece2]">
-                {active?.name || "Select a vendor"}
+                {active?.name || "Select a chat"}
               </span>
               {active ? (
                 <span className={`mt-1 text-[11px] font-sans sm:mt-0 sm:text-[12px] ${online ? "text-[#2f9d64]" : "text-[#8a8175]"}`}>
@@ -404,7 +477,7 @@ export default function AdminVendorChat() {
             messages={messages}
             currentUserId={user?.id || ""}
             currentUserName={user?.name || "You"}
-            peerName={active?.name || "Vendor"}
+            peerName={active?.name || "Chat"}
             people={people}
             typingNames={activeTypers.map((row) => row.name)}
             onTypingChange={sendTyping}
@@ -414,7 +487,9 @@ export default function AdminVendorChat() {
             error={error}
           />
         ) : (
-          <p className="m-auto px-6 text-center text-sm text-[#8a8175]">Select a vendor to start chatting.</p>
+          <p className="m-auto px-6 text-center text-sm text-[#8a8175]">
+            Select a person from a team to start chatting.
+          </p>
         )}
       </div>
     </div>

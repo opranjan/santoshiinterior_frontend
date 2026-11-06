@@ -42,7 +42,6 @@ function orderTone(state?: string) {
 }
 
 const shortcuts = [
-  { label: "Design", href: "/design/designing", hint: "Rooms" },
   { label: "Orders", href: "/operations/procurement/orders", hint: "Deliver" },
   { label: "Payments", href: "/payments", hint: "Payouts" },
 ];

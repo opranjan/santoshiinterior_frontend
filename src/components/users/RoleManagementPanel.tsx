@@ -63,6 +63,17 @@ const DESIGN_MENU_PERMS: PermissionGroup["permissions"] = [
 
 const DESIGN_MENU_KEYS = DESIGN_MENU_PERMS.map((p) => p.key);
 
+/** Always shown under Web & App (even if API catalog is stale). */
+const WEB_APP_MENU_PERMS: PermissionGroup["permissions"] = [
+  {
+    key: "website.manage",
+    label: "Access Web & App",
+    hint: "Sidebar Web & App: Customer, Catalogue, Home Banner, Testimonials. Keep off for Sales.",
+  },
+];
+
+const WEB_APP_MENU_KEYS = WEB_APP_MENU_PERMS.map((p) => p.key);
+
 function PermissionPicker({
   groups,
   selected,
@@ -233,6 +244,20 @@ function PermissionPicker({
               </div>
             ) : null}
 
+            {group.id === "web" ? (
+              <div className="mb-3 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#1a1714]">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9a7748]">
+                  Web & App menu
+                </p>
+                <p className="mb-2.5 text-[11px] text-[#8a7b68]">
+                  Enable to show Web & App in the sidebar. Leave unchecked for Sales roles.
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {WEB_APP_MENU_PERMS.map(renderPerm)}
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {(group.id === "communication"
                 ? otherPerms
@@ -242,7 +267,11 @@ function PermissionPicker({
                         !DESIGN_MENU_KEYS.includes(p.key) &&
                         p.key !== "design.view"
                     )
-                  : group.permissions
+                  : group.id === "web"
+                    ? group.permissions.filter(
+                        (p) => !WEB_APP_MENU_KEYS.includes(p.key)
+                      )
+                    : group.permissions
               ).map(renderPerm)}
             </div>
           </div>

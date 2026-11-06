@@ -79,7 +79,16 @@ const FOLLOW_UP_TYPES = [
 export default function ProcurementOrders() {
   const { user } = useAuth();
   const vendorView = isVendorPanelUser(user);
+  const canEdit =
+    !vendorView &&
+    hasAnyPermission(user, [
+      "purchaseorders.manage",
+      "procurement.manage",
+      "finance.full",
+      "users.manage",
+    ]);
   const canDelete = !vendorView && hasAnyPermission(user, ["purchaseorders.manage", "finance.full", "users.manage"]);
+  const showActions = canEdit || canDelete;
   const [items, setItems] = useState<PurchaseOrderDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState<"mine" | "approved" | "pending">("mine");
@@ -101,9 +110,14 @@ export default function ProcurementOrders() {
 
   const load = async () => {
     const query: Record<string, string | number | undefined> = { limit: 100, search };
-    if (mainTab === "pending") query.tab = "pending";
-    else if (mainTab === "approved") query.tab = "approved";
-    else {
+    if (vendorView) {
+      // Vendor panel: only approved orders assigned to this vendor.
+      query.review = "approved";
+    } else if (mainTab === "pending") {
+      query.tab = "pending";
+    } else if (mainTab === "approved") {
+      query.tab = "approved";
+    } else {
       query.review = review;
       query.mine = 1;
     }
@@ -253,38 +267,45 @@ export default function ProcurementOrders() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-      <div className="inline-flex flex-wrap overflow-hidden rounded-xl border border-[#eadfcf] self-start dark:border-[#3a342c]">
-        <button type="button" onClick={() => setMainTab("mine")} className={tabBtn(mainTab === "mine")}>
-          My orders
-        </button>
-        <button type="button" onClick={() => setMainTab("approved")} className={tabBtn(mainTab === "approved")}>
-          All approved
-        </button>
-        <button type="button" onClick={() => setMainTab("pending")} className={tabBtn(mainTab === "pending")}>
-          Approval pending
-        </button>
-      </div>
-
-      {mainTab === "mine" ? (
-        <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] self-start dark:border-[#3a342c]">
-          <button
-            type="button"
-            onClick={() => setReview("approved")}
-            className={tabBtn(review === "approved")}
-          >
-            Approved
-          </button>
-          <button
-            type="button"
-            onClick={() => setReview("in_review")}
-            className={tabBtn(review === "in_review")}
-          >
-            In review
-          </button>
+      {vendorView ? (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">My orders</p>
+          <p className="mt-1 text-sm text-[#8a7b68]">Approved purchase and work orders assigned to you.</p>
         </div>
-      ) : null}
-      </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="inline-flex flex-wrap overflow-hidden rounded-xl border border-[#eadfcf] self-start dark:border-[#3a342c]">
+            <button type="button" onClick={() => setMainTab("mine")} className={tabBtn(mainTab === "mine")}>
+              My orders
+            </button>
+            <button type="button" onClick={() => setMainTab("approved")} className={tabBtn(mainTab === "approved")}>
+              All approved
+            </button>
+            <button type="button" onClick={() => setMainTab("pending")} className={tabBtn(mainTab === "pending")}>
+              Approval pending
+            </button>
+          </div>
+
+          {mainTab === "mine" ? (
+            <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] self-start dark:border-[#3a342c]">
+              <button
+                type="button"
+                onClick={() => setReview("approved")}
+                className={tabBtn(review === "approved")}
+              >
+                Approved
+              </button>
+              <button
+                type="button"
+                onClick={() => setReview("in_review")}
+                className={tabBtn(review === "in_review")}
+              >
+                In review
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -355,19 +376,19 @@ export default function ProcurementOrders() {
                 <th className="px-3 py-3.5">Delivery</th>
                 <th className="px-3 py-3.5">Follow up</th>
                 <th className="px-3 py-3.5">State</th>
-                {canDelete ? <th className="px-3 py-3.5">Action</th> : null}
+                {showActions ? <th className="px-3 py-3.5">Action</th> : null}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={canDelete ? 11 : 10} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
+                  <td colSpan={showActions ? 11 : 10} className="px-4 py-12 text-center text-sm text-[#8a7b68]">
                     Loading orders…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={canDelete ? 11 : 10} className="px-4 py-16 text-center">
+                  <td colSpan={showActions ? 11 : 10} className="px-4 py-16 text-center">
                     <p
                       className="font-serif text-xl text-[#1c1610] dark:text-[#f4efe6]"
                       style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
@@ -375,7 +396,9 @@ export default function ProcurementOrders() {
                       No orders yet
                     </p>
                     <p className="mt-1 text-sm text-[#8a7b68]">
-                      Create a purchase or work order to start fulfilment.
+                      {vendorView
+                        ? "Approved orders assigned to your vendor will show here."
+                        : "Create a purchase or work order to start fulfilment."}
                     </p>
                     {vendorView ? null : (
                       <button
@@ -495,15 +518,27 @@ export default function ProcurementOrders() {
                           ) : null}
                         </div>
                       </td>
-                      {canDelete ? (
+                      {showActions ? (
                         <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(row)}
-                            className="rounded-lg border border-[#eadfcf] px-2.5 py-1.5 text-xs font-semibold text-[#8a3424] hover:bg-[#fbf4f2]"
-                          >
-                            Delete
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {canEdit ? (
+                              <Link
+                                href={`/operations/procurement/orders/${row.id}`}
+                                className="rounded-lg border border-[#eadfcf] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1c1610] hover:border-[#c4a574] hover:bg-[#fbf8f3]"
+                              >
+                                Edit
+                              </Link>
+                            ) : null}
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(row)}
+                                className="rounded-lg border border-[#eadfcf] px-2.5 py-1.5 text-xs font-semibold text-[#8a3424] hover:bg-[#fbf4f2]"
+                              >
+                                Delete
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       ) : null}
                     </tr>

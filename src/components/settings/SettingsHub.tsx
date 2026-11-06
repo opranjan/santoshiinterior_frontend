@@ -219,14 +219,27 @@ export default function SettingsHub() {
     "quotations.manage",
     "quotations.create",
   ]);
+  const canWebsite = hasAnyPermission(user, ["website.manage", "settings.manage"]);
 
   const visibleSections = useMemo(() => {
-    if (fullSettings) return SECTIONS;
-    return SECTIONS.map((section) => ({
-      ...section,
-      cards: section.cards.filter((card) => card.id === "modular-catalog"),
-    })).filter((section) => section.cards.length > 0);
-  }, [fullSettings]);
+    let sections = SECTIONS;
+    if (!fullSettings) {
+      sections = SECTIONS.map((section) => ({
+        ...section,
+        cards: section.cards.filter((card) => card.id === "modular-catalog"),
+      })).filter((section) => section.cards.length > 0);
+    }
+    if (!canWebsite) {
+      sections = sections
+        .map((section) =>
+          section.id === "website"
+            ? { ...section, cards: [] }
+            : section
+        )
+        .filter((section) => section.cards.length > 0);
+    }
+    return sections;
+  }, [fullSettings, canWebsite]);
 
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
