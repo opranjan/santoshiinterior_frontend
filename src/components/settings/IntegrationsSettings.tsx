@@ -2,7 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { messagingApi, telephonyApi, type TelephonyStatusDto, type WhatsAppStatusDto } from "@/services/crmApi";
+import {
+  messagingApi,
+  metaLeadAdsApi,
+  telephonyApi,
+  type MetaLeadAdsStatusDto,
+  type TelephonyStatusDto,
+  type WhatsAppStatusDto,
+} from "@/services/crmApi";
 
 function Pill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -27,6 +34,10 @@ export default function IntegrationsSettings() {
   const [telCopied, setTelCopied] = useState(false);
   const [telStatus, setTelStatus] = useState<TelephonyStatusDto | null>(null);
   const [telStatusError, setTelStatusError] = useState("");
+  const [metaWebhookUrl, setMetaWebhookUrl] = useState("");
+  const [metaCopied, setMetaCopied] = useState(false);
+  const [metaStatus, setMetaStatus] = useState<MetaLeadAdsStatusDto | null>(null);
+  const [metaStatusError, setMetaStatusError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -42,6 +53,19 @@ export default function IntegrationsSettings() {
         }
       } catch (err) {
         setStatusError(err instanceof Error ? err.message : "Could not load WhatsApp status");
+      }
+      try {
+        setMetaStatusError("");
+        const meta = await metaLeadAdsApi.getStatus();
+        setMetaStatus(meta);
+        if (meta.recommendedWebhookUrl) {
+          setMetaWebhookUrl(meta.recommendedWebhookUrl);
+        } else if (typeof window !== "undefined") {
+          const base = window.location.origin.replace(":3000", ":5000");
+          setMetaWebhookUrl(`${base}/api/webhooks/meta-leads`);
+        }
+      } catch (err) {
+        setMetaStatusError(err instanceof Error ? err.message : "Could not load Meta Lead Ads status");
       }
       try {
         setTelStatusError("");
@@ -79,6 +103,16 @@ export default function IntegrationsSettings() {
     }
   };
 
+  const copyMeta = async () => {
+    try {
+      await navigator.clipboard.writeText(metaWebhookUrl);
+      setMetaCopied(true);
+      setTimeout(() => setMetaCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
   const isLocalhost =
     webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1");
   const webhookReceived = Boolean(status?.webhookActivity?.lastReceivedAt);
@@ -101,7 +135,7 @@ export default function IntegrationsSettings() {
           Integrations
         </h1>
         <p className="mt-1 text-sm text-[#8a7b68]">
-          WhatsApp Cloud API and Jio SIP telephony for this CRM.
+          WhatsApp Cloud API, Meta Lead Ads, and telephony for this CRM.
         </p>
       </div>
 
@@ -200,6 +234,90 @@ export default function IntegrationsSettings() {
             <li><code>WHATSAPP_WEBHOOK_VERIFY_TOKEN</code> — must match Meta webhook</li>
             <li><code>WHATSAPP_APP_SECRET</code> — required for secure webhooks</li>
             <li><code>WHATSAPP_DEFAULT_TEMPLATE</code> — approved template on this WABA</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="vendor-form-card rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-6 dark:border-[#3a342c] dark:bg-[#161411]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c4a574]">Ads</p>
+        <h2
+          className="mt-1 font-serif text-xl text-[#1c1610] dark:text-[#f3ece2]"
+          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+        >
+          Meta Lead Ads
+        </h2>
+        <p className="mt-2 text-sm text-[#8a7b68]">
+          Instant forms from Facebook / Instagram ads create Sales leads in CRM.
+          Uses a separate webhook from WhatsApp so messaging is unchanged.
+        </p>
+
+        {metaStatus ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Pill ok={metaStatus.enabled} label={metaStatus.enabled ? "Enabled" : "Disabled"} />
+            <Pill
+              ok={metaStatus.configured}
+              label={metaStatus.configured ? "Token + verify ready" : "Not configured"}
+            />
+            <Pill
+              ok={metaStatus.hasAccessToken}
+              label={metaStatus.hasAccessToken ? "Page token set" : "Page token missing"}
+            />
+            <Pill
+              ok={metaStatus.hasAppSecret}
+              label={metaStatus.hasAppSecret ? "App secret set" : "App secret optional"}
+            />
+          </div>
+        ) : null}
+
+        {metaStatusError ? (
+          <p className="mt-4 text-sm text-error-600">{metaStatusError}</p>
+        ) : null}
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+              Webhook URL (Meta App → Webhooks → Page → leadgen)
+            </label>
+            <div className="mt-1.5 flex gap-2">
+              <input
+                value={metaWebhookUrl}
+                disabled
+                className="h-11 w-full rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3.5 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+              />
+              <button
+                type="button"
+                onClick={() => void copyMeta()}
+                className="inline-flex h-11 shrink-0 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+              >
+                {metaCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-[#8a7b68]">
+              Verify token must match <code>META_LEAD_ADS_VERIFY_TOKEN</code>. Subscribe to{" "}
+              <strong>leadgen</strong> only on this callback (not the WhatsApp webhook).
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-xl border border-[#eadfcf] bg-white p-4 text-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
+          <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">Backend `.env` (Lead Ads)</p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-[#8a7b68]">
+            <li>
+              <code>META_LEAD_ADS_ACCESS_TOKEN</code> — Page access token with{" "}
+              <code>leads_retrieval</code>
+            </li>
+            <li>
+              <code>META_LEAD_ADS_VERIFY_TOKEN</code> — webhook verify string
+            </li>
+            <li>
+              <code>META_LEAD_ADS_APP_SECRET</code> — optional signature check
+            </li>
+            <li>
+              <code>META_LEAD_ADS_PAGE_ID</code> — optional: only accept this Page
+            </li>
+            <li>
+              <code>PUBLIC_API_URL</code> — public HTTPS API base (same as WhatsApp)
+            </li>
           </ul>
         </div>
       </div>

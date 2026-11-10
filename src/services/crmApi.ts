@@ -416,6 +416,25 @@ export const messagingApi = {
   getStatus: () => api.get<WhatsAppStatusDto>("/webhooks/status"),
 };
 
+export type MetaLeadAdsStatusDto = {
+  enabled: boolean;
+  configured: boolean;
+  hasAccessToken: boolean;
+  hasVerifyToken: boolean;
+  hasAppSecret: boolean;
+  pageId?: string | null;
+  apiVersion: string;
+  defaultSource: string;
+  recommendedWebhookUrl?: string | null;
+  webhookPath: string;
+  verifyTokenHint: string;
+  subscribeField: string;
+};
+
+export const metaLeadAdsApi = {
+  getStatus: () => api.get<MetaLeadAdsStatusDto>("/meta-leads/status"),
+};
+
 export type TelephonyStatusDto = {
   provider: string;
   configured: boolean;
