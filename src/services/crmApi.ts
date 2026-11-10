@@ -431,8 +431,59 @@ export type MetaLeadAdsStatusDto = {
   subscribeField: string;
 };
 
+export type MetaLeadAdsLeadDto = {
+  id: string;
+  clientName: string;
+  phone: string;
+  email?: string | null;
+  status: string;
+  source?: string | null;
+  campaignType?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  campaignUrl?: string | null;
+  metaLeadgenId?: string | null;
+  latestRemark?: string | null;
+  createdAt: string;
+  assignedTo?: { id: string; name: string } | null;
+  salesOwner?: { id: string; name: string } | null;
+};
+
+export type MetaAdsOverviewDto = {
+  connection: MetaLeadAdsStatusDto;
+  stats: {
+    total: number;
+    today: number;
+    week: number;
+    byStatus: { status: string; count: number }[];
+  };
+  recent: Array<{
+    id: string;
+    clientName: string;
+    phone: string;
+    status: string;
+    campaignName?: string | null;
+    createdAt: string;
+  }>;
+  features: Array<{
+    key: string;
+    label: string;
+    ready: boolean;
+    href: string;
+  }>;
+};
+
 export const metaLeadAdsApi = {
   getStatus: () => api.get<MetaLeadAdsStatusDto>("/meta-leads/status"),
+  getOverview: () => api.get<MetaAdsOverviewDto>("/meta-leads/overview"),
+  listLeads: (query?: { search?: string; page?: number; limit?: number }) =>
+    api.get<{
+      items: MetaLeadAdsLeadDto[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>("/meta-leads/leads", query),
 };
 
 export type TelephonyStatusDto = {

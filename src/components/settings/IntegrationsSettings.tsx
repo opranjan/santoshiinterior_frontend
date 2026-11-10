@@ -248,7 +248,10 @@ export default function IntegrationsSettings() {
         </h2>
         <p className="mt-2 text-sm text-[#8a7b68]">
           Instant forms from Facebook / Instagram ads create Sales leads in CRM.
-          Uses a separate webhook from WhatsApp so messaging is unchanged.
+          Uses a separate webhook from WhatsApp so messaging is unchanged.{" "}
+          <Link href="/ads/meta" className="underline">
+            Open Ads → Meta Ads
+          </Link>
         </p>
 
         {metaStatus ? (
