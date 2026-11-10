@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 
-const TABS = [
+const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: "/ads/meta", label: "Overview", exact: true },
   { href: "/ads/meta/leads", label: "Lead Ads" },
   { href: "/ads/meta/campaigns", label: "Campaigns" },
   { href: "/ads/meta/insights", label: "Insights" },
   { href: "/ads/meta/connection", label: "Connection" },
-] as const;
+];
 
 export default function MetaAdsShell({
   children,
