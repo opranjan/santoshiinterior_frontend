@@ -423,12 +423,31 @@ export type MetaLeadAdsStatusDto = {
   hasVerifyToken: boolean;
   hasAppSecret: boolean;
   pageId?: string | null;
+  adAccountId?: string | null;
   apiVersion: string;
   defaultSource: string;
   recommendedWebhookUrl?: string | null;
   webhookPath: string;
   verifyTokenHint: string;
   subscribeField: string;
+};
+
+export type MetaAdsCampaignDto = {
+  key: string;
+  campaignId?: string | null;
+  campaignName: string;
+  campaignUrl?: string | null;
+  leadCount: number;
+  byStatus: Array<{ status: string; count: number }>;
+  lastLeadAt?: string | null;
+  source: "crm" | "meta" | "both";
+  metaStatus?: string | null;
+  objective?: string | null;
+  dailyBudget?: string | null;
+  lifetimeBudget?: string | null;
+  startTime?: string | null;
+  stopTime?: string | null;
+  updatedTime?: string | null;
 };
 
 export type MetaLeadAdsLeadDto = {
@@ -473,10 +492,39 @@ export type MetaAdsOverviewDto = {
   }>;
 };
 
+export type MetaLeadAdsSyncResultDto = {
+  pages: number;
+  forms: number;
+  scanned: number;
+  created: number;
+  merged: number;
+  duplicates: number;
+  skipped: number;
+  errors: number;
+  pageResults: Array<{
+    pageId: string;
+    pageName?: string | null;
+    forms: number;
+    created: number;
+    merged: number;
+    duplicates: number;
+    skipped: number;
+    errors: number;
+    errorSamples: string[];
+  }>;
+};
+
 export const metaLeadAdsApi = {
   getStatus: () => api.get<MetaLeadAdsStatusDto>("/meta-leads/status"),
   getOverview: () => api.get<MetaAdsOverviewDto>("/meta-leads/overview"),
-  listLeads: (query?: { search?: string; page?: number; limit?: number }) =>
+  listLeads: (query?: {
+    search?: string;
+    page?: number;
+    limit?: number;
+    campaignKey?: string;
+    campaignId?: string;
+    campaignName?: string;
+  }) =>
     api.get<{
       items: MetaLeadAdsLeadDto[];
       total: number;
@@ -484,6 +532,86 @@ export const metaLeadAdsApi = {
       limit: number;
       totalPages: number;
     }>("/meta-leads/leads", query),
+  listCampaigns: (query?: { search?: string }) =>
+    api.get<{
+      items: MetaAdsCampaignDto[];
+      total: number;
+      adAccountId?: string | null;
+      metaError?: string | null;
+      fromMeta?: boolean;
+    }>("/meta-leads/campaigns", query),
+  createCampaign: (body: {
+    name: string;
+    objective?: string;
+    status?: "PAUSED" | "ACTIVE";
+    specialAdCategories?: string[];
+  }) => api.post<MetaAdsCampaignDto>("/meta-leads/campaigns", body),
+  getCampaign: (
+    campaignKey: string,
+    query?: { page?: number; limit?: number; search?: string }
+  ) =>
+    api.get<{
+      campaign: MetaAdsCampaignDto;
+      leads: {
+        items: MetaLeadAdsLeadDto[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      };
+    }>(`/meta-leads/campaigns/${encodeURIComponent(campaignKey)}`, query),
+  getInsights: (query?: { datePreset?: string }) =>
+    api.get<MetaAdsInsightsDto>("/meta-leads/insights", query),
+  syncAll: (body?: { limit?: number; formId?: string }) =>
+    api.post<MetaLeadAdsSyncResultDto>("/meta-leads/sync", body || {}),
+};
+
+export type MetaAdsInsightMetricsDto = {
+  impressions: number;
+  clicks: number;
+  spend: number;
+  cpc?: number | null;
+  ctr?: number | null;
+  reach?: number | null;
+  frequency?: number | null;
+  leads: number;
+  costPerLead?: number | null;
+  dateStart?: string | null;
+  dateStop?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  crmLeads?: number;
+};
+
+export type MetaAdsInsightsDto = {
+  datePreset: string;
+  range: { start: string; end: string };
+  connection: MetaLeadAdsStatusDto;
+  crm: {
+    totalLeads: number;
+    byStatus: Array<{ status: string; count: number }>;
+    bySource: Array<{ source: string; count: number }>;
+    byCampaign: Array<{
+      key: string;
+      campaignId?: string | null;
+      campaignName: string;
+      leadCount: number;
+    }>;
+    daily: Array<{ date: string; leads: number }>;
+  };
+  meta: {
+    adAccountId?: string | null;
+    error?: string | null;
+    account?: MetaAdsInsightMetricsDto | null;
+    campaigns: MetaAdsInsightMetricsDto[];
+    daily: Array<{
+      date?: string | null;
+      impressions: number;
+      clicks: number;
+      spend: number;
+      leads: number;
+    }>;
+  };
 };
 
 export type TelephonyStatusDto = {

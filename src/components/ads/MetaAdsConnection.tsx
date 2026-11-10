@@ -124,7 +124,11 @@ export default function MetaAdsConnection() {
               <code>META_LEAD_ADS_APP_SECRET</code> — optional signature check
             </li>
             <li>
-              <code>META_LEAD_ADS_PAGE_ID</code> — optional Page filter
+              <code>META_LEAD_ADS_PAGE_ID</code> — Facebook Page ID
+            </li>
+            <li>
+              <code>META_ADS_AD_ACCOUNT_ID</code> — Ad account ID for Campaigns
+              (e.g. <code>1422986572702280</code>)
             </li>
             <li>
               <code>PUBLIC_API_URL</code> — public HTTPS API base

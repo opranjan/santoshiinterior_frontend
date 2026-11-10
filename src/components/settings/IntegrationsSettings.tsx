@@ -316,7 +316,7 @@ export default function IntegrationsSettings() {
               <code>META_LEAD_ADS_APP_SECRET</code> — optional signature check
             </li>
             <li>
-              <code>META_LEAD_ADS_PAGE_ID</code> — optional: only accept this Page
+              <code>META_LEAD_ADS_PAGE_ID</code> — Facebook Page ID (needed to fetch all Lead Ads)
             </li>
             <li>
               <code>PUBLIC_API_URL</code> — public HTTPS API base (same as WhatsApp)

@@ -1,17 +1,16 @@
-import MetaAdsComingSoon from "@/components/ads/MetaAdsComingSoon";
+import MetaCampaigns from "@/components/ads/MetaCampaigns";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Meta Campaigns",
-  description: "Meta Ads campaigns",
+  description: "Meta Ads campaigns and linked CRM leads",
 };
 
 export default function MetaCampaignsPage() {
   return (
-    <MetaAdsComingSoon
-      title="Campaigns"
-      blurb="Browse Meta ad campaigns linked to your pages once Marketing API sync is enabled."
-    />
+    <Suspense fallback={<div className="vendor-form p-6 text-sm text-[#8a7b68]">Loading campaigns…</div>}>
+      <MetaCampaigns />
+    </Suspense>
   );
 }

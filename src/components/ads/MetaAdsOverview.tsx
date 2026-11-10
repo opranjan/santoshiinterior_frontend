@@ -39,26 +39,21 @@ export default function MetaAdsOverview() {
   const [data, setData] = useState<MetaAdsOverviewDto | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const overview = await metaLeadAdsApi.getOverview();
+      setData(overview);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load Meta Ads");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const overview = await metaLeadAdsApi.getOverview();
-        if (alive) setData(overview);
-      } catch (err) {
-        if (alive) {
-          setError(err instanceof Error ? err.message : "Could not load Meta Ads");
-        }
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+    void load();
   }, []);
 
   return (
@@ -66,6 +61,21 @@ export default function MetaAdsOverview() {
       title="Overview"
       subtitle="Lead Ads from Facebook & Instagram land in Sales. WhatsApp messaging stays on its own webhook."
     >
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href="/ads/meta/campaigns"
+          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5]"
+        >
+          Open Campaigns
+        </Link>
+        <Link
+          href="/ads/meta/leads"
+          className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+        >
+          Open Lead Ads
+        </Link>
+      </div>
+
       {loading ? <TableSkeleton rows={6} /> : null}
       {error ? <p className="text-sm text-error-600">{error}</p> : null}
 
@@ -161,7 +171,9 @@ export default function MetaAdsOverview() {
             </div>
             {data.recent.length === 0 ? (
               <p className="mt-4 text-sm text-[#8a7b68]">
-                No Meta leads yet. Once Page leadgen is verified, new form fills appear here and in Sales → Leads.
+                {data.connection.configured
+                  ? "No Facebook / Instagram / Lead Ads rows yet. New Meta form fills and existing Sales leads with those sources appear here."
+                  : "Connection needs a Page access token (META_LEAD_ADS_ACCESS_TOKEN). Until then webhook can verify, but lead form data cannot be fetched from Meta."}
               </p>
             ) : (
               <div className="mt-3 overflow-x-auto">

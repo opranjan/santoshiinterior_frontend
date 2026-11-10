@@ -81,6 +81,12 @@ export default function MetaLeadAdsList() {
         >
           Search
         </button>
+        <Link
+          href="/ads/meta/campaigns"
+          className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+        >
+          Campaigns
+        </Link>
       </form>
 
       {loading ? <TableSkeleton rows={8} /> : null}
