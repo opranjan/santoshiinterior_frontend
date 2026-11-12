@@ -21,6 +21,8 @@
 .DS_Store
 *.pem
 /tmp-pdf/
+/tmp-kitchen-pdf/
+tmp-kitchen-pdf/
 
 # debug
 npm-debug.log*
