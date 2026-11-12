@@ -1,0 +1,19 @@
+<svg width="64" height="48" viewBox="0 0 64 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <!-- Dual gable / house mark  gold, matches Kitchen Collection catalog -->
+  <path
+    d="M4 40 V22 L18 8 L28 18 V40"
+    stroke="#C4A574"
+    stroke-width="3.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <path
+    d="M24 40 V18 L38 4 L52 18 V40"
+    stroke="#C4A574"
+    stroke-width="3.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>

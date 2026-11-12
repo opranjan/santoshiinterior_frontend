@@ -17,8 +17,8 @@ import {
   messagingApi,
   storesApi,
   telephonyApi,
-  usersApi,
   type LeadDto,
+  type LeadAssigneeUserDto,
 } from "@/services/crmApi";
 import { ApiError } from "@/lib/api";
 import { enumToLabel, formatDate, labelToEnum } from "@/lib/mappers";
@@ -349,6 +349,18 @@ const teamAssigneeOptions: AssigneeOption[] = [
   { id: "team-design", name: "Designing TEAM", kind: "team" },
 ];
 
+type LeadAssigneeGroups = {
+  all: LeadAssigneeUserDto[];
+  sales: LeadAssigneeUserDto[];
+  designTeam: LeadAssigneeUserDto[];
+};
+
+const emptyAssigneeGroups = (): LeadAssigneeGroups => ({
+  all: [],
+  sales: [],
+  designTeam: [],
+});
+
 const LEAD_DELETE_PERMISSIONS = ["leads.delete"];
 
 function mapLeadDto(dto: LeadDto): Lead {
@@ -420,6 +432,7 @@ export default function LeadsTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([]);
+  const [assigneeGroups, setAssigneeGroups] = useState<LeadAssigneeGroups>(emptyAssigneeGroups);
   const [assigneesLoading, setAssigneesLoading] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -528,11 +541,15 @@ export default function LeadsTable() {
     (async () => {
       try {
         setAssigneesLoading(true);
-        const data = await usersApi.list({ limit: 200, isActive: "true" });
+        const data = await leadsApi.listAssignees();
         if (cancelled) return;
-        const users = (data.items || [])
-          .filter((u) => u.isActive !== false)
-          .map((u) => ({
+        const groups: LeadAssigneeGroups = {
+          all: data.all || [],
+          sales: data.sales || [],
+          designTeam: data.designTeam || [],
+        };
+        setAssigneeGroups(groups);
+        const users = groups.all.map((u) => ({
           id: u.id,
           name: u.name,
           kind: "user" as const,
@@ -540,6 +557,7 @@ export default function LeadsTable() {
         setAssigneeOptions([...users, ...teamAssigneeOptions]);
       } catch {
         if (!cancelled) {
+          setAssigneeGroups(emptyAssigneeGroups());
           setAssigneeOptions([...teamAssigneeOptions]);
         }
       } finally {
@@ -1441,13 +1459,40 @@ export default function LeadsTable() {
                             className="h-8 min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent text-xs text-gray-600 hover:border-gray-200 focus:border-brand-300 focus:outline-hidden dark:text-gray-300"
                           >
                             <option value="">Unassigned</option>
-                            {assigneeOptions
-                              .filter((o) => o.kind !== "team")
-                              .map((member) => (
-                                <option key={member.id} value={member.id}>
-                                  {member.name}
+                            {lead.assignedToId &&
+                            ![...assigneeGroups.sales, ...assigneeGroups.designTeam].some(
+                              (u) => u.id === lead.assignedToId
+                            ) ? (
+                              <option value={lead.assignedToId}>
+                                {lead.assignedTo}
+                              </option>
+                            ) : null}
+                            <optgroup label="Sales">
+                              {assigneeGroups.sales.length === 0 ? (
+                                <option value="" disabled>
+                                  No sales users
                                 </option>
-                              ))}
+                              ) : (
+                                assigneeGroups.sales.map((member) => (
+                                  <option key={`sales-${member.id}`} value={member.id}>
+                                    {member.name}
+                                  </option>
+                                ))
+                              )}
+                            </optgroup>
+                            <optgroup label="Design team">
+                              {assigneeGroups.designTeam.length === 0 ? (
+                                <option value="" disabled>
+                                  No design team users
+                                </option>
+                              ) : (
+                                assigneeGroups.designTeam.map((member) => (
+                                  <option key={`design-${member.id}`} value={member.id}>
+                                    {member.name}
+                                  </option>
+                                ))
+                              )}
+                            </optgroup>
                           </select>
                         </div>
                       </TableCell>

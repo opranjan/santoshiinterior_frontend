@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { designAssetUrl } from "@/lib/designAssets";
+import { customersApi, leadsApi } from "@/services/crmApi";
 
 export type ChatPerson = {
   id: string;
@@ -23,6 +24,25 @@ export type ChatBubble = {
   body: string;
   createdAt: string;
   editedAt?: string | null;
+  leadId?: string | null;
+  customerId?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
+  locationAddress?: string | null;
+  lead?: {
+    id: string;
+    clientName: string;
+    phone?: string | null;
+    clientAddress?: string | null;
+  } | null;
+  customer?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+  } | null;
   sender?: { id?: string; name?: string } | null;
   attachments?: ChatAttachment[];
   mentions?: Array<{
@@ -36,7 +56,25 @@ export type ChatBubble = {
     senderId?: string;
     sender?: { id?: string; name?: string } | null;
     attachments?: Array<{ id?: string; fileName?: string }>;
+    locationLat?: number | null;
+    locationLng?: number | null;
+    locationName?: string | null;
   } | null;
+};
+
+export type ChatLocationPayload = {
+  lat: number;
+  lng: number;
+  name?: string | null;
+  address?: string | null;
+};
+
+export type ChatRelatedPayload = {
+  kind: "lead" | "customer";
+  id: string;
+  name: string;
+  phone?: string | null;
+  address?: string | null;
 };
 
 export type ChatComposePayload = {
@@ -44,15 +82,56 @@ export type ChatComposePayload = {
   mentionIds: string[];
   files: File[];
   replyToId?: string | null;
+  leadId?: string | null;
+  customerId?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
+  locationAddress?: string | null;
 };
 
-export function chatPreview(row: { body?: string | null; attachments?: ChatAttachment[] | null }) {
+export function chatPreview(row: {
+  body?: string | null;
+  attachments?: ChatAttachment[] | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
+  locationAddress?: string | null;
+  lead?: { clientName?: string | null } | null;
+  customer?: { name?: string | null } | null;
+}) {
   const body = String(row.body || "").trim();
   if (body) return body;
+  if (row.locationLat != null && row.locationLng != null) {
+    return row.locationName || row.locationAddress || "📍 Location";
+  }
+  const related = row.lead?.clientName || row.customer?.name;
+  if (related) return `Site visit · ${related}`;
   const count = row.attachments?.length || 0;
   if (count === 1) return "Sent a file";
   if (count > 1) return `Sent ${count} files`;
   return "";
+}
+
+function mapsUrl(lat: number, lng: number, label?: string | null) {
+  if (label) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${label} @${lat},${lng}`)}`;
+  }
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+function parseMapsLink(raw: string): { lat: number; lng: number } | null {
+  const text = String(raw || "").trim();
+  if (!text) return null;
+  const at = text.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+  if (at) return { lat: Number(at[1]), lng: Number(at[2]) };
+  const q = text.match(/[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i);
+  if (q) return { lat: Number(q[1]), lng: Number(q[2]) };
+  const ll = text.match(/[?&](?:ll|center)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i);
+  if (ll) return { lat: Number(ll[1]), lng: Number(ll[2]) };
+  const bare = text.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (bare) return { lat: Number(bare[1]), lng: Number(bare[2]) };
+  return null;
 }
 
 export function typingPhrase(names: string[]) {
@@ -136,6 +215,74 @@ function timeOnly(iso?: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function RelatedPartyCard({
+  lead,
+  customer,
+}: {
+  lead?: ChatBubble["lead"];
+  customer?: ChatBubble["customer"];
+}) {
+  const kind = lead ? "Lead" : customer ? "Customer" : null;
+  const name = lead?.clientName || customer?.name || "";
+  const phone = lead?.phone || customer?.phone || "";
+  const address =
+    lead?.clientAddress ||
+    [customer?.address, customer?.city].filter(Boolean).join(", ") ||
+    "";
+  if (!kind || !name) return null;
+  return (
+    <div className="mb-2 overflow-hidden rounded-xl border border-[#eadfcf]/90 bg-white/70 px-3 py-2.5 dark:border-[#3a342c] dark:bg-[#1c1914]/70">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9a7748]">
+        {kind} · site visit
+      </p>
+      <p className="mt-0.5 text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">{name}</p>
+      {phone ? <p className="text-[11px] text-[#6b645b]">{phone}</p> : null}
+      {address ? <p className="mt-0.5 text-[11px] text-[#8a8175]">{address}</p> : null}
+    </div>
+  );
+}
+
+function LocationCard({
+  lat,
+  lng,
+  name,
+  address,
+}: {
+  lat: number;
+  lng: number;
+  name?: string | null;
+  address?: string | null;
+}) {
+  const href = mapsUrl(lat, lng, name || address);
+  const staticMap = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=480x220&markers=${lat},${lng},red-pushpin`;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="mb-2 block overflow-hidden rounded-xl border border-[#eadfcf]/90 bg-white/80 dark:border-[#3a342c] dark:bg-[#1c1914]/80"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={staticMap}
+        alt={name || "Shared location"}
+        className="h-28 w-full object-cover"
+        loading="lazy"
+      />
+      <span className="block px-3 py-2">
+        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+          <span aria-hidden>📍</span>
+          {name || "Shared location"}
+        </span>
+        {address ? <span className="mt-0.5 block text-[11px] text-[#8a8175]">{address}</span> : null}
+        <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.12em] text-[#9a7748]">
+          Open in Google Maps
+        </span>
+      </span>
+    </a>
+  );
 }
 
 function fileSize(bytes?: number | null) {
@@ -399,6 +546,18 @@ export default function VendorChatThread({
   const [caret, setCaret] = useState(0);
   const [highlight, setHighlight] = useState(0);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [related, setRelated] = useState<ChatRelatedPayload | null>(null);
+  const [location, setLocation] = useState<ChatLocationPayload | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<"lead" | "customer">("lead");
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerItems, setPickerItems] = useState<ChatRelatedPayload[]>([]);
+  const [mapsLink, setMapsLink] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [composeHint, setComposeHint] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -482,13 +641,130 @@ export default function VendorChatThread({
     setFiles([]);
     setEditingId(null);
     setReplyTo(null);
+    setRelated(null);
+    setLocation(null);
+    setPickerOpen(false);
+    setLocationOpen(false);
+    setAttachOpen(false);
+    setMapsLink("");
+    setComposeHint("");
   };
+
+  useEffect(() => {
+    if (!pickerOpen || editingId) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setPickerLoading(true);
+        try {
+          if (pickerTab === "lead") {
+            const data = await leadsApi.list({
+              page: 1,
+              limit: 20,
+              search: pickerQuery.trim() || undefined,
+            });
+            if (cancelled) return;
+            setPickerItems(
+              (data.items || []).map((row) => ({
+                kind: "lead" as const,
+                id: row.id,
+                name: row.clientName,
+                phone: row.phone,
+                address: row.clientAddress || null,
+              }))
+            );
+          } else {
+            const data = await customersApi.list({
+              page: 1,
+              limit: 20,
+              search: pickerQuery.trim() || undefined,
+            });
+            if (cancelled) return;
+            setPickerItems(
+              (data.items || []).map((row) => ({
+                kind: "customer" as const,
+                id: row.id,
+                name: row.name,
+                phone: row.phone,
+                address: [row.address, row.city].filter(Boolean).join(", ") || null,
+              }))
+            );
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setPickerItems([]);
+            setComposeHint(err instanceof Error ? err.message : "Could not load contacts");
+          }
+        } finally {
+          if (!cancelled) setPickerLoading(false);
+        }
+      })();
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [pickerOpen, pickerTab, pickerQuery, editingId]);
 
   const resolvedMentions = () =>
     mentionIds.filter((id) => {
       const person = people.find((row) => row.id === id);
       return person ? draft.includes(`@${person.name}`) : false;
     });
+
+  const attachRelated = (item: ChatRelatedPayload) => {
+    setRelated(item);
+    setPickerOpen(false);
+    setComposeHint("");
+    setDraft((prev) => {
+      if (prev.trim()) return prev;
+      return `Site visit with ${item.name}`;
+    });
+    inputRef.current?.focus();
+  };
+
+  const shareCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setComposeHint("Location is not supported in this browser.");
+      return;
+    }
+    setLocating(true);
+    setComposeHint("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          name: related ? `${related.name} site` : "Current location",
+          address: related?.address || null,
+        });
+        setLocationOpen(false);
+        setLocating(false);
+      },
+      () => {
+        setComposeHint("Could not get your current location. Allow location access or paste a Maps link.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
+
+  const applyMapsLink = () => {
+    const parsed = parseMapsLink(mapsLink);
+    if (!parsed) {
+      setComposeHint("Paste a Google Maps link or lat,lng like 15.49,73.82");
+      return;
+    }
+    setLocation({
+      lat: parsed.lat,
+      lng: parsed.lng,
+      name: related ? `${related.name} site` : "Shared location",
+      address: related?.address || null,
+    });
+    setMapsLink("");
+    setLocationOpen(false);
+    setComposeHint("");
+  };
 
   const submit = async (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -500,12 +776,18 @@ export default function VendorChatThread({
       resetComposer();
       return;
     }
-    if (!text && !files.length) return;
-    const payload = {
+    if (!text && !files.length && !location && !related) return;
+    const payload: ChatComposePayload = {
       body: text,
       mentionIds: resolvedMentions(),
       files,
       replyToId: replyTo?.id || null,
+      leadId: related?.kind === "lead" ? related.id : null,
+      customerId: related?.kind === "customer" ? related.id : null,
+      locationLat: location?.lat ?? null,
+      locationLng: location?.lng ?? null,
+      locationName: location?.name || null,
+      locationAddress: location?.address || related?.address || null,
     };
     setRemoteTyping(false);
     resetComposer();
@@ -543,7 +825,7 @@ export default function VendorChatThread({
     setFiles((prev) => [...prev, ...Array.from(list)].slice(0, 5));
   };
 
-  const canSend = Boolean(draft.trim() || files.length || editingId);
+  const canSend = Boolean(draft.trim() || files.length || location || related || editingId);
 
   return (
     <div className="chat-canvas flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
@@ -609,9 +891,21 @@ export default function VendorChatThread({
                         {chatPreview({
                           body: row.replyTo.body,
                           attachments: row.replyTo.attachments as ChatAttachment[] | undefined,
+                          locationLat: row.replyTo.locationLat,
+                          locationLng: row.replyTo.locationLng,
+                          locationName: row.replyTo.locationName,
                         }) || "Message"}
                       </span>
                     </button>
+                  ) : null}
+                  <RelatedPartyCard lead={row.lead} customer={row.customer} />
+                  {row.locationLat != null && row.locationLng != null ? (
+                    <LocationCard
+                      lat={row.locationLat}
+                      lng={row.locationLng}
+                      name={row.locationName}
+                      address={row.locationAddress}
+                    />
                   ) : null}
                   <MentionText body={row.body} mentions={row.mentions} />
                   <AttachmentList files={row.attachments || []} mine={mine} />
@@ -706,6 +1000,154 @@ export default function VendorChatThread({
             ))}
           </div>
         ) : null}
+        {related || location ? (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {related ? (
+              <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#eadfcf] bg-[#fbf8f3] px-2.5 py-1 text-[11px] text-[#1c1610]">
+                <span className="truncate">
+                  {related.kind === "lead" ? "Lead" : "Customer"} · {related.name}
+                </span>
+                <button type="button" onClick={() => setRelated(null)} className="text-[#8a8175]">
+                  ×
+                </button>
+              </span>
+            ) : null}
+            {location ? (
+              <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#eadfcf] bg-[#fbf8f3] px-2.5 py-1 text-[11px] text-[#1c1610]">
+                <span className="truncate">📍 {location.name || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}</span>
+                <button type="button" onClick={() => setLocation(null)} className="text-[#8a8175]">
+                  ×
+                </button>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {composeHint ? <p className="mb-2 text-[11px] text-rose-600">{composeHint}</p> : null}
+        {pickerOpen && !editingId ? (
+          <div className="mb-2 overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
+            <div className="flex items-center gap-1 border-b border-[#eadfcf] p-2 dark:border-[#3a342c]">
+              {(["lead", "customer"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setPickerTab(tab)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${
+                    pickerTab === tab ? "bg-[#1c1610] text-[#e8d5b5]" : "text-[#6b645b] hover:bg-[#f4efe6]"
+                  }`}
+                >
+                  {tab === "lead" ? "Leads" : "Customers"}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                className="ml-auto text-sm text-[#8a8175]"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-2">
+              <input
+                value={pickerQuery}
+                onChange={(event) => setPickerQuery(event.target.value)}
+                placeholder={`Search ${pickerTab === "lead" ? "leads" : "customers"}…`}
+                className="h-9 w-full rounded-lg border-0 bg-[#fbf8f3] px-3 text-sm text-[#1c1610] outline-none ring-1 ring-[#eadfcf] focus:ring-2 focus:ring-[#c4a574]/40"
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto">
+              {pickerLoading ? (
+                <p className="px-3 py-4 text-center text-xs text-[#8a8175]">Loading…</p>
+              ) : pickerItems.length ? (
+                pickerItems.map((item) => (
+                  <button
+                    key={`${item.kind}-${item.id}`}
+                    type="button"
+                    onClick={() => attachRelated(item)}
+                    className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-[#fbf8f3]"
+                  >
+                    <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1c1610] text-[10px] font-semibold text-[#e8d5b5]">
+                      {initials(item.name)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                        {item.name}
+                      </span>
+                      <span className="block truncate text-[11px] text-[#8a8175]">
+                        {[item.phone, item.address].filter(Boolean).join(" · ") || item.kind}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <p className="px-3 py-4 text-center text-xs text-[#8a8175]">No matches</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+        {locationOpen && !editingId ? (
+          <div className="mb-2 space-y-3 rounded-2xl border border-[#eadfcf] bg-white p-3 shadow-[0_12px_32px_rgba(28,22,16,0.08)] dark:border-[#3a342c] dark:bg-[#1a1714]">
+            <div className="flex items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#d97757] text-white">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M12 21s6.5-5.2 6.5-10.2A6.5 6.5 0 0 0 12 4.3a6.5 6.5 0 0 0-6.5 6.5C5.5 15.8 12 21 12 21Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </span>
+                Share location
+              </p>
+              <button type="button" onClick={() => setLocationOpen(false)} className="text-sm text-[#8a8175]">
+                ×
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={locating}
+              onClick={shareCurrentLocation}
+              className="flex h-11 w-full items-center gap-3 rounded-xl bg-[#1c1610] px-3 text-left text-sm font-semibold text-[#e8d5b5] disabled:opacity-60"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#d97757] text-white">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1">
+                {locating ? "Getting location…" : "Send current location"}
+              </span>
+            </button>
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#c4a574]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M10 14 21 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="M14 10 21 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="m3 12.5 6.2 1.3L10.5 20l3.4-8.6L22 8l-8.6 3.4L3 12.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <input
+                  value={mapsLink}
+                  onChange={(event) => setMapsLink(event.target.value)}
+                  placeholder="Paste Maps link or lat,lng"
+                  className="h-11 w-full rounded-xl border-0 bg-[#fbf8f3] pl-9 pr-3 text-sm text-[#1c1610] outline-none ring-1 ring-[#eadfcf] focus:ring-2 focus:ring-[#c4a574]/40"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={applyMapsLink}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#c4a574] text-[#1c1610]"
+                title="Add map link"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M5 12h14M12 5v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : null}
         {suggestions.length ? (
           <div className="absolute bottom-[4.8rem] left-3 right-3 z-10 overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-[0_12px_40px_rgba(28,22,16,0.12)] dark:border-[#3a342c] dark:bg-[#1a1714]">
             <p className="border-b border-[#eadfcf] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#c4a574]">
@@ -775,11 +1217,122 @@ export default function VendorChatThread({
               ))}
             </div>
           ) : null}
+        {attachOpen && !editingId ? (
+          <div className="mb-2 rounded-2xl border border-[#eadfcf] bg-white px-3 py-3 shadow-[0_12px_32px_rgba(28,22,16,0.08)] dark:border-[#3a342c] dark:bg-[#1a1714]">
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                {
+                  key: "file",
+                  label: "Document",
+                  tone: "bg-[#5b6fd6]",
+                  onClick: () => {
+                    setAttachOpen(false);
+                    fileRef.current?.click();
+                  },
+                  icon: (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M8 3.5h5.2L18 8.3V20a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 7 20V5A1.5 1.5 0 0 1 8.5 3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinejoin="round"
+                      />
+                      <path d="M13 3.7V8h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                    </svg>
+                  ),
+                },
+                {
+                  key: "photo",
+                  label: "Photo",
+                  tone: "bg-[#2f9d64]",
+                  onClick: () => {
+                    setAttachOpen(false);
+                    imageRef.current?.click();
+                  },
+                  icon: (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <rect x="3.5" y="5.5" width="17" height="13" rx="2.2" stroke="currentColor" strokeWidth="1.7" />
+                      <circle cx="8.5" cy="10" r="1.4" stroke="currentColor" strokeWidth="1.5" />
+                      <path
+                        d="m8 16 3.2-3.4 2.3 2.3L16.2 12 20 16"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ),
+                },
+                {
+                  key: "contact",
+                  label: "Lead",
+                  tone: "bg-[#c4a574]",
+                  onClick: () => {
+                    setAttachOpen(false);
+                    setLocationOpen(false);
+                    setPickerOpen(true);
+                  },
+                  icon: (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+                      <path
+                        d="M3.5 19c.8-3.2 2.9-4.8 5.5-4.8S13.7 15.8 14.5 19"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                      />
+                      <path d="M17 8h4M19 6v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    </svg>
+                  ),
+                },
+                {
+                  key: "location",
+                  label: "Location",
+                  tone: "bg-[#d97757]",
+                  onClick: () => {
+                    setAttachOpen(false);
+                    setPickerOpen(false);
+                    setLocationOpen(true);
+                  },
+                  icon: (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M12 21s6.5-5.2 6.5-10.2A6.5 6.5 0 0 0 12 4.3a6.5 6.5 0 0 0-6.5 6.5C5.5 15.8 12 21 12 21Z"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                      />
+                      <circle cx="12" cy="10.8" r="2.2" stroke="currentColor" strokeWidth="1.7" />
+                    </svg>
+                  ),
+                },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={item.onClick}
+                  className="group flex flex-col items-center gap-1.5 rounded-xl px-1 py-1.5 text-center transition hover:bg-[#fbf8f3] dark:hover:bg-[#241f19]"
+                >
+                  <span
+                    className={`inline-flex h-12 w-12 items-center justify-center rounded-full text-white shadow-[0_8px_18px_rgba(28,22,16,0.14)] ${item.tone}`}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="text-[11px] font-medium text-[#6b645b] group-hover:text-[#1c1610] dark:text-[#b7aea2]">
+                    {item.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="chat-composer-bar">
           <button
             type="button"
             title="Emoji"
-            onClick={() => setEmojiOpen((open) => !open)}
+            onClick={() => {
+              setAttachOpen(false);
+              setEmojiOpen((open) => !open);
+            }}
             className="chat-composer-icon"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -791,31 +1344,16 @@ export default function VendorChatThread({
           </button>
           <button
             type="button"
-            title="Attach file"
+            title="Attach"
             disabled={Boolean(editingId)}
-            onClick={() => fileRef.current?.click()}
-            className="chat-composer-icon"
+            onClick={() => {
+              setEmojiOpen(false);
+              setAttachOpen((open) => !open);
+            }}
+            className={`chat-composer-icon ${related || location || attachOpen ? "text-[#9a7748]" : ""}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M21 12.5 12.4 21a5 5 0 0 1-7.1-7.1l9.2-9.2a3.3 3.3 0 1 1 4.7 4.7l-9.2 9.1a1.7 1.7 0 0 1-2.4-2.4l8.1-8.1"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            title="Attach photo"
-            disabled={Boolean(editingId)}
-            onClick={() => imageRef.current?.click()}
-            className="chat-composer-icon"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <rect x="3.5" y="5.5" width="17" height="13" rx="2.2" stroke="currentColor" strokeWidth="1.7" />
-              <circle cx="8.5" cy="10" r="1.4" stroke="currentColor" strokeWidth="1.5" />
-              <path d="m8 16 3.2-3.4 2.3 2.3L16.2 12 20 16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
           </button>
           <textarea

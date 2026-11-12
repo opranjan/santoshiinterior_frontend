@@ -28,6 +28,15 @@ const TEAM_TABS: Array<{ id: TeamTab; label: string }> = [
   { id: "other", label: "Other" },
 ];
 
+function isSalesRoleUser(user: { role?: string; accessRole?: { key?: string; baseRole?: string } | null } | null | undefined) {
+  if (!user) return false;
+  return (
+    user.role === "SALES" ||
+    user.accessRole?.key === "SALES" ||
+    user.accessRole?.baseRole === "SALES"
+  );
+}
+
 function teamLabel(team?: string | null) {
   const row = TEAM_TABS.find((tab) => tab.id === team);
   return row?.label || "Team";
@@ -205,6 +214,12 @@ export default function AdminVendorChat() {
     mentionIds: string[];
     files: File[];
     replyToId?: string | null;
+    leadId?: string | null;
+    customerId?: string | null;
+    locationLat?: number | null;
+    locationLng?: number | null;
+    locationName?: string | null;
+    locationAddress?: string | null;
   }) => {
     if (!activeId) return;
     sendTyping(false);
@@ -216,6 +231,12 @@ export default function AdminVendorChat() {
         mentionIds: payload.mentionIds,
         files: payload.files,
         replyToId: payload.replyToId,
+        leadId: payload.leadId,
+        customerId: payload.customerId,
+        locationLat: payload.locationLat,
+        locationLng: payload.locationLng,
+        locationName: payload.locationName,
+        locationAddress: payload.locationAddress,
       });
       setMessages((prev) => upsertMessage(prev, created));
       setError("");
@@ -261,10 +282,14 @@ export default function AdminVendorChat() {
     return counts;
   }, [threads]);
 
-  const visibleTeams = useMemo(
-    () => TEAM_TABS.filter((team) => team.id === "vendor" || (teamCounts[team.id] || 0) > 0),
-    [teamCounts]
-  );
+  const salesVendorOnly = isSalesRoleUser(user);
+
+  const visibleTeams = useMemo(() => {
+    if (salesVendorOnly) {
+      return TEAM_TABS.filter((team) => team.id === "vendor");
+    }
+    return TEAM_TABS.filter((team) => team.id === "vendor" || (teamCounts[team.id] || 0) > 0);
+  }, [teamCounts, salesVendorOnly]);
 
   const teamScoped = useMemo(
     () => threads.filter((row) => (row.team || "other") === teamTab),
@@ -290,7 +315,7 @@ export default function AdminVendorChat() {
   const seenAt = active ? presence.lastSeen[active.id] || active.lastSeenAt : null;
 
   const filtered = teamScoped.filter((row) => {
-    const hay = `${row.name} ${row.vendorName || ""} ${row.roleLabel || ""} ${row.team || ""}`.toLowerCase();
+    const hay = `${row.name} ${row.vendorName || ""} ${row.vendorType || ""} ${row.roleLabel || ""} ${row.team || ""}`.toLowerCase();
     if (!hay.includes(query.trim().toLowerCase())) return false;
     if (tab === "unread") return (unread[row.id] || 0) > 0;
     if (tab === "online") return isOnline(row.id);
@@ -311,7 +336,9 @@ export default function AdminVendorChat() {
             </h1>
             <span className="ml-auto text-[11px] text-[#8a8175]">{counts.all || ""}</span>
           </div>
-          <p className="mt-1.5 text-[12px] text-[#8a8175]">Switch team like WhatsApp views</p>
+          <p className="mt-1.5 text-[12px] text-[#8a8175]">
+            {salesVendorOnly ? "Vendor chats" : "Switch team like WhatsApp views"}
+          </p>
 
           <div className="mt-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="inline-flex h-9 min-w-full rounded-lg bg-[#efe8dc] p-0.5 dark:bg-[#2a241c]">
@@ -402,7 +429,9 @@ export default function AdminVendorChat() {
                     <span className="shrink-0 text-[10px] text-[#8a8175]">{stamp(row.lastAt)}</span>
                   </span>
                   <span className="block truncate text-[11px] uppercase tracking-[0.12em] text-[#c4a574]">
-                    {[teamLabel(row.team), row.vendorName || row.roleLabel].filter(Boolean).join(" · ")}
+                    {[teamLabel(row.team), row.vendorType, row.vendorName || row.roleLabel]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span
@@ -466,7 +495,11 @@ export default function AdminVendorChat() {
               ) : null}
             </p>
             <p className="mt-1 truncate text-[11px] text-[#8a8175] md:mt-1.5 md:text-xs">
-              {[active?.vendorName || active?.roleLabel, online ? null : lastSeenLabel(seenAt)]
+              {[
+                active?.vendorType,
+                active?.vendorName || active?.roleLabel,
+                online ? null : lastSeenLabel(seenAt),
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>

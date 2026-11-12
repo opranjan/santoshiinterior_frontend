@@ -15,7 +15,7 @@ import {
 } from "@/components/payments/paymentMoney";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { useAuth } from "@/context/AuthContext";
-import { hasAnyPermission } from "@/lib/permissions";
+import { hasAnyPermission, isSalesPaymentsRestricted } from "@/lib/permissions";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 
 type ProjectRow = {
@@ -89,7 +89,18 @@ function buildRows(projects: ProjectRow[], payments: PaymentRow[]): LedgerRow[] 
   });
 }
 
-function Money({ value, tone }: { value: number; tone?: "rose" | "olive" | "muted" }) {
+function Money({
+  value,
+  tone,
+  masked = false,
+}: {
+  value: number;
+  tone?: "rose" | "olive" | "muted";
+  masked?: boolean;
+}) {
+  if (masked) {
+    return <span className="tracking-[0.18em] text-[#8a7b68]">****</span>;
+  }
   const color =
     tone === "rose"
       ? "text-rose-700"
@@ -102,7 +113,10 @@ function Money({ value, tone }: { value: number; tone?: "rose" | "olive" | "mute
 export default function PaymentsDashboard() {
   const router = useRouter();
   const { user } = useAuth();
-  const canDelete = hasAnyPermission(user, ["payments.manage", "finance.full", "projects.manage", "users.manage"]);
+  const salesOnly = isSalesPaymentsRestricted(user);
+  const canDelete =
+    !salesOnly &&
+    hasAnyPermission(user, ["payments.manage", "finance.full", "projects.manage", "users.manage"]);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,25 +225,46 @@ export default function PaymentsDashboard() {
           <h1 className="mt-1 font-serif text-[1.7rem] leading-tight text-[#1c1610] dark:text-[#f3ece2]" style={paymentSerif}>
             Payments dashboard
           </h1>
-          <p className="mt-1 text-sm text-[#8a7b68]">Project collections, expenses, and cash flow.</p>
+          <p className="mt-1 text-sm text-[#8a7b68]">
+            {salesOnly
+              ? "Project value and funds received for your sales projects."
+              : "Project collections, expenses, and cash flow."}
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+      <div className={`grid gap-3 ${salesOnly ? "xl:grid-cols-2" : "xl:grid-cols-3"}`}>
         <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
-          <div className="grid grid-cols-2 divide-x divide-y divide-[#eadfcf] sm:grid-cols-4 sm:divide-y-0 dark:divide-[#3a342c]">
-            {[
-              { label: "Total projects", value: loading ? "\u2014" : String(totals.projects) },
-              { label: "Expected P&L", value: loading ? "\u2014" : formatCompactINR(totals.expectedPnl), accent: true },
-              { label: "Project value", value: loading ? "\u2014" : formatCompactINR(totals.projectValue) },
-              {
-                label: "Cash flow %",
-                value: loading
-                  ? "\u2014"
-                  : formatPct(cashFlowPct(totals.cashFlow, totals.projectValue, totals.fundsReceived)),
-                accent: true,
-              },
-            ].map((item) => (
+          <div
+            className={`grid divide-x divide-y divide-[#eadfcf] sm:divide-y-0 dark:divide-[#3a342c] ${
+              salesOnly ? "grid-cols-2 sm:grid-cols-2" : "grid-cols-2 sm:grid-cols-4"
+            }`}
+          >
+            {(salesOnly
+              ? [
+                  { label: "Total projects", value: loading ? "\u2014" : String(totals.projects) },
+                  {
+                    label: "Project value",
+                    value: loading ? "\u2014" : formatCompactINR(totals.projectValue),
+                  },
+                ]
+              : [
+                  { label: "Total projects", value: loading ? "\u2014" : String(totals.projects) },
+                  {
+                    label: "Expected P&L",
+                    value: loading ? "\u2014" : formatCompactINR(totals.expectedPnl),
+                    accent: true,
+                  },
+                  { label: "Project value", value: loading ? "\u2014" : formatCompactINR(totals.projectValue) },
+                  {
+                    label: "Cash flow %",
+                    value: loading
+                      ? "\u2014"
+                      : formatPct(cashFlowPct(totals.cashFlow, totals.projectValue, totals.fundsReceived)),
+                    accent: true,
+                  },
+                ]
+            ).map((item) => (
               <div key={item.label} className="px-4 py-4">
                 <p
                   className={`font-serif text-2xl ${item.accent ? "text-[#9a7748]" : "text-[#1c1610] dark:text-[#f3ece2]"}`}
@@ -250,56 +285,66 @@ export default function PaymentsDashboard() {
               Inflow
             </span>
           </div>
-          <div className="grid grid-cols-3 divide-x divide-[#eadfcf] px-2 py-3 text-center dark:divide-[#3a342c]">
-            <div>
-              <p className="font-serif text-lg text-[#1c1610]" style={paymentSerif}>
-                {formatCompactINR(totals.receivables)}
-              </p>
-              <p className="text-[10px] text-[#8a7b68]">Total receivables</p>
-            </div>
+          <div
+            className={`grid divide-x divide-[#eadfcf] px-2 py-3 text-center dark:divide-[#3a342c] ${
+              salesOnly ? "grid-cols-1" : "grid-cols-3"
+            }`}
+          >
+            {!salesOnly ? (
+              <div>
+                <p className="font-serif text-lg text-[#1c1610]" style={paymentSerif}>
+                  {formatCompactINR(totals.receivables)}
+                </p>
+                <p className="text-[10px] text-[#8a7b68]">Total receivables</p>
+              </div>
+            ) : null}
             <div>
               <p className="font-serif text-lg text-[#3d5a3a]" style={paymentSerif}>
                 {formatCompactINR(totals.fundsReceived)}
               </p>
               <p className="text-[10px] text-[#8a7b68]">Funds received</p>
             </div>
-            <div>
-              <p className="font-serif text-lg text-rose-700" style={paymentSerif}>
-                {formatCompactINR(totals.receivableDues)}
-              </p>
-              <p className="text-[10px] text-[#8a7b68]">Receivable dues</p>
-            </div>
+            {!salesOnly ? (
+              <div>
+                <p className="font-serif text-lg text-rose-700" style={paymentSerif}>
+                  {formatCompactINR(totals.receivableDues)}
+                </p>
+                <p className="text-[10px] text-[#8a7b68]">Receivable dues</p>
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
-          <div className="flex items-center justify-between border-b border-[#eadfcf] px-4 py-2 dark:border-[#3a342c]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Outflow</p>
-            <span className="rounded-full bg-[#f3e6c8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7d6139]">
-              Outflow
-            </span>
+        {!salesOnly ? (
+          <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
+            <div className="flex items-center justify-between border-b border-[#eadfcf] px-4 py-2 dark:border-[#3a342c]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">Outflow</p>
+              <span className="rounded-full bg-[#f3e6c8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7d6139]">
+                Outflow
+              </span>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-[#eadfcf] px-2 py-3 text-center dark:divide-[#3a342c]">
+              <div>
+                <p className="font-serif text-lg text-rose-700" style={paymentSerif}>
+                  {formatCompactINR(totals.estExpenses)}
+                </p>
+                <p className="text-[10px] text-[#8a7b68]">Est expenses</p>
+              </div>
+              <div>
+                <p className="font-serif text-lg text-[#1c1610]" style={paymentSerif}>
+                  {formatCompactINR(totals.disbursed)}
+                </p>
+                <p className="text-[10px] text-[#8a7b68]">Disbursed</p>
+              </div>
+              <div>
+                <p className="font-serif text-lg text-[#9a7748]" style={paymentSerif}>
+                  {formatCompactINR(totals.payables)}
+                </p>
+                <p className="text-[10px] text-[#8a7b68]">Payables</p>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-3 divide-x divide-[#eadfcf] px-2 py-3 text-center dark:divide-[#3a342c]">
-            <div>
-              <p className="font-serif text-lg text-rose-700" style={paymentSerif}>
-                {formatCompactINR(totals.estExpenses)}
-              </p>
-              <p className="text-[10px] text-[#8a7b68]">Est expenses</p>
-            </div>
-            <div>
-              <p className="font-serif text-lg text-[#1c1610]" style={paymentSerif}>
-                {formatCompactINR(totals.disbursed)}
-              </p>
-              <p className="text-[10px] text-[#8a7b68]">Disbursed</p>
-            </div>
-            <div>
-              <p className="font-serif text-lg text-[#9a7748]" style={paymentSerif}>
-                {formatCompactINR(totals.payables)}
-              </p>
-              <p className="text-[10px] text-[#8a7b68]">Payables</p>
-            </div>
-          </div>
-        </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:p-4">
@@ -378,28 +423,48 @@ export default function PaymentsDashboard() {
                       <Money value={row.fundsReceived} tone="olive" />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.totalReceivables} tone={row.totalReceivables < 0 ? "rose" : undefined} />
+                      <Money
+                        value={row.totalReceivables}
+                        tone={row.totalReceivables < 0 ? "rose" : undefined}
+                        masked={salesOnly}
+                      />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.receivableDues} tone="rose" />
+                      <Money value={row.receivableDues} tone="rose" masked={salesOnly} />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.estExpenses} />
+                      <Money value={row.estExpenses} masked={salesOnly} />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.disbursed} tone="rose" />
+                      <Money value={row.disbursed} tone="rose" masked={salesOnly} />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.totalPayables} tone={row.totalPayables < 0 ? "rose" : undefined} />
+                      <Money
+                        value={row.totalPayables}
+                        tone={row.totalPayables < 0 ? "rose" : undefined}
+                        masked={salesOnly}
+                      />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.payablesDues} tone="rose" />
+                      <Money value={row.payablesDues} tone="rose" masked={salesOnly} />
                     </td>
                     <td className="px-3 py-3">
-                      <Money value={row.cashFlow} tone={row.cashFlow < 0 ? "rose" : "olive"} />
+                      <Money
+                        value={row.cashFlow}
+                        tone={row.cashFlow < 0 ? "rose" : "olive"}
+                        masked={salesOnly}
+                      />
                     </td>
-                    <td className={`px-3 py-3 font-medium ${row.cashFlowPct < 0 ? "text-rose-700" : "text-[#3d5a3a]"}`}>
-                      {formatPct(row.cashFlowPct)}
+                    <td
+                      className={`px-3 py-3 font-medium ${
+                        salesOnly
+                          ? "tracking-[0.18em] text-[#8a7b68]"
+                          : row.cashFlowPct < 0
+                            ? "text-rose-700"
+                            : "text-[#3d5a3a]"
+                      }`}
+                    >
+                      {salesOnly ? "****" : formatPct(row.cashFlowPct)}
                     </td>
                     {canDelete ? (
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
@@ -422,7 +487,8 @@ export default function PaymentsDashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eadfcf] px-4 py-3 text-sm text-[#8a7b68] dark:border-[#3a342c]">
             <p>
               Showing {showingFrom} to {showingTo} of {filtered.length} project
-              {filtered.length === 1 ? "" : "s"} · click a row for expenses and funds
+              {filtered.length === 1 ? "" : "s"} · click a row for{" "}
+              {salesOnly ? "funds" : "expenses and funds"}
             </p>
             <div className="flex items-center gap-1">
               <button

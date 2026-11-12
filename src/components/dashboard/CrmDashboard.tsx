@@ -20,6 +20,7 @@ import {
 } from "@/icons";
 import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
 import CrmDashboardCharts from "@/components/dashboard/CrmDashboardCharts";
+import DashboardTaskBoards from "@/components/dashboard/DashboardTaskBoards";
 import { dashboardApi, storesApi, type DashboardDto } from "@/services/crmApi";
 import { enumToLabel, formatDate } from "@/lib/mappers";
 import { useAuth } from "@/context/AuthContext";
@@ -337,6 +338,8 @@ export default function CrmDashboard() {
           </Link>
         ))}
       </div>
+
+      <DashboardTaskBoards />
 
       {visibleQuickActions.length > 0 ? (
         <div className={`${card} dash-panel p-5`}>

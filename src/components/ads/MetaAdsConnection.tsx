@@ -72,8 +72,18 @@ export default function MetaAdsConnection() {
               label={status.configured ? "Token + verify ready" : "Not configured"}
             />
             <Pill
-              ok={status.hasAccessToken}
-              label={status.hasAccessToken ? "Page token set" : "Page token missing"}
+              ok={Boolean(status.hasDedicatedAccessToken)}
+              label={
+                status.hasDedicatedAccessToken
+                  ? "META_LEAD_ADS token set"
+                  : status.usingWhatsAppTokenFallback
+                    ? "Using WhatsApp token fallback"
+                    : "Lead Ads token missing"
+              }
+            />
+            <Pill
+              ok={Boolean(status.pageId)}
+              label={status.pageId ? `Page ${status.pageId}` : "Page ID missing"}
             />
             <Pill
               ok={status.hasVerifyToken}

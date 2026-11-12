@@ -17,7 +17,7 @@ import {
 } from "@/components/payments/paymentMoney";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import { useAuth } from "@/context/AuthContext";
-import { hasAnyPermission } from "@/lib/permissions";
+import { hasAnyPermission, isSalesPaymentsRestricted } from "@/lib/permissions";
 import { paymentsApi, projectsApi } from "@/services/crmApi";
 
 type PaymentRow = {
@@ -44,11 +44,13 @@ function SummaryChip({
   value,
   tone,
   kind = "money",
+  masked = false,
 }: {
   label: string;
   value: number;
   tone?: "gold" | "rose" | "olive" | "ink";
   kind?: "money" | "pct";
+  masked?: boolean;
 }) {
   const color =
     tone === "rose"
@@ -60,8 +62,12 @@ function SummaryChip({
           : "text-[#1c1610] dark:text-[#f3ece2]";
   return (
     <div className="min-w-[110px] px-3 py-2">
-      <p className={`font-serif text-lg ${color}`} style={paymentSerif}>
-        {kind === "pct" ? formatPct(value) : `\u20B9 ${formatINRSigned(value)}`}
+      <p className={`font-serif text-lg ${masked ? "tracking-[0.18em] text-[#8a7b68]" : color}`} style={paymentSerif}>
+        {masked
+          ? "****"
+          : kind === "pct"
+            ? formatPct(value)
+            : `\u20B9 ${formatINRSigned(value)}`}
       </p>
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">{label}</p>
     </div>
@@ -70,7 +76,10 @@ function SummaryChip({
 
 export default function ProjectPayments({ projectId }: { projectId: string }) {
   const { user } = useAuth();
-  const canDelete = hasAnyPermission(user, ["payments.manage", "finance.full", "users.manage"]);
+  const salesOnly = isSalesPaymentsRestricted(user);
+  const canDelete =
+    !salesOnly &&
+    hasAnyPermission(user, ["payments.manage", "finance.full", "users.manage"]);
   const [project, setProject] = useState<{
     id: string;
     name: string;
@@ -79,12 +88,16 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
   } | null>(null);
   const [items, setItems] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"expenses" | "funds">("expenses");
+  const [tab, setTab] = useState<"expenses" | "funds">(salesOnly ? "funds" : "expenses");
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
   const [showReversed, setShowReversed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PaymentRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  useEffect(() => {
+    if (salesOnly) setTab("funds");
+  }, [salesOnly]);
 
   const load = useCallback(async () => {
     const [projectRes, paymentRes] = await Promise.all([
@@ -162,10 +175,10 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
         </div>
         <button
           type="button"
-          onClick={() => (tab === "expenses" ? setExpenseOpen(true) : setFundOpen(true))}
+          onClick={() => (salesOnly || tab === "funds" ? setFundOpen(true) : setExpenseOpen(true))}
           className="inline-flex h-11 w-fit items-center rounded-xl bg-[#1c1610] px-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5]"
         >
-          {tab === "expenses" ? "+ Add expense" : "+ Add fund"}
+          {salesOnly || tab === "funds" ? "+ Add fund" : "+ Add expense"}
         </button>
       </div>
 
@@ -174,34 +187,51 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
         <div className="flex flex-wrap gap-1 overflow-hidden rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#161411]">
           <SummaryChip label="Project value" value={projectValue} />
           <SummaryChip label="Funds received" value={fundsReceived} tone="olive" />
-          <SummaryChip label="Total receivables" value={totalReceivables} tone="gold" />
-          <SummaryChip label="Disbursed amount" value={disbursed} tone="rose" />
-          <SummaryChip label="Receivable dues" value={receivableDues} tone="rose" />
-          <SummaryChip label="Total payables" value={totalPayables} />
-          <SummaryChip label="Payables dues" value={payablesDues} tone="gold" />
-          <SummaryChip label="Cash flow" value={cashFlow} tone={cashFlow < 0 ? "rose" : "olive"} />
-          <SummaryChip label="Cash flow %" value={cashPct} kind="pct" tone={cashPct < 0 ? "rose" : "olive"} />
-          <SummaryChip label="Expected P&L" value={expectedPnl} tone="olive" />
+          <SummaryChip label="Total receivables" value={totalReceivables} tone="gold" masked={salesOnly} />
+          <SummaryChip label="Disbursed amount" value={disbursed} tone="rose" masked={salesOnly} />
+          <SummaryChip label="Receivable dues" value={receivableDues} tone="rose" masked={salesOnly} />
+          <SummaryChip label="Total payables" value={totalPayables} masked={salesOnly} />
+          <SummaryChip label="Payables dues" value={payablesDues} tone="gold" masked={salesOnly} />
+          <SummaryChip
+            label="Cash flow"
+            value={cashFlow}
+            tone={cashFlow < 0 ? "rose" : "olive"}
+            masked={salesOnly}
+          />
+          <SummaryChip
+            label="Cash flow %"
+            value={cashPct}
+            kind="pct"
+            tone={cashPct < 0 ? "rose" : "olive"}
+            masked={salesOnly}
+          />
+          <SummaryChip label="Expected P&L" value={expectedPnl} tone="olive" masked={salesOnly} />
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
-          <button type="button" onClick={() => setTab("expenses")} className={tabBtn(tab === "expenses")}>
-            Expenses
-          </button>
-          <button type="button" onClick={() => setTab("funds")} className={tabBtn(tab === "funds")}>
-            Funds
-          </button>
-        </div>
-        <p className={`text-sm font-medium ${tab === "expenses" ? "text-[#9a7748]" : "text-[#3d5a3a]"}`}>
-          {tab === "expenses"
-            ? `Total expenses: \u20B9 ${formatINRSigned(estExpenses)}`
-            : `Total funds: \u20B9 ${formatINRSigned(fundsReceived)}`}
+        {salesOnly ? (
+          <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
+            <span className={tabBtn(true)}>Funds</span>
+          </div>
+        ) : (
+          <div className="inline-flex overflow-hidden rounded-xl border border-[#eadfcf] dark:border-[#3a342c]">
+            <button type="button" onClick={() => setTab("expenses")} className={tabBtn(tab === "expenses")}>
+              Expenses
+            </button>
+            <button type="button" onClick={() => setTab("funds")} className={tabBtn(tab === "funds")}>
+              Funds
+            </button>
+          </div>
+        )}
+        <p className={`text-sm font-medium ${salesOnly || tab === "funds" ? "text-[#3d5a3a]" : "text-[#9a7748]"}`}>
+          {salesOnly || tab === "funds"
+            ? `Total funds: \u20B9 ${formatINRSigned(fundsReceived)}`
+            : `Total expenses: \u20B9 ${formatINRSigned(estExpenses)}`}
         </p>
       </div>
 
-      {tab === "expenses" ? (
+      {!salesOnly && tab === "expenses" ? (
         <label className="inline-flex items-center gap-2 text-sm text-[#6b645b]">
           <input type="checkbox" checked={showReversed} onChange={(e) => setShowReversed(e.target.checked)} />
           View reversed transactions
@@ -210,7 +240,7 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
 
       <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#161411]">
         <div className="overflow-x-auto">
-          {tab === "expenses" ? (
+          {!salesOnly && tab === "expenses" ? (
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead>
                 <tr className="border-b border-[#f0e8db] bg-[#fbf8f3] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914]">
@@ -389,13 +419,15 @@ export default function ProjectPayments({ projectId }: { projectId: string }) {
         </div>
       ) : null}
 
-      <AddExpenseModal
-        open={expenseOpen}
-        onClose={() => setExpenseOpen(false)}
-        onCreated={() => void load()}
-        projectId={projectId}
-        projectLabel={label}
-      />
+      {!salesOnly ? (
+        <AddExpenseModal
+          open={expenseOpen}
+          onClose={() => setExpenseOpen(false)}
+          onCreated={() => void load()}
+          projectId={projectId}
+          projectLabel={label}
+        />
+      ) : null}
       <AddFundModal
         open={fundOpen}
         onClose={() => setFundOpen(false)}

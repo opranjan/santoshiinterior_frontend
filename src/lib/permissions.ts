@@ -157,8 +157,14 @@ export const canAccessWhatsAppView = (
 ): boolean => {
   if (!user) return false;
   if (user.role === "SUPER_ADMIN") return true;
-  /** Sales role: Lead/Project only — Campaign inbox is for managers/admins. */
-  if (user.role === "SALES" && viewMode === "campaign") return false;
+  /** Sales role: Lead WhatsApp only — no Project / Campaign / Vendor tabs. */
+  if (user.role === "SALES" || user.accessRole?.key === "SALES" || user.accessRole?.baseRole === "SALES") {
+    return viewMode === "lead";
+  }
+  // Design Team: WhatsApp → Leads + Projects only
+  if (isDesignTeamUser(user)) {
+    return viewMode === "lead" || viewMode === "project";
+  }
   // Procurement panel: WhatsApp → Projects + Vendor only
   if (isProcurementPanelUser(user)) {
     return viewMode === "project" || viewMode === "vendor";
@@ -191,6 +197,14 @@ export const canAccessWhatsAppView = (
 export const allowedWhatsAppViews = (
   user: AuthUser | null | undefined
 ): WhatsAppViewMode[] => {
+  if (
+    user?.role === "SALES" ||
+    user?.accessRole?.key === "SALES" ||
+    user?.accessRole?.baseRole === "SALES"
+  ) {
+    return ["lead"];
+  }
+  if (isDesignTeamUser(user)) return ["lead", "project"];
   if (isProcurementPanelUser(user)) return ["project", "vendor"];
   return (["lead", "project", "campaign", "vendor"] as WhatsAppViewMode[]).filter(
     (mode) => canAccessWhatsAppView(user, mode)
@@ -211,7 +225,20 @@ export const canAccessAllStores = (user: AuthUser | null | undefined): boolean =
 
 /** Route prefix → any one of these permissions grants access */
 export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }> = [
-  { prefix: "/", permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full", "procurement.manage", "purchaseorders.manage", "vendors.manage"] },
+  {
+    prefix: "/",
+    permissions: [
+      "reports.full",
+      "reports.store",
+      "sales.view",
+      "sales.manage",
+      "sales.full",
+      "procurement.manage",
+      "procurement.requests",
+      "purchaseorders.manage",
+      "vendors.manage",
+    ],
+  },
   { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
   {
     prefix: "/inventory",
@@ -228,15 +255,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
   { prefix: "/sales", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"] },
   {
     prefix: "/ads",
-    permissions: [
-      "sales.full",
-      "sales.manage",
-      "sales.view",
-      "leads.manage",
-      "settings.manage",
-      "settings.view",
-      "users.manage",
-    ],
+    permissions: ["ads.manage"],
   },
   { prefix: "/communication", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "messages.send", "messages.view.all", "messages.whatsapp.leads", "messages.whatsapp.projects", "messages.whatsapp.campaigns", "messages.whatsapp.vendors", "calls.make", "calls.view", "users.manage", "chat.box", "procurement.manage", "vendors.manage"] },
   { prefix: "/chat-box", permissions: ["chat.box", "vendor.chat.all", "sales.full", "sales.manage", "users.manage", "messages.send", "messages.view.all"] },
@@ -270,6 +289,16 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
     ],
   },
   {
+    prefix: "/design/catalog-pdf",
+    permissions: [
+      "design.manage",
+      "design.designing",
+      "design.elevation",
+      "vendor.portal",
+      "franchisee.portal",
+    ],
+  },
+  {
     prefix: "/design",
     permissions: [
       "design.manage",
@@ -280,8 +309,25 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
     ],
   },
   { prefix: "/projects", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal", "vendor.portal", "procurement.manage", "purchaseorders.manage"] },
+  { prefix: "/project-tasks", permissions: ["projects.manage", "projects.view", "design.manage", "site.manage", "sales.full", "sales.view", "franchisee.portal", "vendor.portal", "procurement.manage", "purchaseorders.manage"] },
   { prefix: "/work-orders", permissions: ["workorders.manage", "workorders.update", "site.manage", "projects.view"] },
   { prefix: "/purchase-orders", permissions: ["purchaseorders.manage", "finance.full", "finance.manage", "procurement.manage"] },
+  {
+    prefix: "/operations/procurement/requests",
+    permissions: [
+      "purchaseorders.manage",
+      "finance.full",
+      "finance.manage",
+      "projects.view",
+      "projects.manage",
+      "site.manage",
+      "vendor.portal",
+      "franchisee.portal",
+      "procurement.manage",
+      "procurement.requests",
+      "vendors.manage",
+    ],
+  },
   {
     prefix: "/operations",
     permissions: [
@@ -294,10 +340,11 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
       "vendor.portal",
       "franchisee.portal",
       "procurement.manage",
+      "procurement.requests",
       "vendors.manage",
     ],
   },
-  { prefix: "/payments", permissions: ["payments.manage", "finance.full", "finance.manage"] },
+  { prefix: "/payments", permissions: ["payments.manage", "finance.full", "finance.manage", "sales.full", "sales.manage", "sales.view"] },
   { prefix: "/accounting", permissions: ["payments.manage", "finance.full", "finance.manage"] },
   { prefix: "/franchisee-payments", permissions: ["payments.manage", "finance.full", "finance.manage", "vendor.payments"] },
   { prefix: "/vendor-payments", permissions: ["payments.manage", "finance.full", "finance.manage", "vendor.payments"] },
@@ -352,6 +399,8 @@ export const canAccessRoute = (
     path === "/" ||
     path === "/projects" ||
     (path.startsWith("/projects/") && path !== "/projects/new") ||
+    path === "/project-tasks" ||
+    path.startsWith("/project-tasks/") ||
     path === "/payments" ||
     path.startsWith("/payments/") ||
     path === "/profile" ||
@@ -444,11 +493,27 @@ const OPERATIONS_PERMISSIONS = [
   "vendors.manage",
 ];
 
+/** Requests-only access (Design Team) — does not unlock RFQ / orders / vendors. */
+const PROCUREMENT_REQUESTS_PERMISSIONS = [
+  ...OPERATIONS_PERMISSIONS,
+  "procurement.requests",
+];
+
 export const NAV_ITEMS: NavPermissionGroup[] = [
   {
     name: "Dashboard",
     path: "/",
-    permissions: ["reports.full", "reports.store", "sales.view", "sales.manage", "sales.full", "procurement.manage", "purchaseorders.manage", "vendors.manage"],
+    permissions: [
+      "reports.full",
+      "reports.store",
+      "sales.view",
+      "sales.manage",
+      "sales.full",
+      "procurement.manage",
+      "procurement.requests",
+      "purchaseorders.manage",
+      "vendors.manage",
+    ],
   },
   {
     name: "Stores",
@@ -473,94 +538,69 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Sales",
-    permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage", "quotations.create", "quotations.manage"],
-    subItems: [
-      { name: "Leads", path: "/sales/leads", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage"] },
-      { name: "Add Lead", path: "/sales/leads/new", permissions: ["sales.full", "sales.manage", "leads.manage"] },
-      { name: "Deals", path: "/sales/deals", permissions: ["sales.full", "sales.manage", "sales.view"] },
-      { name: "Create Quotation", path: "/quotations?create=1", permissions: ["quotations.create", "quotations.manage", "sales.full", "sales.manage"] },
-    ],
-  },
-  {
-    name: "Ads",
     permissions: [
       "sales.full",
       "sales.manage",
       "sales.view",
       "leads.manage",
-      "settings.manage",
-      "settings.view",
-      "users.manage",
+      "quotations.create",
+      "quotations.manage",
+      "payments.manage",
+      "finance.full",
+      "finance.manage",
     ],
     subItems: [
+      { name: "Leads", path: "/sales/leads", permissions: ["sales.full", "sales.manage", "sales.view", "leads.manage"] },
+      { name: "Add Lead", path: "/sales/leads/new", permissions: ["sales.full", "sales.manage", "leads.manage"] },
+      { name: "Deals", path: "/sales/deals", permissions: ["sales.full", "sales.manage", "sales.view"] },
+      { name: "Create Quotation", path: "/quotations?create=1", permissions: ["quotations.create", "quotations.manage", "sales.full", "sales.manage"] },
       {
-        name: "Meta Ads",
+        name: "Payments",
+        path: "/payments",
         permissions: [
+          "payments.manage",
+          "finance.full",
+          "finance.manage",
           "sales.full",
           "sales.manage",
           "sales.view",
           "leads.manage",
-          "settings.manage",
-          "settings.view",
-          "users.manage",
         ],
+      },
+    ],
+  },
+  {
+    name: "Ads",
+    permissions: ["ads.manage"],
+    subItems: [
+      {
+        name: "Meta Ads",
+        permissions: ["ads.manage"],
         subItems: [
           {
             name: "Overview",
             path: "/ads/meta",
-            permissions: [
-              "sales.full",
-              "sales.manage",
-              "sales.view",
-              "leads.manage",
-              "settings.manage",
-              "settings.view",
-              "users.manage",
-            ],
+            permissions: ["ads.manage"],
           },
           {
             name: "Lead Ads",
             path: "/ads/meta/leads",
-            permissions: [
-              "sales.full",
-              "sales.manage",
-              "sales.view",
-              "leads.manage",
-              "users.manage",
-            ],
+            permissions: ["ads.manage"],
           },
           {
             name: "Campaigns",
             path: "/ads/meta/campaigns",
-            permissions: [
-              "sales.full",
-              "sales.manage",
-              "sales.view",
-              "leads.manage",
-              "users.manage",
-            ],
+            permissions: ["ads.manage"],
           },
           {
             name: "Insights",
             path: "/ads/meta/insights",
-            permissions: [
-              "sales.full",
-              "sales.manage",
-              "sales.view",
-              "leads.manage",
-              "users.manage",
-            ],
+            permissions: ["ads.manage"],
           },
           {
             name: "Connection",
             path: "/ads/meta/connection",
-            permissions: [
-              "sales.full",
-              "sales.manage",
-              "settings.manage",
-              "settings.view",
-              "users.manage",
-            ],
+            permissions: ["ads.manage"],
           },
         ],
       },
@@ -611,6 +651,11 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
         path: "/design/elevation-collection",
         permissions: ["design.elevation", "design.manage"],
       },
+      {
+        name: "Catalog PDF Editor",
+        path: "/design/catalog-pdf",
+        permissions: ["design.manage", "design.designing", "design.elevation"],
+      },
     ],
   },
   {
@@ -630,7 +675,15 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   {
     name: "Payments",
     path: "/payments",
-    permissions: ["payments.manage", "finance.full", "finance.manage"],
+    permissions: [
+      "payments.manage",
+      "finance.full",
+      "finance.manage",
+      "sales.full",
+      "sales.manage",
+      "sales.view",
+      "leads.manage",
+    ],
   },
   {
     name: "Accounting",
@@ -750,12 +803,12 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
 export const OPERATIONS_NAV_ITEMS: NavPermissionGroup[] = [
   {
     name: "Procurement",
-    permissions: OPERATIONS_PERMISSIONS,
+    permissions: PROCUREMENT_REQUESTS_PERMISSIONS,
     subItems: [
       {
         name: "Requests",
         path: "/operations/procurement/requests",
-        permissions: OPERATIONS_PERMISSIONS,
+        permissions: PROCUREMENT_REQUESTS_PERMISSIONS,
       },
       {
         name: "RFQ",
@@ -940,12 +993,20 @@ export const isCasualPanelUser = (user: AuthUser | null | undefined) => {
   );
 };
 
+export const isDesignTeamUser = (user: AuthUser | null | undefined) => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return false;
+  if (user.accessRole?.key === "DESIGN_TEAM") return true;
+  return /^design\s*team$/i.test(String(user.accessRole?.label || ""));
+};
+
 export const isProcurementPanelUser = (user: AuthUser | null | undefined) => {
   if (!user) return false;
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return false;
   if (isVendorPanelUser(user) || isHrPanelUser(user) || isCasualPanelUser(user)) {
     return false;
   }
+  if (isDesignTeamUser(user)) return false;
   if (user.accessRole?.key === "PROCUREMENT") return true;
   if (/procurement/i.test(String(user.accessRole?.label || ""))) return true;
   const hasProcurement = hasAnyPermission(user, [
@@ -962,4 +1023,21 @@ export const isProcurementPanelUser = (user: AuthUser | null | undefined) => {
 
 export const isIsolatedShellUser = (user: AuthUser | null | undefined) =>
   isVendorPanelUser(user) || isHrPanelUser(user) || isCasualPanelUser(user);
+
+/** Sales can use Payments for funds only — no expense / disbursement figures. */
+export const isSalesPaymentsRestricted = (user: AuthUser | null | undefined) => {
+  if (!user) return false;
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return false;
+  if (
+    hasAnyPermission(user, ["payments.manage", "finance.full", "finance.manage"])
+  ) {
+    return false;
+  }
+  return hasAnyPermission(user, [
+    "sales.full",
+    "sales.manage",
+    "sales.view",
+    "leads.manage",
+  ]);
+};
 

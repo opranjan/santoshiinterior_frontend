@@ -49,7 +49,18 @@ export default function FranchiseeChatBox() {
     },
   });
 
-  const send = async (payload: { body: string; mentionIds: string[]; files: File[]; replyToId?: string | null }) => {
+  const send = async (payload: {
+    body: string;
+    mentionIds: string[];
+    files: File[];
+    replyToId?: string | null;
+    leadId?: string | null;
+    customerId?: string | null;
+    locationLat?: number | null;
+    locationLng?: number | null;
+    locationName?: string | null;
+    locationAddress?: string | null;
+  }) => {
     sendTyping(false);
     setSending(true);
     try {
@@ -58,6 +69,12 @@ export default function FranchiseeChatBox() {
         mentionIds: payload.mentionIds,
         files: payload.files,
         replyToId: payload.replyToId,
+        leadId: payload.leadId,
+        customerId: payload.customerId,
+        locationLat: payload.locationLat,
+        locationLng: payload.locationLng,
+        locationName: payload.locationName,
+        locationAddress: payload.locationAddress,
       });
       setMessages((prev) => {
         const index = prev.findIndex((row) => row.id === created.id);

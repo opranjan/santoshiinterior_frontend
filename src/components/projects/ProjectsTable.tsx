@@ -15,7 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
 import { enumToLabel, labelToEnum } from "@/lib/mappers";
 import { projectFormFromLead } from "@/lib/leadToProjectForm";
-import ProjectTasksPanel, { toYmd } from "@/components/projects/ProjectTasksPanel";
+import { toYmd } from "@/components/projects/ProjectTasksPanel";
 import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
 
@@ -370,7 +370,6 @@ export default function ProjectsTable() {
   const [sourceLeadClientName, setSourceLeadClientName] = useState("");
   const [confirmMoveLead, setConfirmMoveLead] = useState(false);
   const [sourceCustomerId, setSourceCustomerId] = useState<string | null>(null);
-  const [tasksProject, setTasksProject] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [callingKey, setCallingKey] = useState<string | null>(null);
@@ -1349,13 +1348,12 @@ export default function ProjectsTable() {
                           </span>
                         </p>
                       ))}
-                      <button
-                        type="button"
-                        onClick={() => setTasksProject(p)}
+                      <Link
+                        href={`/project-tasks/${p.id}`}
                         className="mt-1.5 text-left text-xs font-semibold text-[#9a7748] hover:text-[#1c1610]"
                       >
                         + Add task
-                      </button>
+                      </Link>
                     </TableCell>
 
                     <TableCell className="px-4 py-3.5 max-w-[220px]">
@@ -1391,13 +1389,12 @@ export default function ProjectsTable() {
                         >
                           Issue
                         </Link>
-                        <button
-                          type="button"
-                          onClick={() => setTasksProject(p)}
+                        <Link
+                          href={`/project-tasks/${p.id}`}
                           className="inline-flex w-fit items-center rounded-lg border border-[#eadfcf] bg-[#fbf8f3] px-2.5 py-1 text-left text-xs font-semibold text-[#9a7748] hover:border-[#c4a574] hover:bg-[#f6efe4]"
                         >
                           Tasks{p.taskCount ? ` · ${p.taskCount}` : ""}
-                        </button>
+                        </Link>
                         {canDeleteProject ? (
                           <button
                             type="button"
@@ -1881,31 +1878,6 @@ export default function ProjectsTable() {
         </div>
       ) : null}
 
-      {tasksProject ? (
-        <ProjectTasksPanel
-          project={tasksProject}
-          onClose={() => setTasksProject(null)}
-          onCountChange={(count) =>
-            setProjects((current) =>
-              current.map((p) =>
-                p.id === tasksProject.id ? { ...p, taskCount: count } : p
-              )
-            )
-          }
-          onTasksChange={(timelineTasks) =>
-            setProjects((current) =>
-              current.map((p) =>
-                p.id === tasksProject.id ? { ...p, timelineTasks } : p
-              )
-            )
-          }
-          onProjectChange={(dto) =>
-            setProjects((current) =>
-              current.map((p) => (p.id === String(dto.id || "") ? mapProject(dto) : p))
-            )
-          }
-        />
-      ) : null}
     </div>
   );
 }

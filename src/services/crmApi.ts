@@ -276,9 +276,24 @@ export type LeadWorkspaceDto = {
   };
 };
 
+export type LeadAssigneeUserDto = {
+  id: string;
+  name: string;
+  role?: string;
+  roleLabel?: string | null;
+  accessRoleKey?: string | null;
+};
+
+export type LeadAssigneesDto = {
+  all: LeadAssigneeUserDto[];
+  sales: LeadAssigneeUserDto[];
+  designTeam: LeadAssigneeUserDto[];
+};
+
 export const leadsApi = {
   list: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<LeadDto>>("/leads", query),
+  listAssignees: () => api.get<LeadAssigneesDto>("/leads/assignees"),
   get: (id: string) => api.get<LeadDto>(`/leads/${id}`),
   getWorkspace: (id: string) =>
     api.get<LeadWorkspaceDto>(`/leads/${id}/workspace`),
@@ -420,6 +435,8 @@ export type MetaLeadAdsStatusDto = {
   enabled: boolean;
   configured: boolean;
   hasAccessToken: boolean;
+  hasDedicatedAccessToken?: boolean;
+  usingWhatsAppTokenFallback?: boolean;
   hasVerifyToken: boolean;
   hasAppSecret: boolean;
   pageId?: string | null;
@@ -2760,6 +2777,21 @@ export type VendorChatAttachmentDto = {
   fileUrl: string;
 };
 
+export type VendorChatRelatedLead = {
+  id: string;
+  clientName: string;
+  phone?: string | null;
+  clientAddress?: string | null;
+};
+
+export type VendorChatRelatedCustomer = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+};
+
 export type VendorChatMessageDto = {
   id: string;
   threadUserId: string;
@@ -2767,6 +2799,14 @@ export type VendorChatMessageDto = {
   body: string;
   createdAt: string;
   editedAt?: string | null;
+  leadId?: string | null;
+  customerId?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
+  locationAddress?: string | null;
+  lead?: VendorChatRelatedLead | null;
+  customer?: VendorChatRelatedCustomer | null;
   sender?: { id: string; name: string; roleLabel?: string | null } | null;
   attachments?: VendorChatAttachmentDto[];
   mentions?: Array<{
@@ -2780,6 +2820,9 @@ export type VendorChatMessageDto = {
     senderId?: string;
     sender?: { id: string; name: string } | null;
     attachments?: Array<{ id: string; fileName: string }>;
+    locationLat?: number | null;
+    locationLng?: number | null;
+    locationName?: string | null;
   } | null;
 };
 
@@ -2796,6 +2839,7 @@ export type VendorChatThreadDto = {
   name: string;
   roleLabel?: string | null;
   vendorName?: string | null;
+  vendorType?: string | null;
   team?: VendorChatTeam | string | null;
   lastMessage?: string | null;
   lastSenderId?: string | null;
@@ -2809,6 +2853,12 @@ export type VendorChatSendBody = {
   mentionIds?: string[];
   files?: File[];
   replyToId?: string | null;
+  leadId?: string | null;
+  customerId?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
+  locationAddress?: string | null;
 };
 
 export const vendorChatApi = {
@@ -2827,12 +2877,21 @@ export const vendorChatApi = {
     ),
   send: async (body: VendorChatSendBody) => {
     const files = body.files || [];
+    const context = {
+      leadId: body.leadId || null,
+      customerId: body.customerId || null,
+      locationLat: body.locationLat ?? null,
+      locationLng: body.locationLng ?? null,
+      locationName: body.locationName || null,
+      locationAddress: body.locationAddress || null,
+    };
     if (!files.length) {
       return api.post<VendorChatMessageDto>("/vendor-chat", {
         body: body.body,
         threadUserId: body.threadUserId,
         mentionIds: body.mentionIds || [],
         replyToId: body.replyToId || null,
+        ...context,
       });
     }
     const { tokenStorage } = await import("@/lib/auth");
@@ -2845,6 +2904,12 @@ export const vendorChatApi = {
     if (body.threadUserId) form.append("threadUserId", body.threadUserId);
     form.append("mentionIds", JSON.stringify(body.mentionIds || []));
     if (body.replyToId) form.append("replyToId", body.replyToId);
+    if (context.leadId) form.append("leadId", context.leadId);
+    if (context.customerId) form.append("customerId", context.customerId);
+    if (context.locationLat != null) form.append("locationLat", String(context.locationLat));
+    if (context.locationLng != null) form.append("locationLng", String(context.locationLng));
+    if (context.locationName) form.append("locationName", context.locationName);
+    if (context.locationAddress) form.append("locationAddress", context.locationAddress);
     files.forEach((file) => form.append("file", file));
     const res = await fetch(`${base}/vendor-chat`, {
       method: "POST",
@@ -3335,6 +3400,7 @@ export type TrackerTaskDto = {
   project?: { id: string; name: string; clientName?: string | null } | null;
   assignees: Array<{ id: string; name: string; avatarUrl?: string | null; email?: string | null }>;
   createdBy?: { id: string; name: string; avatarUrl?: string | null } | null;
+  assignedBy?: { id: string; name: string; avatarUrl?: string | null } | null;
   attachments?: Array<{ name: string; url: string; size?: number }>;
   createdAt: string;
   updatedAt: string;
@@ -3384,6 +3450,11 @@ export const taskTrackerApi = {
   get: (id: string) => api.get<TrackerTaskDto>(`/task-tracker/${id}`),
   mine: () =>
     api.get<{ count: number; items: TrackerTaskDto[] }>("/task-tracker/mine"),
+  boards: () =>
+    api.get<{
+      mine: { count: number; items: TrackerTaskDto[] };
+      assigned: { count: number; items: TrackerTaskDto[] };
+    }>("/task-tracker/boards"),
   create: (body: Record<string, unknown>) =>
     api.post<TrackerTaskDto>("/task-tracker", body),
   update: (id: string, body: Record<string, unknown>) =>

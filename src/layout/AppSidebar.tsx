@@ -247,12 +247,20 @@ const AppSidebar: React.FC = () => {
               ref={(el) => {
                 subMenuRefs.current[`${menuType}-${index + indexOffset}`] = el;
               }}
-              className="overflow-hidden transition-all duration-300"
+              className={`overflow-hidden transition-all duration-300 ${
+                openSubmenu?.type === menuType &&
+                openSubmenu?.index === index + indexOffset
+                  ? "pointer-events-auto opacity-100"
+                  : "pointer-events-none opacity-0"
+              }`}
               style={{
-                height:
+                maxHeight:
                   openSubmenu?.type === menuType &&
                   openSubmenu?.index === index + indexOffset
-                    ? `${subMenuHeight[`${menuType}-${index + indexOffset}`]}px`
+                    ? `${Math.max(
+                        subMenuHeight[`${menuType}-${index + indexOffset}`] || 0,
+                        (nav.subItems?.length || 1) * 44
+                      )}px`
                     : "0px",
               }}
             >
@@ -319,16 +327,20 @@ const AppSidebar: React.FC = () => {
   }, [pathname, isActive, navItems, othersItems, operationsItems]);
 
   useEffect(() => {
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
+    if (openSubmenu === null) return;
+    const key = `${openSubmenu.type}-${openSubmenu.index}`;
+    const measure = () => {
+      const el = subMenuRefs.current[key];
+      if (!el) return;
+      setSubMenuHeight((prevHeights) => ({
+        ...prevHeights,
+        [key]: Math.max(el.scrollHeight, el.querySelector("ul")?.scrollHeight || 0),
+      }));
+    };
+    measure();
+    const raf = window.requestAnimationFrame(measure);
+    return () => window.cancelAnimationFrame(raf);
+  }, [openSubmenu, navItems, othersItems, operationsItems]);
 
   const handleSubmenuToggle = (
     index: number,

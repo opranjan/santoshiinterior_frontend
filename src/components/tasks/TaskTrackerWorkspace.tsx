@@ -705,6 +705,14 @@ export default function TaskTrackerWorkspace() {
                         </div>
                       </div>
                     ) : null}
+                    <div className="mt-2 space-y-0.5 text-[10px] text-[#8a7b68]">
+                      {task.createdBy?.name ? (
+                        <p className="truncate">Created by {task.createdBy.name}</p>
+                      ) : null}
+                      {task.assignedBy?.name ? (
+                        <p className="truncate">Assigned by {task.assignedBy.name}</p>
+                      ) : null}
+                    </div>
                     <div className="mt-2.5 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-[10px] text-[#8a7b68]">
                         {task.dueDate ? (
@@ -780,6 +788,8 @@ export default function TaskTrackerWorkspace() {
                 <th className="px-4 py-3 font-medium">Priority</th>
                 <th className="px-4 py-3 font-medium">Due</th>
                 <th className="px-4 py-3 font-medium">Assignees</th>
+                <th className="px-4 py-3 font-medium">Created by</th>
+                <th className="px-4 py-3 font-medium">Assigned by</th>
               </tr>
             </thead>
             <tbody>
@@ -797,6 +807,8 @@ export default function TaskTrackerWorkspace() {
                   <td className="px-4 py-3 text-xs">
                     {task.assignees.map((a) => a.name).join(", ") || "—"}
                   </td>
+                  <td className="px-4 py-3 text-xs">{task.createdBy?.name || "—"}</td>
+                  <td className="px-4 py-3 text-xs">{task.assignedBy?.name || "—"}</td>
                 </tr>
               ))}
             </tbody>

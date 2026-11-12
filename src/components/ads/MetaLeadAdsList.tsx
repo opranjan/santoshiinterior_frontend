@@ -7,6 +7,7 @@ import { TableSkeleton } from "@/components/ui/loader/CrmLoader";
 import {
   metaLeadAdsApi,
   type MetaLeadAdsLeadDto,
+  type MetaLeadAdsSyncResultDto,
 } from "@/services/crmApi";
 
 function formatWhen(value?: string | null) {
@@ -32,6 +33,9 @@ export default function MetaLeadAdsList() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  const [syncResult, setSyncResult] = useState<MetaLeadAdsSyncResultDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,30 +60,56 @@ export default function MetaLeadAdsList() {
     void load();
   }, [load]);
 
+  const syncFromMeta = async () => {
+    try {
+      setSyncing(true);
+      setSyncError("");
+      setSyncResult(null);
+      const result = await metaLeadAdsApi.syncAll({ limit: 2000 });
+      setSyncResult(result);
+      setPage(1);
+      await load();
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : "Meta sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <MetaAdsShell
       title="Lead Ads"
       subtitle="Instant form submissions from Meta ads, synced into Sales leads."
     >
-      <form
-        className="flex flex-wrap gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setPage(1);
-          setQuery(search.trim());
-        }}
-      >
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, phone, campaign, leadgen id…"
-          className="h-11 min-w-[220px] flex-1 rounded-xl border border-[#eadfcf] bg-white px-3.5 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
-        />
-        <button
-          type="submit"
-          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5]"
+      <div className="flex flex-wrap items-center gap-2">
+        <form
+          className="flex min-w-[220px] flex-1 flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(1);
+            setQuery(search.trim());
+          }}
         >
-          Search
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, phone, campaign, leadgen id…"
+            className="h-11 min-w-[220px] flex-1 rounded-xl border border-[#eadfcf] bg-white px-3.5 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+          />
+          <button
+            type="submit"
+            className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+          >
+            Search
+          </button>
+        </form>
+        <button
+          type="button"
+          disabled={syncing}
+          onClick={() => void syncFromMeta()}
+          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5] disabled:opacity-60"
+        >
+          {syncing ? "Fetching…" : "Fetch from Meta"}
         </button>
         <Link
           href="/ads/meta/campaigns"
@@ -87,7 +117,16 @@ export default function MetaLeadAdsList() {
         >
           Campaigns
         </Link>
-      </form>
+      </div>
+
+      {syncError ? <p className="text-sm text-error-600">{syncError}</p> : null}
+      {syncResult ? (
+        <p className="text-sm text-[#6b645b]">
+          Synced {syncResult.scanned} · created {syncResult.created} · merged {syncResult.merged} ·
+          duplicates {syncResult.duplicates}
+          {syncResult.errors ? ` · errors ${syncResult.errors}` : ""}
+        </p>
+      ) : null}
 
       {loading ? <TableSkeleton rows={8} /> : null}
       {error ? <p className="text-sm text-error-600">{error}</p> : null}
