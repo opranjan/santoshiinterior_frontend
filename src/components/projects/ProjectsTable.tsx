@@ -1378,6 +1378,12 @@ export default function ProjectsTable() {
                           Design
                         </Link>
                         <Link
+                          href={`/design/elevation?projectId=${p.id}`}
+                          className="text-sm font-semibold text-[#9a7748] hover:text-[#1c1610]"
+                        >
+                          View Elevation
+                        </Link>
+                        <Link
                           href={`/sales/quotations/new?from=project&id=${p.id}`}
                           className="text-sm text-[#8a7b68] hover:text-[#1c1610]"
                         >

@@ -1,7 +1,16 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { printElevationSheet } from "@/lib/elevationPrint";
+import {
+  ELEVATION_DRAFT_FILE,
+  prepareElevationDraft,
+  readElevationDraftLocal,
+  writeElevationDraftLocal,
+  type ElevationDraft,
+} from "@/lib/elevationDraft";
+import { designAssetUrl } from "@/lib/designAssets";
 import { toastError, toastSuccess } from "@/components/ui/toast/ToastHost";
 import {
   elevationSeriesApi,
@@ -417,15 +426,22 @@ function SignatureDialog({
   );
 }
 
-function SignaturePad({ label }: { label: string }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
+function SignaturePad({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="sign-box">
-      {dataUrl ? (
+      {value ? (
         <img
-          src={dataUrl}
+          src={value}
           alt={label}
           className="h-20 w-full border-b border-[#1c1610] object-contain bg-transparent"
         />
@@ -441,12 +457,12 @@ function SignaturePad({ label }: { label: string }) {
           onClick={() => setOpen(true)}
           className="rounded-lg bg-[#1c1610] px-3 py-1.5 text-xs font-semibold text-white"
         >
-          {dataUrl ? "Re-sign" : "Tap to sign"}
+          {value ? "Re-sign" : "Tap to sign"}
         </button>
-        {dataUrl ? (
+        {value ? (
           <button
             type="button"
-            onClick={() => setDataUrl(null)}
+            onClick={() => onChange(null)}
             className="rounded-lg px-3 py-1.5 text-xs font-medium text-[#8a7b68] hover:bg-[#f4efe6] hover:text-[#1c1610]"
           >
             Clear
@@ -456,15 +472,17 @@ function SignaturePad({ label }: { label: string }) {
       <SignatureDialog
         open={open}
         label={label}
-        initialDataUrl={dataUrl}
+        initialDataUrl={value}
         onClose={() => setOpen(false)}
-        onSave={setDataUrl}
+        onSave={onChange}
       />
     </div>
   );
 }
 
 export default function ElevationSignoff() {
+  const searchParams = useSearchParams();
+  const queryProjectId = String(searchParams.get("projectId") || "").trim();
   const [docTitle, setDocTitle] = useState("PROJECT SIGNOFF");
   const [clientName, setClientName] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
@@ -483,13 +501,69 @@ export default function ElevationSignoff() {
   const [rows, setRows] = useState<MaterialRow[]>([]);
   const [terms, setTerms] = useState(TERMS);
   const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [designerSignature, setDesignerSignature] = useState<string | null>(null);
+  const [clientSignature, setClientSignature] = useState<string | null>(null);
   const [cameraRowId, setCameraRowId] = useState<string | null>(null);
   const [seriesPickerOpen, setSeriesPickerOpen] = useState(false);
   const [seriesOptions, setSeriesOptions] = useState<ElevationSeriesDto[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(queryProjectId);
   const [projectsLoading, setProjectsLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const draftLoadedFor = useRef<string>("");
+
+  const applyDraft = useCallback((draft: ElevationDraft) => {
+    setDocTitle(draft.docTitle || "PROJECT SIGNOFF");
+    setClientName(draft.clientName || "");
+    setSiteAddress(draft.siteAddress || "");
+    setDate(draft.date || "");
+    setWorkingKicker(draft.workingKicker || "WORKING SHEET");
+    setSheetTitle(draft.sheetTitle || "1.MODULAR KITCHEN");
+    setDrawingsTitle(draft.drawingsTitle || "");
+    setMaterialTitle(draft.materialTitle || "MATERIAL SHEET");
+    setTermsTitle(draft.termsTitle || "TERMS AND CONDITION");
+    setRows(Array.isArray(draft.rows) ? draft.rows : []);
+    setTerms(Array.isArray(draft.terms) && draft.terms.length ? draft.terms : TERMS);
+    setPhotos(Array.isArray(draft.photos) ? draft.photos : []);
+    setDesignerSignature(draft.designerSignature || null);
+    setClientSignature(draft.clientSignature || null);
+  }, []);
+
+  const loadDraftForProject = useCallback(
+    async (id: string) => {
+      if (!id || draftLoadedFor.current === id) return;
+      draftLoadedFor.current = id;
+      const local = readElevationDraftLocal(id);
+      if (local) {
+        applyDraft(local);
+        return;
+      }
+      try {
+        const files = await projectsApi.listProjectFiles(id);
+        const match = (files || []).find((file) => {
+          const name = String(file.fileName || file.name || "");
+          const kind = String(file.kind || "");
+          return (
+            name === ELEVATION_DRAFT_FILE ||
+            (kind === "elevation" && name.toLowerCase().endsWith(".json"))
+          );
+        });
+        const url = designAssetUrl(String(match?.url || match?.fileUrl || ""));
+        if (!url) return;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const parsed = (await res.json()) as ElevationDraft;
+        if (parsed?.version === 1) {
+          writeElevationDraftLocal(parsed);
+          applyDraft(parsed);
+        }
+      } catch {
+        /* no saved elevation yet */
+      }
+    },
+    [applyDraft]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -498,8 +572,8 @@ export default function ElevationSignoff() {
         setProjectsLoading(true);
         const data = await projectsApi.list({ limit: 200 });
         if (cancelled) return;
-        setProjects(
-          (data.items || []).map((row) => {
+        const mapped = (data.items || [])
+          .map((row) => {
             const p = row as Record<string, unknown>;
             return {
               id: String(p.id || ""),
@@ -507,8 +581,20 @@ export default function ElevationSignoff() {
               clientName: String(p.clientName || "").trim(),
               address: String(p.address || "").trim(),
             };
-          }).filter((p) => p.id)
-        );
+          })
+          .filter((p) => p.id);
+        setProjects(mapped);
+        const preferred = queryProjectId || projectId;
+        if (preferred && mapped.some((p) => p.id === preferred)) {
+          setProjectId(preferred);
+          const project = mapped.find((p) => p.id === preferred);
+          if (project) {
+            if (project.clientName) setClientName((prev) => prev || project.clientName);
+            if (project.address) setSiteAddress((prev) => prev || project.address);
+            if (project.name) setDrawingsTitle((prev) => prev || project.name);
+          }
+          await loadDraftForProject(preferred);
+        }
       } catch (err) {
         if (!cancelled) {
           toastError(err instanceof Error ? err.message : "Failed to load projects");
@@ -520,16 +606,58 @@ export default function ElevationSignoff() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount / query project
+  }, [queryProjectId]);
 
   const applyProject = (id: string) => {
     setProjectId(id);
+    draftLoadedFor.current = "";
     if (!id) return;
     const project = projects.find((p) => p.id === id);
-    if (!project) return;
-    if (project.clientName) setClientName(project.clientName);
-    if (project.address) setSiteAddress(project.address);
-    if (!drawingsTitle.trim() && project.name) setDrawingsTitle(project.name);
+    if (project) {
+      if (project.clientName) setClientName(project.clientName);
+      if (project.address) setSiteAddress(project.address);
+      if (!drawingsTitle.trim() && project.name) setDrawingsTitle(project.name);
+    }
+    void loadDraftForProject(id);
+  };
+
+  const handleSave = async () => {
+    if (!projectId) {
+      toastError("Select a project before saving.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const draft = await prepareElevationDraft({
+        projectId,
+        docTitle,
+        clientName,
+        siteAddress,
+        date,
+        workingKicker,
+        sheetTitle,
+        drawingsTitle,
+        materialTitle,
+        termsTitle,
+        rows,
+        terms,
+        photos,
+        designerSignature,
+        clientSignature,
+      });
+      writeElevationDraftLocal(draft);
+      const blob = new Blob([JSON.stringify(draft)], { type: "application/json" });
+      const file = new File([blob], ELEVATION_DRAFT_FILE, {
+        type: "application/json",
+      });
+      await projectsApi.uploadFile(projectId, file, "elevation");
+      toastSuccess("Elevation saved for this project.");
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to save elevation");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateRow = (id: string, patch: Partial<MaterialRow>) => {
@@ -647,6 +775,14 @@ export default function ElevationSignoff() {
           >
             Original PDF
           </a>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="inline-flex h-9 items-center rounded-xl border border-[#1c1610] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] disabled:opacity-50 dark:border-white/20 dark:bg-transparent dark:text-white"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
           <button
             type="button"
             onClick={() => void printElevationSheet("signedpdf2")}
@@ -945,8 +1081,16 @@ export default function ElevationSignoff() {
             + Add clause
           </button>
           <div className="sign-row mt-6 grid gap-8 sm:grid-cols-2">
-            <SignaturePad label="Sales authorized signature" />
-            <SignaturePad label="Customer signature" />
+            <SignaturePad
+              label="Sales authorized signature"
+              value={designerSignature}
+              onChange={setDesignerSignature}
+            />
+            <SignaturePad
+              label="Customer signature"
+              value={clientSignature}
+              onChange={setClientSignature}
+            />
           </div>
         </section>
       </div>

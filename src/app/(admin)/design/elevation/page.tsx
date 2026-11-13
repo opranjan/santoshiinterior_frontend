@@ -1,6 +1,6 @@
 import ElevationSignoff from "@/components/design/ElevationSignoff";
 import { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Elevation",
@@ -8,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function ElevationPage() {
-  return <ElevationSignoff />;
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-[#8a7b68]">Loading elevation…</div>}>
+      <ElevationSignoff />
+    </Suspense>
+  );
 }

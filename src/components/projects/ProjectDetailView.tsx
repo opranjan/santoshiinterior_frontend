@@ -191,9 +191,19 @@ export default function ProjectDetailView({ projectId }: { projectId: string }) 
             </p>
             <h1 className="vendor-serif mt-1 text-2xl text-[#111] sm:text-3xl">{row.name}</h1>
           </div>
-          <span className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] ${statusTone(row.status)}`}>
-            {enumToLabel(row.status || "KICKOFF")}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {!vendorPanel ? (
+              <Link
+                href={`/design/elevation?projectId=${projectId}`}
+                className="inline-flex h-9 items-center rounded-xl border border-[#eadfcf] bg-[#fbf8f3] px-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#9a7748] hover:border-[#c4a574]"
+              >
+                View Elevation
+              </Link>
+            ) : null}
+            <span className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] ${statusTone(row.status)}`}>
+              {enumToLabel(row.status || "KICKOFF")}
+            </span>
+          </div>
         </div>
         <p className="mt-2 text-sm text-[#6b645b]">{row.address || "Location not listed"}</p>
       </div>
