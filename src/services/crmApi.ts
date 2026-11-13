@@ -1142,6 +1142,16 @@ export const projectsApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api.put(`/projects/${id}`, body),
   remove: (id: string) => api.delete(`/projects/${id}`),
+  listTaskAssignees: () =>
+    api.get<{
+      users: Array<{
+        id: string;
+        name: string;
+        vendorId?: string | null;
+        vendorName?: string | null;
+      }>;
+      vendors: Array<{ id: string; name: string }>;
+    }>("/projects/task-assignees"),
   listTasks: (id: string) =>
     api.get<ProjectTaskDto[]>(`/projects/${id}/tasks`),
   createTask: (id: string, body: Record<string, unknown>) =>

@@ -239,7 +239,7 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permissions: string[] }>
       "vendors.manage",
     ],
   },
-  { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
+  { prefix: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "users.manage"] },
   {
     prefix: "/inventory",
     permissions: [
@@ -517,9 +517,9 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
   },
   {
     name: "Stores",
-    permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"],
+    permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "users.manage"],
     subItems: [
-      { name: "All Stores", path: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "reports.store", "users.manage"] },
+      { name: "All Stores", path: "/stores", permissions: ["stores.manage", "stores.view", "sales.full", "reports.full", "users.manage"] },
       { name: "Add Store", path: "/stores/new", permissions: ["stores.manage"] },
     ],
   },

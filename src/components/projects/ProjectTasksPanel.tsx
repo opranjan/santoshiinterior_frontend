@@ -164,27 +164,35 @@ export default function ProjectTasksPanel({ projectId }: Props) {
         });
         setTasks(Array.isArray(taskList) ? taskList : []);
         try {
-          const [userPage, vendorPage] = await Promise.all([
-            usersApi.list({ limit: 100, isActive: "true" }),
-            vendorsApi.list({ limit: 100 }).catch(() => ({ items: [] })),
-          ]);
+          const assignees = await projectsApi.listTaskAssignees();
           if (!cancelled) {
-            setUsers(
-              (userPage.items || []).map((u) => ({
-                id: u.id,
-                name: u.name,
-                vendorId: u.vendorId || u.vendor?.id || null,
-                vendorName: u.vendor?.name || null,
-              }))
-            );
-            setVendors(
-              (vendorPage.items || [])
-                .filter((v) => !/archiv|inactive|disabled/i.test(String(v.status || "")))
-                .map((v) => ({ id: v.id, name: v.name }))
-            );
+            setUsers(assignees.users || []);
+            setVendors(assignees.vendors || []);
           }
         } catch {
-          /* optional */
+          try {
+            const [userPage, vendorPage] = await Promise.all([
+              usersApi.list({ limit: 100, isActive: "true" }),
+              vendorsApi.list({ limit: 100 }).catch(() => ({ items: [] })),
+            ]);
+            if (!cancelled) {
+              setUsers(
+                (userPage.items || []).map((u) => ({
+                  id: u.id,
+                  name: u.name,
+                  vendorId: u.vendorId || u.vendor?.id || null,
+                  vendorName: u.vendor?.name || null,
+                }))
+              );
+              setVendors(
+                (vendorPage.items || [])
+                  .filter((v) => !/archiv|inactive|disabled/i.test(String(v.status || "")))
+                  .map((v) => ({ id: v.id, name: v.name }))
+              );
+            }
+          } catch {
+            /* optional */
+          }
         }
       } catch (err) {
         if (!cancelled) {
