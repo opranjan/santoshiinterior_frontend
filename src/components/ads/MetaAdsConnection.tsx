@@ -124,8 +124,9 @@ export default function MetaAdsConnection() {
           <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">Backend `.env`</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-[#8a7b68]">
             <li>
-              <code>META_LEAD_ADS_ACCESS_TOKEN</code> — Page token with{" "}
-              <code>leads_retrieval</code>
+              <code>META_LEAD_ADS_ACCESS_TOKEN</code> — System user / Page token with{" "}
+              <code>leads_retrieval</code>, and for Campaigns/Insights also{" "}
+              <code>ads_read</code> + <code>ads_management</code>
             </li>
             <li>
               <code>META_LEAD_ADS_VERIFY_TOKEN</code> — webhook verify string
@@ -144,6 +145,32 @@ export default function MetaAdsConnection() {
               <code>PUBLIC_API_URL</code> — public HTTPS API base
             </li>
           </ul>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="font-medium">If Campaigns show “Ad account owner has NOT grant ads_management…”</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-[13px] leading-5 opacity-90">
+            <li>
+              Open Meta Business Suite → <strong>Business settings</strong> →{" "}
+              <strong>Users</strong> → <strong>System users</strong>
+            </li>
+            <li>
+              Open the system user that owns <code>META_LEAD_ADS_ACCESS_TOKEN</code>
+            </li>
+            <li>
+              <strong>Assign assets</strong> → Ad accounts → select{" "}
+              <code>act_{status?.adAccountId || "YOUR_AD_ACCOUNT"}</code>
+            </li>
+            <li>
+              Enable <strong>Manage campaigns</strong> (ads_management) and{" "}
+              <strong>View performance</strong> (ads_read), then save
+            </li>
+            <li>
+              Generate a new token with <code>ads_read</code>, <code>ads_management</code>,{" "}
+              <code>leads_retrieval</code>, update <code>META_LEAD_ADS_ACCESS_TOKEN</code>, restart
+              the API
+            </li>
+          </ol>
         </div>
 
         <p className="mt-4 text-xs text-[#8a7b68]">

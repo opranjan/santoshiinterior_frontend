@@ -455,6 +455,10 @@ export type MetaAdsCampaignDto = {
   campaignName: string;
   campaignUrl?: string | null;
   leadCount: number;
+  /** CRM leads linked to this campaign id/name */
+  crmLeadCount?: number;
+  /** Meta Ads Manager insights lead actions */
+  metaLeadCount?: number;
   byStatus: Array<{ status: string; count: number }>;
   lastLeadAt?: string | null;
   source: "crm" | "meta" | "both";
@@ -465,6 +469,9 @@ export type MetaAdsCampaignDto = {
   startTime?: string | null;
   stopTime?: string | null;
   updatedTime?: string | null;
+  destinationType?: string | null;
+  callToAction?: string | null;
+  whatsappPhone?: string | null;
 };
 
 export type MetaLeadAdsLeadDto = {
@@ -563,9 +570,35 @@ export const metaLeadAdsApi = {
     status?: "PAUSED" | "ACTIVE";
     specialAdCategories?: string[];
   }) => api.post<MetaAdsCampaignDto>("/meta-leads/campaigns", body),
+  publishFullLeadAd: (body: MetaAdsPublishPayload) =>
+    api.post<MetaAdsPublishResultDto>("/meta-leads/campaigns/publish", body),
+  listAdSets: (query?: { search?: string }) =>
+    api.get<{
+      items: MetaAdsAdSetDto[];
+      total: number;
+      adAccountId?: string | null;
+      metaError?: string | null;
+      fromMeta?: boolean;
+    }>("/meta-leads/adsets", query),
+  listAds: (query?: { search?: string }) =>
+    api.get<{
+      items: MetaAdsAdDto[];
+      total: number;
+      adAccountId?: string | null;
+      metaError?: string | null;
+      fromMeta?: boolean;
+    }>("/meta-leads/ads", query),
+  listLeadForms: () =>
+    api.get<{ items: MetaLeadFormDto[]; pageId: string }>("/meta-leads/lead-forms"),
+  uploadAdImage: (body: {
+    imageUrl?: string;
+    imageBase64?: string;
+    imageHash?: string;
+    imageName?: string;
+  }) => api.post<{ hash: string; adAccountId: string }>("/meta-leads/ad-images", body),
   getCampaign: (
     campaignKey: string,
-    query?: { page?: number; limit?: number; search?: string }
+    query?: { page?: number; limit?: number; search?: string; sync?: string }
   ) =>
     api.get<{
       campaign: MetaAdsCampaignDto;
@@ -576,11 +609,110 @@ export const metaLeadAdsApi = {
         limit: number;
         totalPages: number;
       };
+      emptyReason?: string | null;
+      isWhatsAppCampaign?: boolean;
+      sync?: {
+        scanned: number;
+        created: number;
+        merged: number;
+        duplicates: number;
+        skipped: number;
+        errors: number;
+      } | null;
     }>(`/meta-leads/campaigns/${encodeURIComponent(campaignKey)}`, query),
   getInsights: (query?: { datePreset?: string }) =>
     api.get<MetaAdsInsightsDto>("/meta-leads/insights", query),
   syncAll: (body?: { limit?: number; formId?: string }) =>
     api.post<MetaLeadAdsSyncResultDto>("/meta-leads/sync", body || {}),
+};
+
+export type MetaAdsAdSetDto = {
+  id: string;
+  name: string;
+  status?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  dailyBudget?: string | null;
+  lifetimeBudget?: string | null;
+  optimizationGoal?: string | null;
+  billingEvent?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  updatedTime?: string | null;
+  countries?: string[];
+};
+
+export type MetaAdsAdDto = {
+  id: string;
+  name: string;
+  status?: string | null;
+  adsetId?: string | null;
+  adsetName?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  updatedTime?: string | null;
+  creativeId?: string | null;
+  creativeName?: string | null;
+  thumbnailUrl?: string | null;
+  title?: string | null;
+  body?: string | null;
+};
+
+export type MetaLeadFormDto = {
+  id: string;
+  name: string;
+  status?: string | null;
+  leadsCount?: number;
+  createdTime?: string | null;
+  locale?: string | null;
+};
+
+export type MetaAdsPublishPayload = {
+  name: string;
+  objective?: string;
+  status?: "PAUSED" | "ACTIVE";
+  specialAdCategories?: string[];
+  dailyBudget: number;
+  ageMin?: number;
+  ageMax?: number;
+  countries?: string[];
+  gender?: "all" | "male" | "female";
+  genders?: number[];
+  primaryText?: string;
+  headline?: string;
+  description?: string;
+  ctaType?: string;
+  link?: string;
+  imageUrl?: string;
+  imageBase64?: string;
+  imageHash?: string;
+  imageName?: string;
+  leadFormId?: string;
+  formName?: string;
+  privacyUrl?: string;
+  privacyLinkText?: string;
+  adsetName?: string;
+  adName?: string;
+  creativeName?: string;
+  startTime?: string;
+  endTime?: string;
+};
+
+export type MetaAdsPublishResultDto = {
+  key: string;
+  campaignId: string;
+  campaignName: string;
+  adsetId: string;
+  formId: string;
+  creativeId: string;
+  adId: string;
+  imageHash?: string | null;
+  metaStatus: string;
+  objective: string;
+  source: string;
+  adAccountId: string;
+  pageId: string;
+  dailyBudget: number;
 };
 
 export type MetaAdsInsightMetricsDto = {

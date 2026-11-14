@@ -583,17 +583,27 @@ export const NAV_ITEMS: NavPermissionGroup[] = [
             permissions: ["ads.manage"],
           },
           {
-            name: "Lead Ads",
-            path: "/ads/meta/leads",
-            permissions: ["ads.manage"],
-          },
-          {
             name: "Campaigns",
             path: "/ads/meta/campaigns",
             permissions: ["ads.manage"],
           },
           {
-            name: "Insights",
+            name: "Ad Sets",
+            path: "/ads/meta/adsets",
+            permissions: ["ads.manage"],
+          },
+          {
+            name: "Ads & Creatives",
+            path: "/ads/meta/ads",
+            permissions: ["ads.manage"],
+          },
+          {
+            name: "Leads",
+            path: "/ads/meta/leads",
+            permissions: ["ads.manage"],
+          },
+          {
+            name: "Analytics",
             path: "/ads/meta/insights",
             permissions: ["ads.manage"],
           },

@@ -43,12 +43,12 @@ function Stat({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] px-4 py-4 dark:border-[#3a342c] dark:bg-[#161411]">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a7b68]">
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </p>
-      <p className="mt-2 font-serif text-2xl text-[#1c1610] dark:text-[#f3ece2]">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-[#8a7b68]">{hint}</p> : null}
+      <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
 }
@@ -81,17 +81,17 @@ export default function MetaInsights() {
 
   return (
     <MetaAdsShell
-      title="Insights"
+      title="Analytics"
       subtitle="CRM Meta lead volume plus Ads Manager spend, clicks, and cost per lead when the ad account token is connected."
     >
       <div className="flex flex-wrap items-center gap-2">
-        <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+        <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           Range
         </label>
         <select
           value={datePreset}
           onChange={(e) => setDatePreset(e.target.value)}
-          className="h-11 rounded-xl border border-[#eadfcf] bg-white px-3 text-sm text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+          className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900   "
         >
           {PRESETS.map((p) => (
             <option key={p.value} value={p.value}>
@@ -102,20 +102,20 @@ export default function MetaInsights() {
         <button
           type="button"
           onClick={() => void load()}
-          className="inline-flex h-11 items-center rounded-xl border border-[#eadfcf] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#1c1610] dark:border-[#3a342c] dark:bg-[#1a1714] dark:text-[#f3ece2]"
+          className="inline-flex h-11 items-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-900   "
         >
           Refresh
         </button>
         <Link
           href="/ads/meta/campaigns"
-          className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8d5b5]"
+          className="inline-flex h-11 items-center rounded-xl bg-orange-600 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-white"
         >
           Campaigns
         </Link>
       </div>
 
       {loading ? <TableSkeleton rows={8} /> : null}
-      {error ? <p className="text-sm text-error-600">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {data && !loading ? (
         <>
@@ -135,21 +135,21 @@ export default function MetaInsights() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#1a1714]">
-              <h2 className="text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5  ">
+              <h2 className="text-sm font-semibold text-slate-900 ">
                 CRM leads by status
               </h2>
               {data.crm.byStatus.length === 0 ? (
-                <p className="mt-3 text-sm text-[#8a7b68]">No Meta-channel leads in this range.</p>
+                <p className="mt-3 text-sm text-slate-500">No Meta-channel leads in this range.</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {data.crm.byStatus.map((row) => (
                     <li
                       key={row.status}
-                      className="flex items-center justify-between rounded-xl border border-[#eadfcf] px-3 py-2 text-sm dark:border-[#3a342c]"
+                      className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm "
                     >
-                      <span className="text-[#6b645b]">{row.status}</span>
-                      <span className="font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                      <span className="text-slate-600">{row.status}</span>
+                      <span className="font-medium text-slate-900 ">
                         {row.count}
                       </span>
                     </li>
@@ -158,21 +158,21 @@ export default function MetaInsights() {
               )}
             </div>
 
-            <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#1a1714]">
-              <h2 className="text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5  ">
+              <h2 className="text-sm font-semibold text-slate-900 ">
                 CRM leads by source
               </h2>
               {data.crm.bySource.length === 0 ? (
-                <p className="mt-3 text-sm text-[#8a7b68]">No source breakdown yet.</p>
+                <p className="mt-3 text-sm text-slate-500">No source breakdown yet.</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {data.crm.bySource.map((row) => (
                     <li
                       key={row.source}
-                      className="flex items-center justify-between rounded-xl border border-[#eadfcf] px-3 py-2 text-sm dark:border-[#3a342c]"
+                      className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm "
                     >
-                      <span className="text-[#6b645b]">{row.source}</span>
-                      <span className="font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                      <span className="text-slate-600">{row.source}</span>
+                      <span className="font-medium text-slate-900 ">
                         {row.count}
                       </span>
                     </li>
@@ -182,18 +182,18 @@ export default function MetaInsights() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#eadfcf] bg-white dark:border-[#3a342c] dark:bg-[#1a1714]">
-            <div className="border-b border-[#eadfcf] px-4 py-3 dark:border-[#3a342c]">
-              <h2 className="text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+          <div className="rounded-2xl border border-slate-200 bg-white  ">
+            <div className="border-b border-slate-200 px-4 py-3 ">
+              <h2 className="text-sm font-semibold text-slate-900 ">
                 Campaign performance
               </h2>
-              <p className="mt-1 text-xs text-[#8a7b68]">
+              <p className="mt-1 text-xs text-slate-500">
                 Meta spend vs CRM leads
                 {data.meta.adAccountId ? ` · act_${data.meta.adAccountId}` : ""}
               </p>
             </div>
             {data.meta.error && !data.meta.campaigns.length ? (
-              <p className="px-4 py-8 text-sm text-[#8a7b68]">
+              <p className="px-4 py-8 text-sm text-slate-500">
                 Meta insights unavailable: {data.meta.error}. CRM campaign lead counts still show below.
               </p>
             ) : null}
@@ -202,7 +202,7 @@ export default function MetaInsights() {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-[#eadfcf] text-[10px] uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c]">
+                    <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500 ">
                       <th className="px-4 py-3 font-semibold">Campaign</th>
                       <th className="px-4 py-3 font-semibold">Spend</th>
                       <th className="px-4 py-3 font-semibold">Clicks</th>
@@ -216,20 +216,20 @@ export default function MetaInsights() {
                     {data.meta.campaigns.map((row) => (
                       <tr
                         key={row.campaignId || row.campaignName || Math.random()}
-                        className="border-b border-[#f0e8da] dark:border-[#2a251f]"
+                        className="border-b border-slate-50"
                       >
                         <td className="px-4 py-3">
-                          <p className="font-medium text-[#1c1610] dark:text-[#f3ece2]">
+                          <p className="font-medium text-slate-900 ">
                             {row.campaignName || "—"}
                           </p>
-                          <p className="text-xs text-[#8a7b68]">{row.campaignId || "—"}</p>
+                          <p className="text-xs text-slate-500">{row.campaignId || "—"}</p>
                         </td>
-                        <td className="px-4 py-3 text-[#6b645b]">{money(row.spend)}</td>
-                        <td className="px-4 py-3 text-[#6b645b]">{num(row.clicks)}</td>
-                        <td className="px-4 py-3 text-[#6b645b]">{pct(row.ctr)}</td>
-                        <td className="px-4 py-3 text-[#6b645b]">{num(row.leads)}</td>
-                        <td className="px-4 py-3 text-[#6b645b]">{num(row.crmLeads)}</td>
-                        <td className="px-4 py-3 text-[#6b645b]">{money(row.costPerLead)}</td>
+                        <td className="px-4 py-3 text-slate-600">{money(row.spend)}</td>
+                        <td className="px-4 py-3 text-slate-600">{num(row.clicks)}</td>
+                        <td className="px-4 py-3 text-slate-600">{pct(row.ctr)}</td>
+                        <td className="px-4 py-3 text-slate-600">{num(row.leads)}</td>
+                        <td className="px-4 py-3 text-slate-600">{num(row.crmLeads)}</td>
+                        <td className="px-4 py-3 text-slate-600">{money(row.costPerLead)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -239,7 +239,7 @@ export default function MetaInsights() {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-[#eadfcf] text-[10px] uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c]">
+                    <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500 ">
                       <th className="px-4 py-3 font-semibold">Campaign</th>
                       <th className="px-4 py-3 font-semibold">CRM leads</th>
                     </tr>
@@ -248,48 +248,48 @@ export default function MetaInsights() {
                     {data.crm.byCampaign.map((row) => (
                       <tr
                         key={row.key}
-                        className="border-b border-[#f0e8da] dark:border-[#2a251f]"
+                        className="border-b border-slate-50"
                       >
                         <td className="px-4 py-3">
                           <Link
                             href={`/ads/meta/campaigns?key=${encodeURIComponent(row.key)}`}
-                            className="font-medium text-[#1c1610] hover:underline dark:text-[#f3ece2]"
+                            className="font-medium text-slate-900 hover:underline "
                           >
                             {row.campaignName}
                           </Link>
-                          <p className="text-xs text-[#8a7b68]">{row.campaignId || "—"}</p>
+                          <p className="text-xs text-slate-500">{row.campaignId || "—"}</p>
                         </td>
-                        <td className="px-4 py-3 text-[#6b645b]">{row.leadCount}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.leadCount}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="px-4 py-8 text-sm text-[#8a7b68]">No campaign insight rows for this range.</p>
+              <p className="px-4 py-8 text-sm text-slate-500">No campaign insight rows for this range.</p>
             )}
           </div>
 
-          <div className="rounded-2xl border border-[#eadfcf] bg-white p-5 dark:border-[#3a342c] dark:bg-[#1a1714]">
-            <h2 className="text-sm font-semibold text-[#1c1610] dark:text-[#f3ece2]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5  ">
+            <h2 className="text-sm font-semibold text-slate-900 ">
               Daily CRM leads
             </h2>
             {data.crm.daily.length === 0 ? (
-              <p className="mt-3 text-sm text-[#8a7b68]">No daily lead activity in range.</p>
+              <p className="mt-3 text-sm text-slate-500">No daily lead activity in range.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-[#eadfcf] text-[10px] uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c]">
+                    <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500 ">
                       <th className="py-2 pr-3 font-semibold">Date</th>
                       <th className="py-2 font-semibold">Leads</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.crm.daily.map((row) => (
-                      <tr key={row.date} className="border-b border-[#f0e8da] dark:border-[#2a251f]">
-                        <td className="py-2 pr-3 text-[#6b645b]">{row.date}</td>
-                        <td className="py-2 text-[#1c1610] dark:text-[#f3ece2]">{row.leads}</td>
+                      <tr key={row.date} className="border-b border-slate-50">
+                        <td className="py-2 pr-3 text-slate-600">{row.date}</td>
+                        <td className="py-2 text-slate-900 ">{row.leads}</td>
                       </tr>
                     ))}
                   </tbody>
