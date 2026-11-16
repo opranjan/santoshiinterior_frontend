@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import ChatLocationMapPicker from "@/components/chat/ChatLocationMapPicker";
 import { designAssetUrl } from "@/lib/designAssets";
-import { customersApi, leadsApi } from "@/services/crmApi";
+import { leadsApi } from "@/services/crmApi";
 
 export type ChatPerson = {
   id: string;
@@ -118,20 +119,6 @@ function mapsUrl(lat: number, lng: number, label?: string | null) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${label} @${lat},${lng}`)}`;
   }
   return `https://www.google.com/maps?q=${lat},${lng}`;
-}
-
-function parseMapsLink(raw: string): { lat: number; lng: number } | null {
-  const text = String(raw || "").trim();
-  if (!text) return null;
-  const at = text.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
-  if (at) return { lat: Number(at[1]), lng: Number(at[2]) };
-  const q = text.match(/[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i);
-  if (q) return { lat: Number(q[1]), lng: Number(q[2]) };
-  const ll = text.match(/[?&](?:ll|center)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/i);
-  if (ll) return { lat: Number(ll[1]), lng: Number(ll[2]) };
-  const bare = text.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
-  if (bare) return { lat: Number(bare[1]), lng: Number(bare[2]) };
-  return null;
 }
 
 export function typingPhrase(names: string[]) {
@@ -551,11 +538,10 @@ export default function VendorChatThread({
   const [location, setLocation] = useState<ChatLocationPayload | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
-  const [pickerTab, setPickerTab] = useState<"lead" | "customer">("lead");
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerItems, setPickerItems] = useState<ChatRelatedPayload[]>([]);
-  const [mapsLink, setMapsLink] = useState("");
+  const [mapPick, setMapPick] = useState<ChatLocationPayload | null>(null);
   const [locating, setLocating] = useState(false);
   const [composeHint, setComposeHint] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -646,7 +632,7 @@ export default function VendorChatThread({
     setPickerOpen(false);
     setLocationOpen(false);
     setAttachOpen(false);
-    setMapsLink("");
+    setMapPick(null);
     setComposeHint("");
   };
 
@@ -657,43 +643,25 @@ export default function VendorChatThread({
       void (async () => {
         setPickerLoading(true);
         try {
-          if (pickerTab === "lead") {
-            const data = await leadsApi.list({
-              page: 1,
-              limit: 20,
-              search: pickerQuery.trim() || undefined,
-            });
-            if (cancelled) return;
-            setPickerItems(
-              (data.items || []).map((row) => ({
-                kind: "lead" as const,
-                id: row.id,
-                name: row.clientName,
-                phone: row.phone,
-                address: row.clientAddress || null,
-              }))
-            );
-          } else {
-            const data = await customersApi.list({
-              page: 1,
-              limit: 20,
-              search: pickerQuery.trim() || undefined,
-            });
-            if (cancelled) return;
-            setPickerItems(
-              (data.items || []).map((row) => ({
-                kind: "customer" as const,
-                id: row.id,
-                name: row.name,
-                phone: row.phone,
-                address: [row.address, row.city].filter(Boolean).join(", ") || null,
-              }))
-            );
-          }
+          const data = await leadsApi.list({
+            page: 1,
+            limit: 20,
+            search: pickerQuery.trim() || undefined,
+          });
+          if (cancelled) return;
+          setPickerItems(
+            (data.items || []).map((row) => ({
+              kind: "lead" as const,
+              id: row.id,
+              name: row.clientName,
+              phone: row.phone,
+              address: row.clientAddress || null,
+            }))
+          );
         } catch (err) {
           if (!cancelled) {
             setPickerItems([]);
-            setComposeHint(err instanceof Error ? err.message : "Could not load contacts");
+            setComposeHint(err instanceof Error ? err.message : "Could not load leads");
           }
         } finally {
           if (!cancelled) setPickerLoading(false);
@@ -704,7 +672,7 @@ export default function VendorChatThread({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [pickerOpen, pickerTab, pickerQuery, editingId]);
+  }, [pickerOpen, pickerQuery, editingId]);
 
   const resolvedMentions = () =>
     mentionIds.filter((id) => {
@@ -738,30 +706,30 @@ export default function VendorChatThread({
           name: related ? `${related.name} site` : "Current location",
           address: related?.address || null,
         });
+        setMapPick(null);
         setLocationOpen(false);
         setLocating(false);
       },
       () => {
-        setComposeHint("Could not get your current location. Allow location access or paste a Maps link.");
+        setComposeHint("Could not get your current location. Allow location access or pick on the map.");
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 12000 }
     );
   };
 
-  const applyMapsLink = () => {
-    const parsed = parseMapsLink(mapsLink);
-    if (!parsed) {
-      setComposeHint("Paste a Google Maps link or lat,lng like 15.49,73.82");
+  const attachMapPick = () => {
+    if (!mapPick) {
+      setComposeHint("Tap the map to choose a location first.");
       return;
     }
     setLocation({
-      lat: parsed.lat,
-      lng: parsed.lng,
-      name: related ? `${related.name} site` : "Shared location",
-      address: related?.address || null,
+      lat: mapPick.lat,
+      lng: mapPick.lng,
+      name: related ? `${related.name} site` : mapPick.name || "Shared location",
+      address: mapPick.address || related?.address || null,
     });
-    setMapsLink("");
+    setMapPick(null);
     setLocationOpen(false);
     setComposeHint("");
   };
@@ -1025,19 +993,8 @@ export default function VendorChatThread({
         {composeHint ? <p className="mb-2 text-[11px] text-rose-600">{composeHint}</p> : null}
         {pickerOpen && !editingId ? (
           <div className="mb-2 overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-sm dark:border-[#3a342c] dark:bg-[#1a1714]">
-            <div className="flex items-center gap-1 border-b border-[#eadfcf] p-2 dark:border-[#3a342c]">
-              {(["lead", "customer"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setPickerTab(tab)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${
-                    pickerTab === tab ? "bg-[#1c1610] text-[#e8d5b5]" : "text-[#6b645b] hover:bg-[#f4efe6]"
-                  }`}
-                >
-                  {tab === "lead" ? "Leads" : "Customers"}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 border-b border-[#eadfcf] p-2 dark:border-[#3a342c]">
+              <p className="px-1 text-xs font-semibold text-[#1c1610] dark:text-[#f3ece2]">Leads</p>
               <button
                 type="button"
                 onClick={() => setPickerOpen(false)}
@@ -1050,7 +1007,7 @@ export default function VendorChatThread({
               <input
                 value={pickerQuery}
                 onChange={(event) => setPickerQuery(event.target.value)}
-                placeholder={`Search ${pickerTab === "lead" ? "leads" : "customers"}…`}
+                placeholder="Search leads…"
                 className="h-9 w-full rounded-lg border-0 bg-[#fbf8f3] px-3 text-sm text-[#1c1610] outline-none ring-1 ring-[#eadfcf] focus:ring-2 focus:ring-[#c4a574]/40"
               />
             </div>
@@ -1119,33 +1076,27 @@ export default function VendorChatThread({
                 {locating ? "Getting location…" : "Send current location"}
               </span>
             </button>
-            <div className="flex gap-2">
-              <div className="relative min-w-0 flex-1">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#c4a574]">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path d="M10 14 21 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    <path d="M14 10 21 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    <path d="m3 12.5 6.2 1.3L10.5 20l3.4-8.6L22 8l-8.6 3.4L3 12.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                  </svg>
-                </span>
-                <input
-                  value={mapsLink}
-                  onChange={(event) => setMapsLink(event.target.value)}
-                  placeholder="Paste Maps link or lat,lng"
-                  className="h-11 w-full rounded-xl border-0 bg-[#fbf8f3] pl-9 pr-3 text-sm text-[#1c1610] outline-none ring-1 ring-[#eadfcf] focus:ring-2 focus:ring-[#c4a574]/40"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={applyMapsLink}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#c4a574] text-[#1c1610]"
-                title="Add map link"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path d="M5 12h14M12 5v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
+            <ChatLocationMapPicker
+              initialLat={location?.lat ?? mapPick?.lat}
+              initialLng={location?.lng ?? mapPick?.lng}
+              onPick={(lat, lng, address) => {
+                setMapPick({
+                  lat,
+                  lng,
+                  name: related ? `${related.name} site` : "Shared location",
+                  address: address || related?.address || null,
+                });
+                setComposeHint("");
+              }}
+            />
+            <button
+              type="button"
+              disabled={!mapPick}
+              onClick={attachMapPick}
+              className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#c4a574] text-sm font-semibold text-[#1c1610] disabled:opacity-50"
+            >
+              Use this location
+            </button>
           </div>
         ) : null}
         {suggestions.length ? (
