@@ -41,6 +41,7 @@ const PRINT_STYLES = `
     page-break-after: always;
     position: relative;
   }
+  /* Signature Series PDF is landscape (792×612) — same as material sheet */
   .catalog-page:last-child {
     break-after: auto;
     page-break-after: auto;
@@ -294,6 +295,266 @@ const PRINT_STYLES = `
     letter-spacing: 0.35em;
     color: #4b5563 !important;
   }
+  .catalog-signature-hero,
+  .catalog-signature-specs {
+    background: #e9eff1 !important;
+    color: #213141;
+    padding: 6mm 8mm 5mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .signature-hero-inner,
+  .signature-specs-inner {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .signature-hero-top,
+  .signature-specs-header {
+    display: grid;
+    grid-template-columns: 34mm 1fr 34mm;
+    align-items: center;
+    margin-bottom: 2.5mm;
+  }
+  .signature-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+  }
+  .signature-logo { height: 12mm; width: auto; max-width: 42mm; object-fit: contain; }
+  .signature-logo-fallback {
+    display: flex;
+    flex-direction: column;
+    font-size: 7pt;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    line-height: 1.15;
+    color: #213141 !important;
+  }
+  .signature-logo-fallback span {
+    font-size: 6pt;
+    letter-spacing: 0.16em;
+    color: #c4a574 !important;
+  }
+  .signature-series-title {
+    text-align: center;
+    font-family: "Times New Roman", Georgia, serif;
+    font-size: 22pt !important;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #213141 !important;
+  }
+  .signature-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2mm;
+    margin-top: 1.5mm;
+  }
+  .signature-ornament-line {
+    width: 18mm;
+    height: 1.2px;
+    background: #213141 !important;
+  }
+  .signature-ornament-diamond {
+    width: 2.2mm;
+    height: 2.2mm;
+    border: 1.2px solid #213141;
+    border-radius: 50%;
+    background: #e9eff1 !important;
+    box-shadow: 0 0 0 1.2mm #e9eff1, 0 0 0 1.5mm #213141;
+  }
+  .signature-kitchen-name {
+    font-size: 10pt !important;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin: 0.5mm 0 1.5mm;
+    color: #213141 !important;
+  }
+  .signature-description {
+    font-size: 7.5pt;
+    line-height: 1.45;
+    margin-bottom: 3mm;
+    max-width: 92%;
+    white-space: pre-wrap;
+    color: #222 !important;
+  }
+  .signature-description strong {
+    font-weight: 700 !important;
+    color: #111 !important;
+  }
+  .signature-hero-media {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 118mm;
+    overflow: hidden;
+    background: transparent !important;
+    line-height: 0;
+  }
+  .signature-hero-media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 118mm;
+    object-fit: cover;
+    object-position: center;
+  }
+  .signature-empty-hero {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 118mm;
+    width: 100%;
+    background: #eef2f4 !important;
+  }
+  .signature-specs-mid {
+    display: grid;
+    grid-template-columns: 1fr 44mm;
+    gap: 3mm;
+    flex: 0 1 auto;
+    min-height: 0;
+    align-items: stretch;
+  }
+  .signature-elevations {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 2.5mm;
+    min-height: 0;
+  }
+  .signature-elevation-card {
+    border: 1px solid #c8c8c8;
+    padding: 0;
+    background: #fff !important;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .signature-elevation-title {
+    font-size: 6.5pt !important;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 1mm;
+    text-align: center;
+    color: #213141 !important;
+  }
+  .signature-elevation-media {
+    flex: 1;
+    min-height: 28mm;
+    overflow: hidden;
+    background: #fff !important;
+  }
+  .signature-elevation-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+  }
+  .signature-elevation-note {
+    font-size: 5.5pt;
+    color: #6b645b !important;
+    margin-top: 0.8mm;
+  }
+  .signature-hardware {
+    border: 1px solid #c5ccd3;
+    background: #fff !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .signature-hardware-title {
+    background: #213141 !important;
+    color: #c5a059 !important;
+    font-size: 6.5pt !important;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2mm 1.5mm;
+    text-align: center;
+  }
+  .signature-hardware-list {
+    list-style: none;
+    margin: 0;
+    padding: 2mm;
+    display: flex;
+    flex-direction: column;
+    gap: 1.8mm;
+    flex: 1;
+  }
+  .signature-hardware-item {
+    display: flex;
+    gap: 0;
+    align-items: center;
+  }
+  .signature-hardware-thumb {
+    width: 8mm;
+    height: 8mm;
+    border: 1px solid #c8c8c8;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #f4f4f4 !important;
+  }
+  .signature-hardware-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .signature-hardware-rule {
+    width: 0.4mm;
+    height: 7mm;
+    margin: 0 1.5mm;
+    background: #c5a059 !important;
+    flex-shrink: 0;
+  }
+  .signature-hardware-label {
+    font-size: 6.5pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #213141 !important;
+  }
+  .signature-price-wrap { margin-top: 8mm; flex: 0 0 auto; }
+  .signature-price-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7.5pt;
+  }
+  .signature-price-table th {
+    background: #24190f !important;
+    color: #fff !important;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 1.8mm 2mm;
+    text-align: center;
+    border-top: 1.2px solid #a68966;
+    border-bottom: 1.2px solid #a68966;
+  }
+  .signature-price-table td {
+    border: 1px solid #c8c8c8;
+    padding: 1.2mm 1.8mm;
+    text-align: center;
+    background: #fff !important;
+    color: #213141 !important;
+  }
+  .signature-price-table tr.is-alt td {
+    background: #f3f3f3 !important;
+  }
+  .signature-footer-logo {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2mm;
+  }
+  .signature-footer-logo img {
+    height: 7mm;
+    width: auto;
+    object-fit: contain;
+  }
 `;
 
 function replaceFields(clone: HTMLElement) {
@@ -318,6 +579,9 @@ export async function printCatalogPdf(title = "KITCHEN COLLECTION material sheet
   clone.querySelectorAll(".empty-slot").forEach((el) => el.remove());
   replaceFields(clone);
 
+  // Signature Series PDF is landscape (same page size as material sheet)
+  const pageCss = PRINT_STYLES;
+
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText =
@@ -338,7 +602,7 @@ export async function printCatalogPdf(title = "KITCHEN COLLECTION material sheet
   <title>${title.replace(/[<>&"]/g, "")}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <style>${PRINT_STYLES}</style>
+  <style>${pageCss}</style>
 </head>
 <body>${clone.outerHTML}</body>
 </html>`);

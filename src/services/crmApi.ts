@@ -2350,6 +2350,20 @@ export type ModularUom = {
   sortOrder: number;
 };
 
+export type ModularCatalogPdfLayout = {
+  elevations?: Array<{
+    id?: string;
+    title?: string;
+    note?: string;
+    imageUrl?: string;
+  }>;
+  hardware?: Array<{
+    id?: string;
+    label?: string;
+    imageUrl?: string;
+  }>;
+};
+
 export type ModularCatalog = {
   id: string;
   seriesId: string;
@@ -2357,6 +2371,8 @@ export type ModularCatalog = {
   description: string;
   inclusions: string;
   sortOrder: number;
+  bannerImageUrl?: string | null;
+  pdfLayout?: ModularCatalogPdfLayout | null;
   items: ModularCatalogItem[];
 };
 
@@ -2398,8 +2414,38 @@ export const modularCatalogsApi = {
   deleteSeries: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/series/${id}`),
   createCatalog: (body: { seriesId: string; name: string; description?: string; inclusions?: string }) =>
     api.post<ModularCatalog>("/modular-catalogs/catalogs", body),
-  updateCatalog: (id: string, body: { name?: string; description?: string; inclusions?: string }) =>
-    api.put<ModularCatalog>(`/modular-catalogs/catalogs/${id}`, body),
+  updateCatalog: (
+    id: string,
+    body: {
+      name?: string;
+      description?: string;
+      inclusions?: string;
+      bannerImageUrl?: string | null;
+      pdfLayout?: ModularCatalogPdfLayout | null;
+    }
+  ) => api.put<ModularCatalog>(`/modular-catalogs/catalogs/${id}`, body),
+  uploadCatalogImage: async (id: string, file: File) => {
+    const { tokenStorage } = await import("@/lib/auth");
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    ).replace(/\/$/, "");
+    const token = tokenStorage.getAccessToken();
+    const form = new FormData();
+    form.append("image", file);
+    const res = await fetch(`${base}/modular-catalogs/catalogs/${id}/image`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const text = await res.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      throw new Error(
+        payload?.error?.message || payload?.message || "Image upload failed"
+      );
+    }
+    return payload.data as { url: string };
+  },
   deleteCatalog: (id: string) => api.delete<{ id: string }>(`/modular-catalogs/catalogs/${id}`),
   createItem: (body: {
     catalogId: string;
@@ -2750,6 +2796,11 @@ export const quotationCatalogsApi = {
     api.post<Record<string, unknown>>(
       `/quotation-catalogs/${catalogId}/items`,
       body
+    ),
+  updateItem: (catalogId: string, itemId: string, body: unknown) =>
+    api.put<Record<string, unknown>>(
+      `/quotation-catalogs/${catalogId}/items/${itemId}`,
+      { ...(body as Record<string, unknown>), id: itemId }
     ),
   deleteItem: (catalogId: string, itemId: string) =>
     api.delete<{ id: string }>(
