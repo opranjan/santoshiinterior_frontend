@@ -2394,7 +2394,8 @@ export default function CatalogPdfEditor() {
                   </p>
                   {doc.dataSource?.kind ? (
                     <p className="mt-3 inline-flex items-center rounded-full border border-[#eadfcf] bg-white/70 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#161411] dark:text-[#b0a89d]">
-                      {doc.dataSource.kind === "modular"
+                      {doc.dataSource.kind === "modular-series" ||
+                      doc.dataSource.kind === "modular-package"
                         ? "Modular catalog"
                         : "Quotation catalog"}
                     </p>
