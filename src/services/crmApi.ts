@@ -440,6 +440,7 @@ export type MetaLeadAdsStatusDto = {
   hasVerifyToken: boolean;
   hasAppSecret: boolean;
   pageId?: string | null;
+  pageName?: string | null;
   adAccountId?: string | null;
   apiVersion: string;
   defaultSource: string;
@@ -447,6 +448,10 @@ export type MetaLeadAdsStatusDto = {
   webhookPath: string;
   verifyTokenHint: string;
   subscribeField: string;
+  /** Facebook Page Lead Generation Terms of Service */
+  leadgenTosAccepted?: boolean | null;
+  leadgenTosAcceptUrl?: string | null;
+  leadgenTosError?: string | null;
 };
 
 export type MetaAdsCampaignDto = {

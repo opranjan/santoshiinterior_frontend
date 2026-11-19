@@ -30,6 +30,7 @@ import BulkLeadActionsModal, {
   type BulkLeadAction,
 } from "@/components/leads/BulkLeadActionsModal";
 import ConvertLeadToProjectModal from "@/components/leads/ConvertLeadToProjectModal";
+import LeadColumnFilterMenu from "@/components/leads/LeadColumnFilterMenu";
 import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
 import DatePickerField from "@/components/form/DatePickerField";
@@ -211,8 +212,44 @@ const sortOptions = [
   { value: "name-asc", label: "Client Name A–Z" },
 ];
 
+const dateRangeOptions = [
+  { value: "all", label: "All time" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" },
+] as const;
+
+type DateRangeKey = (typeof dateRangeOptions)[number]["value"];
+
+type LeadFilters = {
+  status: "All Status" | LeadStatus;
+  owner: string;
+  project: string;
+  source: string;
+  dateRange: DateRangeKey;
+  other: string;
+  sortBy: string;
+};
+
+const defaultLeadFilters = (): LeadFilters => ({
+  status: "All Status",
+  owner: "all",
+  project: "all",
+  source: "all",
+  dateRange: "all",
+  other: "none",
+  sortBy: "updated-desc",
+});
+
 const selectClass =
-  "h-10 rounded-xl border border-[#eadfcf] bg-[#fdfbf7] px-3 text-sm text-[#1c1610] focus:border-[#c4a574] focus:outline-hidden focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]";
+  "h-10 w-full rounded-xl border border-[#eadfcf] bg-white px-3 text-sm text-[#1c1610] shadow-sm focus:border-[#c4a574] focus:outline-hidden focus:ring-4 focus:ring-[#c4a574]/15 dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#f4efe6]";
+
+function daysAgoIso(days: number) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
 
 function getInitials(name: string) {
   if (!name || name === "Unassigned") return "?";
@@ -268,6 +305,62 @@ function formatShortFollowUp(date: string, time?: string) {
 function isOverdue(dateStr: string) {
   if (!dateStr || dateStr === "-") return false;
   return new Date(dateStr) < new Date(new Date().toISOString().slice(0, 10));
+}
+
+function emailDomain(email?: string | null) {
+  const raw = String(email || "").trim().toLowerCase();
+  const at = raw.lastIndexOf("@");
+  if (at < 0) return "";
+  return raw.slice(at + 1);
+}
+
+function followUpBucket(lead: Lead): string {
+  const next = lead.followUps[lead.followUps.length - 1]?.nextDate;
+  if (!next || next === "-") return "none";
+  if (isOverdue(next)) return "overdue";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(next);
+  if (Number.isNaN(target.getTime())) return "none";
+  target.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
+  if (diffDays === 0) return "today";
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+  if (target <= weekEnd) return "week";
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  if (target <= monthEnd) return "month";
+  return "later";
+}
+
+const COLUMN_FILTER_KEYS = [
+  "Client Name",
+  "Phone",
+  "Email",
+  "Follow Up",
+  "Project",
+  "Lead Owner",
+  "Sales Owner",
+] as const;
+
+type ColumnFilterKey = (typeof COLUMN_FILTER_KEYS)[number];
+
+const emptyColumnFilters = (): Record<ColumnFilterKey, string[] | null> => ({
+  "Client Name": null,
+  Phone: null,
+  Email: null,
+  "Follow Up": null,
+  Project: null,
+  "Lead Owner": null,
+  "Sales Owner": null,
+});
+
+function matchesColumnSelection(
+  selected: string[] | null,
+  value: string
+): boolean {
+  if (!selected || !selected.length) return true;
+  return selected.includes(value);
 }
 
 const columns = [
@@ -588,14 +681,19 @@ export default function LeadsTable() {
     };
   }, [storeFilterId]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All Status" | LeadStatus>(
-    "All Status"
-  );
-  const [otherFilter, setOtherFilter] = useState("none");
-  const [sortBy, setSortBy] = useState("updated-desc");
+  const [draftFilters, setDraftFilters] = useState<LeadFilters>(defaultLeadFilters);
+  const [appliedFilters, setAppliedFilters] = useState<LeadFilters>(defaultLeadFilters);
+  const [filterTab, setFilterTab] = useState<"basic" | "advanced">("basic");
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [columnFilters, setColumnFilters] =
+    useState<Record<ColumnFilterKey, string[] | null>>(emptyColumnFilters);
+  const [openColumnFilter, setOpenColumnFilter] = useState<ColumnFilterKey | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  const patchDraft = <K extends keyof LeadFilters>(key: K, value: LeadFilters[K]) =>
+    setDraftFilters((prev) => ({ ...prev, [key]: value }));
 
   const [followUpLeadId, setFollowUpLeadId] = useState<string | null>(null);
   const [fuType, setFuType] = useState<FollowUpType>("Call");
@@ -613,7 +711,44 @@ export default function LeadsTable() {
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
+  const projectFilterOptions = useMemo(() => {
+    const names = [
+      ...new Set(
+        leads
+          .map((lead) => String(lead.projectName || lead.convertedProjectName || "").trim())
+          .filter(Boolean)
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+    return names;
+  }, [leads]);
+
+  const sourceFilterOptions = useMemo(() => {
+    const names = [
+      ...new Set(leads.map((lead) => String(lead.source || "").trim()).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
+    return names;
+  }, [leads]);
+
   const filteredLeads = useMemo(() => {
+    const {
+      status: statusFilter,
+      owner: ownerFilter,
+      project: projectFilter,
+      source: sourceFilter,
+      dateRange,
+      other: otherFilter,
+      sortBy,
+    } = appliedFilters;
+
+    const since =
+      dateRange === "7d"
+        ? daysAgoIso(7)
+        : dateRange === "30d"
+          ? daysAgoIso(30)
+          : dateRange === "90d"
+            ? daysAgoIso(90)
+            : null;
+
     let list = leads.filter((lead) => {
       if (lead.convertedProjectId) return false;
       const q = search.toLowerCase().trim();
@@ -629,10 +764,38 @@ export default function LeadsTable() {
       const matchesStatus =
         statusFilter === "All Status" || lead.status === statusFilter;
 
+      let matchesOwner = true;
+      if (ownerFilter === "unassigned") {
+        matchesOwner =
+          !lead.assignedToId ||
+          lead.assignedTo === "Unassigned" ||
+          !String(lead.assignedTo || "").trim();
+      } else if (ownerFilter !== "all") {
+        matchesOwner = lead.assignedToId === ownerFilter;
+      }
+
+      let matchesProject = true;
+      if (projectFilter === "has") {
+        matchesProject = Boolean(
+          String(lead.projectName || lead.convertedProjectName || "").trim()
+        );
+      } else if (projectFilter === "none") {
+        matchesProject = !String(lead.projectName || lead.convertedProjectName || "").trim();
+      } else if (projectFilter !== "all") {
+        matchesProject =
+          lead.projectName === projectFilter ||
+          lead.convertedProjectName === projectFilter;
+      }
+
+      let matchesSource = true;
+      if (sourceFilter !== "all") {
+        matchesSource = String(lead.source || "").trim() === sourceFilter;
+      }
+
+      const matchesDate = !since || lead.createdAt >= since;
+
       let matchesOther = true;
-      if (otherFilter === "unassigned") {
-        matchesOther = lead.assignedTo === "Unassigned";
-      } else if (otherFilter === "overdue") {
+      if (otherFilter === "overdue") {
         const next = lead.followUps[lead.followUps.length - 1]?.nextDate;
         matchesOther = !!next && isOverdue(next);
       } else if (otherFilter === "no-email") {
@@ -641,7 +804,51 @@ export default function LeadsTable() {
         matchesOther = !!lead.budget;
       }
 
-      return matchesSearch && matchesStatus && matchesOther;
+      const matchesColClient = matchesColumnSelection(
+        columnFilters["Client Name"],
+        lead.clientName || "—"
+      );
+      const matchesColPhone = matchesColumnSelection(
+        columnFilters.Phone,
+        lead.phone || "—"
+      );
+      const matchesColEmail = matchesColumnSelection(
+        columnFilters.Email,
+        emailDomain(lead.email) || "—"
+      );
+      const matchesColFollowUp = matchesColumnSelection(
+        columnFilters["Follow Up"],
+        followUpBucket(lead)
+      );
+      const matchesColProject = matchesColumnSelection(
+        columnFilters.Project,
+        String(lead.projectName || lead.convertedProjectName || "").trim() || "No project"
+      );
+      const matchesColLeadOwner = matchesColumnSelection(
+        columnFilters["Lead Owner"],
+        lead.assignedTo || "Unassigned"
+      );
+      const matchesColSalesOwner = matchesColumnSelection(
+        columnFilters["Sales Owner"],
+        lead.salesOwner || "Unassigned"
+      );
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesOwner &&
+        matchesProject &&
+        matchesSource &&
+        matchesDate &&
+        matchesOther &&
+        matchesColClient &&
+        matchesColPhone &&
+        matchesColEmail &&
+        matchesColFollowUp &&
+        matchesColProject &&
+        matchesColLeadOwner &&
+        matchesColSalesOwner
+      );
     });
 
     list = [...list].sort((a, b) => {
@@ -659,7 +866,7 @@ export default function LeadsTable() {
     });
 
     return list;
-  }, [leads, search, statusFilter, otherFilter, sortBy]);
+  }, [leads, search, appliedFilters, columnFilters]);
 
   const pageCount = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
   const pagedLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize);
@@ -675,7 +882,7 @@ export default function LeadsTable() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, otherFilter, sortBy, storeFilterId]);
+  }, [search, appliedFilters, columnFilters, storeFilterId]);
 
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
@@ -683,10 +890,22 @@ export default function LeadsTable() {
 
   const leadsValueLabel = "₹ 0";
 
+  const filtersDirty =
+    JSON.stringify(draftFilters) !== JSON.stringify(appliedFilters);
+
+  const hasColumnFilters = COLUMN_FILTER_KEYS.some(
+    (key) => Array.isArray(columnFilters[key]) && columnFilters[key]!.length > 0
+  );
+
   const hasActiveFilters =
     !!search.trim() ||
-    statusFilter !== "All Status" ||
-    otherFilter !== "none";
+    appliedFilters.status !== "All Status" ||
+    appliedFilters.owner !== "all" ||
+    appliedFilters.project !== "all" ||
+    appliedFilters.source !== "all" ||
+    appliedFilters.dateRange !== "all" ||
+    appliedFilters.other !== "none" ||
+    hasColumnFilters;
 
   const allVisibleSelected =
     pagedLeads.length > 0 &&
@@ -988,9 +1207,141 @@ export default function LeadsTable() {
 
   const resetFilters = () => {
     setSearch("");
-    setStatusFilter("All Status");
-    setOtherFilter("none");
-    setSortBy("updated-desc");
+    const next = defaultLeadFilters();
+    setDraftFilters(next);
+    setAppliedFilters(next);
+    setColumnFilters(emptyColumnFilters());
+    setOpenColumnFilter(null);
+    setMoreFiltersOpen(false);
+  };
+
+  const setColumnFilterValue = (key: ColumnFilterKey, next: string[] | null) => {
+    setColumnFilters((prev) => ({ ...prev, [key]: next }));
+  };
+
+  const columnFilterOptions = useMemo(() => {
+    const uniqueSorted = (values: string[]) =>
+      [...new Set(values.map((v) => v.trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b)
+      );
+
+    const followUpLabels: Record<string, string> = {
+      today: "Today",
+      week: "This Week",
+      month: "This Month",
+      later: "Later",
+      overdue: "Overdue",
+      none: "No follow-up",
+    };
+
+    return {
+      "Client Name": uniqueSorted(leads.map((l) => l.clientName || "—")).map((value) => ({
+        value,
+        label: value,
+      })),
+      Phone: uniqueSorted(leads.map((l) => l.phone || "—")).map((value) => ({
+        value,
+        label: value === "—" ? "—" : maskPhone(value),
+      })),
+      Email: uniqueSorted(
+        leads.map((l) => emailDomain(l.email) || "—")
+      ).map((value) => ({ value, label: value })),
+      "Follow Up": (
+        ["today", "week", "month", "later", "overdue", "none"] as const
+      ).map((value) => ({ value, label: followUpLabels[value] })),
+      Project: uniqueSorted(
+        leads.map(
+          (l) =>
+            String(l.projectName || l.convertedProjectName || "").trim() || "No project"
+        )
+      ).map((value) => ({ value, label: value })),
+      "Lead Owner": uniqueSorted(
+        leads.map((l) => l.assignedTo || "Unassigned")
+      ).map((value) => ({ value, label: value })),
+      "Sales Owner": uniqueSorted(
+        leads.map((l) => l.salesOwner || "Unassigned")
+      ).map((value) => ({ value, label: value })),
+    } satisfies Record<ColumnFilterKey, Array<{ value: string; label: string }>>;
+  }, [leads]);
+
+  const applyFilters = () => {
+    setAppliedFilters(draftFilters);
+  };
+
+  const leadOwnerFilterOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: Array<{ id: string; name: string }> = [];
+    const push = (id: string, name: string) => {
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      rows.push({ id, name });
+    };
+    for (const member of assigneeGroups.sales) push(member.id, member.name);
+    for (const member of assigneeGroups.designTeam) push(member.id, member.name);
+    for (const member of assigneeGroups.all) push(member.id, member.name);
+    for (const member of assigneeOptions) {
+      if (String(member.id).startsWith("team-")) continue;
+      push(member.id, member.name);
+    }
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [assigneeGroups, assigneeOptions]);
+
+  const ownerLabel = (ownerId: string) => {
+    if (ownerId === "all") return "All owners";
+    if (ownerId === "unassigned") return "Unassigned";
+    return leadOwnerFilterOptions.find((row) => row.id === ownerId)?.name || ownerId;
+  };
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ key: keyof LeadFilters | "search"; label: string }> = [];
+    if (search.trim()) chips.push({ key: "search", label: `Search: ${search.trim()}` });
+    if (appliedFilters.status !== "All Status") {
+      chips.push({ key: "status", label: `Status: ${appliedFilters.status}` });
+    }
+    if (appliedFilters.owner !== "all") {
+      chips.push({ key: "owner", label: `Owner: ${ownerLabel(appliedFilters.owner)}` });
+    }
+    if (appliedFilters.project !== "all") {
+      const projectLabel =
+        appliedFilters.project === "has"
+          ? "Has project"
+          : appliedFilters.project === "none"
+            ? "No project"
+            : appliedFilters.project;
+      chips.push({ key: "project", label: `Project: ${projectLabel}` });
+    }
+    if (appliedFilters.source !== "all") {
+      chips.push({ key: "source", label: `Source: ${appliedFilters.source}` });
+    }
+    if (appliedFilters.dateRange !== "all") {
+      const range =
+        dateRangeOptions.find((row) => row.value === appliedFilters.dateRange)?.label ||
+        appliedFilters.dateRange;
+      chips.push({ key: "dateRange", label: `Date: ${range}` });
+    }
+    if (appliedFilters.other !== "none") {
+      const otherLabel =
+        appliedFilters.other === "overdue"
+          ? "Overdue follow-ups"
+          : appliedFilters.other === "no-email"
+            ? "Missing email"
+            : appliedFilters.other === "has-budget"
+              ? "Has budget"
+              : appliedFilters.other;
+      chips.push({ key: "other", label: otherLabel });
+    }
+    return chips;
+  }, [appliedFilters, search, leadOwnerFilterOptions]);
+
+  const clearChip = (key: keyof LeadFilters | "search") => {
+    if (key === "search") {
+      setSearch("");
+      return;
+    }
+    const defaults = defaultLeadFilters();
+    const next = { ...appliedFilters, [key]: defaults[key] };
+    setAppliedFilters(next);
+    setDraftFilters((prev) => ({ ...prev, [key]: defaults[key] }));
   };
 
   const historyLead = historyLeadId
@@ -1077,78 +1428,247 @@ export default function LeadsTable() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#161411] sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
-              Lead Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as "All Status" | LeadStatus)
-              }
-              className={selectClass}
+      <div className="overflow-hidden rounded-2xl border border-[#eadfcf] bg-white shadow-sm dark:border-[#3a342c] dark:bg-[#161411]">
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#eadfcf] px-3 py-2.5 dark:border-[#3a342c]">
+          <div className="inline-flex rounded-xl bg-[#f4efe6] p-1 dark:bg-[#1c1914]">
+            <button
+              type="button"
+              onClick={() => setFilterTab("basic")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                filterTab === "basic"
+                  ? "bg-[#c4a574] text-[#1c1610] shadow-sm"
+                  : "text-[#8a7b68] hover:text-[#1c1610]"
+              }`}
             >
-              {statuses.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                  {s !== "All Status"
-                    ? ` +${leads.filter((l) => l.status === s).length}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
-              Filter By
-            </label>
-            <select
-              value={otherFilter}
-              onChange={(e) => setOtherFilter(e.target.value)}
-              className={selectClass}
+              Basic Filters
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterTab("advanced");
+                setMoreFiltersOpen(true);
+              }}
+              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                filterTab === "advanced"
+                  ? "bg-[#c4a574] text-[#1c1610] shadow-sm"
+                  : "text-[#8a7b68] hover:text-[#1c1610]"
+              }`}
             >
-              <option value="none">Select Other Filters</option>
-              <option value="unassigned">Unassigned</option>
-              <option value="overdue">Overdue Follow-ups</option>
-              <option value="no-email">Missing Email</option>
-              <option value="has-budget">Has Budget</option>
-            </select>
+              Advanced Filters
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={resetFilters}
-            title="Reset filters"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#eadfcf] text-[#8a7b68] hover:bg-white dark:border-[#3a342c] dark:hover:bg-white/5"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <span className="ml-auto text-[11px] text-[#8a7b68]">
+            Showing {filteredLeads.length} of {leads.filter((l) => !l.convertedProjectId).length} leads
+          </span>
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
-            Sort by
-          </label>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className={selectClass}
-          >
-            {sortOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-3 p-3 sm:p-4">
+          {filterTab === "basic" ? (
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+              <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Lead Status
+                  </label>
+                  <select
+                    value={draftFilters.status}
+                    onChange={(e) =>
+                      patchDraft("status", e.target.value as LeadFilters["status"])
+                    }
+                    className={selectClass}
+                  >
+                    {statuses.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                        {s !== "All Status"
+                          ? ` (${leads.filter((l) => l.status === s).length})`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Lead Owner
+                  </label>
+                  <select
+                    value={draftFilters.owner}
+                    onChange={(e) => patchDraft("owner", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="all">All owners</option>
+                    <option value="unassigned">Unassigned</option>
+                    {leadOwnerFilterOptions.map((owner) => (
+                      <option key={owner.id} value={owner.id}>
+                        {owner.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Project
+                  </label>
+                  <select
+                    value={draftFilters.project}
+                    onChange={(e) => patchDraft("project", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="all">All projects</option>
+                    <option value="has">Has project</option>
+                    <option value="none">No project</option>
+                    {projectFilterOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Lead Source
+                  </label>
+                  <select
+                    value={draftFilters.source}
+                    onChange={(e) => patchDraft("source", e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="all">All sources</option>
+                    {sourceFilterOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                    Date Range
+                  </label>
+                  <select
+                    value={draftFilters.dateRange}
+                    onChange={(e) =>
+                      patchDraft("dateRange", e.target.value as DateRangeKey)
+                    }
+                    className={selectClass}
+                  >
+                    {dateRangeOptions.map((row) => (
+                      <option key={row.value} value={row.value}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row xl:w-40 xl:flex-col">
+                <button
+                  type="button"
+                  onClick={applyFilters}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-[#c4a574] px-4 text-sm font-semibold text-[#1c1610] hover:bg-[#b8924e]"
+                >
+                  {filtersDirty ? "Apply Filters" : "Applied"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-medium text-[#5c5348] hover:bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#d4c8b8]"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {filterTab === "advanced" || moreFiltersOpen ? (
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-[#eadfcf] bg-[#fbf8f3] p-3 dark:border-[#3a342c] dark:bg-[#1c1914] sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                  More filters
+                </label>
+                <select
+                  value={draftFilters.other}
+                  onChange={(e) => patchDraft("other", e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="none">None</option>
+                  <option value="overdue">Overdue Follow-ups</option>
+                  <option value="no-email">Missing Email</option>
+                  <option value="has-budget">Has Budget</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                  Sort by
+                </label>
+                <select
+                  value={draftFilters.sortBy}
+                  onChange={(e) => patchDraft("sortBy", e.target.value)}
+                  className={selectClass}
+                >
+                  {sortOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {filterTab === "advanced" ? (
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={applyFilters}
+                    className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-[#c4a574] px-4 text-sm font-semibold text-[#1c1610]"
+                  >
+                    Apply Filters
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterTab("basic")}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-[#eadfcf] bg-white px-3 text-sm text-[#5c5348] dark:border-[#3a342c] dark:bg-[#161411]"
+                  >
+                    Back
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMoreFiltersOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8a7b68] hover:text-[#1c1610]"
+            >
+              More Filters
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+
+          {activeFilterChips.length ? (
+            <div className="flex flex-wrap items-center gap-2 border-t border-[#eadfcf] pt-3 dark:border-[#3a342c]">
+              {activeFilterChips.map((chip) => (
+                <button
+                  key={`${chip.key}-${chip.label}`}
+                  type="button"
+                  onClick={() => clearChip(chip.key)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#eadfcf] bg-[#fbf8f3] px-2.5 py-1 text-[11px] font-medium text-[#5c5348] hover:border-[#c4a574] dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#d4c8b8]"
+                >
+                  {chip.label}
+                  <span className="text-[#8a7b68]">×</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-[11px] font-semibold text-[#c4a574] hover:text-[#1c1610]"
+              >
+                Clear all
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1220,6 +1740,20 @@ export default function LeadsTable() {
                   </TableCell>
                   {columns.map((heading) => {
                     const isClient = heading === "Client Name";
+                    const filterKey = COLUMN_FILTER_KEYS.includes(
+                      heading as ColumnFilterKey
+                    )
+                      ? (heading as ColumnFilterKey)
+                      : null;
+                    const allLabels: Record<ColumnFilterKey, string> = {
+                      "Client Name": "All Clients",
+                      Phone: "All Numbers",
+                      Email: "All Domains",
+                      "Follow Up": "All Follow-ups",
+                      Project: "All Projects",
+                      "Lead Owner": "All Owners",
+                      "Sales Owner": "All Sales Owners",
+                    };
                     return (
                       <TableCell
                         key={heading}
@@ -1228,14 +1762,29 @@ export default function LeadsTable() {
                           ...colStyle(heading),
                           ...(isClient ? { left: CHECKBOX_COL_WIDTH } : null),
                         }}
-                        className={`relative sticky top-0 z-20 overflow-hidden border-b border-[#f0e8db] bg-[#fbf8f3] px-3 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914] ${
+                        className={`relative sticky top-0 z-20 border-b border-[#f0e8db] bg-[#fbf8f3] px-3 py-3.5 text-start text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68] dark:border-[#3a342c] dark:bg-[#1c1914] ${
                           isClient ? "z-30 shadow-[2px_0_6px_-2px_rgba(28,22,16,0.08)]" : ""
                         }`}
                       >
-                        <span className="block truncate pr-2">
-                          {heading}
-                          {heading === "Latest Remark" ? " ✎" : ""}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-1 pr-2">
+                          <span className="min-w-0 flex-1 truncate">
+                            {heading}
+                            {heading === "Latest Remark" ? " ✎" : ""}
+                          </span>
+                          {filterKey ? (
+                            <LeadColumnFilterMenu
+                              label={heading}
+                              allLabel={allLabels[filterKey]}
+                              options={columnFilterOptions[filterKey]}
+                              selected={columnFilters[filterKey]}
+                              onChange={(next) => setColumnFilterValue(filterKey, next)}
+                              open={openColumnFilter === filterKey}
+                              onOpenChange={(nextOpen) =>
+                                setOpenColumnFilter(nextOpen ? filterKey : null)
+                              }
+                            />
+                          ) : null}
+                        </div>
                         <span
                           role="separator"
                           aria-orientation="vertical"
@@ -1288,15 +1837,11 @@ export default function LeadsTable() {
                         style={{ ...colStyle("Client Name"), left: CHECKBOX_COL_WIDTH }}
                       >
                         <div className="flex min-w-0 items-center gap-2">
-                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1c1610] text-[#e8d5b5]">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                              <path
-                                d="M21 12c0 4.4-4 8-9 8-1.1 0-2.1-.2-3.1-.5L3 21l1.7-4.2C3.6 15.5 3 13.8 3 12c0-4.4 4-8 9-8s9 3.6 9 8Z"
-                                stroke="currentColor"
-                                strokeWidth="1.7"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
+                          <span
+                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarClass(lead.clientName)}`}
+                            aria-hidden
+                          >
+                            {getInitials(lead.clientName)}
                           </span>
                           <button
                             type="button"

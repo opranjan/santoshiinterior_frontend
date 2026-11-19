@@ -96,6 +96,11 @@ function Stepper({ step }: { step: number }) {
   );
 }
 
+function extractHttpUrl(text: string): string | null {
+  const m = String(text || "").match(/https?:\/\/[^\s)]+/i);
+  return m?.[0] || null;
+}
+
 export default function MetaCreateCampaignWizard() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -105,6 +110,9 @@ export default function MetaCreateCampaignWizard() {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<MetaAdsPublishResultDto | null>(null);
+  const [tosAccepted, setTosAccepted] = useState<boolean | null>(null);
+  const [tosUrl, setTosUrl] = useState<string | null>(null);
+  const [tosPageLabel, setTosPageLabel] = useState("");
 
   useEffect(() => {
     metaLeadAdsApi
@@ -113,6 +121,20 @@ export default function MetaCreateCampaignWizard() {
       .catch((err) =>
         setFormsError(err instanceof Error ? err.message : "Could not load lead forms")
       );
+    metaLeadAdsApi
+      .getStatus()
+      .then((status) => {
+        setTosAccepted(
+          typeof status.leadgenTosAccepted === "boolean" ? status.leadgenTosAccepted : null
+        );
+        setTosUrl(status.leadgenTosAcceptUrl || null);
+        setTosPageLabel(
+          [status.pageName, status.pageId].filter(Boolean).join(" · ") || "Facebook Page"
+        );
+      })
+      .catch(() => {
+        /* status is optional for the form editor */
+      });
   }, []);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -147,6 +169,13 @@ export default function MetaCreateCampaignWizard() {
     reader.readAsDataURL(file);
   };
 
+  const selectedFormName = useMemo(() => {
+    if (form.leadFormId) {
+      return forms.find((f) => f.id === form.leadFormId)?.name || form.leadFormId;
+    }
+    return form.formName.trim() || (form.name.trim() ? `${form.name.trim()} Form` : "New Instant Form");
+  }, [form.leadFormId, form.formName, form.name, forms]);
+
   const publish = async () => {
     try {
       setPublishing(true);
@@ -155,8 +184,15 @@ export default function MetaCreateCampaignWizard() {
         .split(/[,\s]+/)
         .map((c) => c.trim().toUpperCase())
         .filter(Boolean);
+      const campaignName = form.name.trim();
+      const formName =
+        form.formName.trim() || (campaignName ? `${campaignName} Form` : "CRM Lead Form");
+      // If an existing Instant Form already uses this name, reuse it instead of creating.
+      const matched = !form.leadFormId
+        ? forms.find((f) => f.name.trim().toLowerCase() === formName.toLowerCase())
+        : null;
       const created = await metaLeadAdsApi.publishFullLeadAd({
-        name: form.name.trim(),
+        name: campaignName,
         objective: form.objective,
         status: form.status,
         dailyBudget: form.dailyBudget,
@@ -171,8 +207,8 @@ export default function MetaCreateCampaignWizard() {
         imageUrl: form.imageUrl.trim() || undefined,
         imageBase64: form.imageBase64 || undefined,
         imageName: form.imageName || undefined,
-        leadFormId: form.leadFormId || undefined,
-        formName: form.formName.trim() || undefined,
+        leadFormId: form.leadFormId || matched?.id || undefined,
+        formName: form.leadFormId || matched?.id ? undefined : formName,
         privacyUrl: form.privacyUrl.trim() || undefined,
         startTime: form.startTime
           ? new Date(form.startTime).toISOString()
@@ -246,10 +282,33 @@ export default function MetaCreateCampaignWizard() {
     );
   }
 
+  const errorTosUrl = extractHttpUrl(error) || tosUrl;
+
   return (
     <MetaAdsShell hideCreate title="Create Campaign" subtitle="5 steps · Instant Form lead ads on Meta">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <Stepper step={step} />
+
+        {tosAccepted === false ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">Lead Generation Terms required</p>
+            <p className="mt-1 text-amber-900/90">
+              A Page admin must accept Facebook’s Lead Generation Terms of Service for{" "}
+              <span className="font-medium">{tosPageLabel}</span> before Instant Form ads can
+              run.
+            </p>
+            {tosUrl ? (
+              <a
+                href={tosUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex h-9 items-center rounded-lg bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800"
+              >
+                Accept Lead Gen Terms on Facebook
+              </a>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-6 space-y-4">
           {step === 1 ? (
@@ -492,7 +551,11 @@ export default function MetaCreateCampaignWizard() {
                     <input
                       value={form.formName}
                       onChange={(e) => set("formName", e.target.value)}
-                      placeholder="New form name"
+                      placeholder={
+                        form.name.trim()
+                          ? `${form.name.trim()} Form`
+                          : "New form name (unique)"
+                      }
                       className="h-11 rounded-xl border border-slate-200 px-3.5 text-sm"
                     />
                     <input
@@ -501,6 +564,10 @@ export default function MetaCreateCampaignWizard() {
                       placeholder="Privacy policy URL (optional)"
                       className="h-11 rounded-xl border border-slate-200 px-3.5 text-sm"
                     />
+                    <p className="sm:col-span-2 text-xs text-slate-500">
+                      If this form name already exists on Meta, CRM reuses that Instant Form
+                      instead of failing.
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -523,8 +590,8 @@ export default function MetaCreateCampaignWizard() {
                 <span className="font-semibold">Creative:</span> {form.headline} · {form.ctaType}
               </p>
               <p>
-                <span className="font-semibold">Form:</span>{" "}
-                {form.leadFormId || form.formName || "New Instant Form"}
+                <span className="font-semibold">Form:</span> {selectedFormName}
+                {form.leadFormId ? " (existing)" : ""}
               </p>
               <div>
                 <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -542,7 +609,22 @@ export default function MetaCreateCampaignWizard() {
             </div>
           ) : null}
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+              <p>{error}</p>
+              {/1815089|Lead Generation Terms|Terms of service not accepted/i.test(error) &&
+              errorTosUrl ? (
+                <a
+                  href={errorTosUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-9 items-center rounded-lg bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-800"
+                >
+                  Accept Lead Gen Terms on Facebook
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
