@@ -2048,12 +2048,36 @@ export type HrWorkingHours = {
   leaveTypes?: HrLeaveType[];
 };
 
+export type HrAssignableRole = {
+  id: string;
+  key: string;
+  label: string;
+  baseRole: string;
+  isGlobal: boolean;
+  description?: string | null;
+};
+
+export type HrCreateEmployeeResult = {
+  id: string;
+  name: string;
+  email?: string | null;
+  userId?: string | null;
+  userAccount?: {
+    created: boolean;
+    linked: boolean;
+    userId: string | null;
+    temporaryPassword?: string | null;
+    hasLogin: boolean;
+  };
+};
+
 export const hrApi = {
   summary: () => api.get<Record<string, unknown>>("/hr/summary"),
   listEmployees: (query?: Record<string, string | number | undefined>) =>
     api.get<Paginated<Record<string, unknown>>>("/hr/employees", query),
+  listAssignableRoles: () => api.get<HrAssignableRole[]>("/hr/assignable-roles"),
   createEmployee: (body: Record<string, unknown>) =>
-    api.post("/hr/employees", body),
+    api.post<HrCreateEmployeeResult>("/hr/employees", body),
   updateEmployee: (id: string, body: Record<string, unknown>) =>
     api.put(`/hr/employees/${id}`, body),
   removeEmployee: (id: string) => api.delete(`/hr/employees/${id}`),
