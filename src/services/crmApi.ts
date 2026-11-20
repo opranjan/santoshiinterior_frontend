@@ -178,6 +178,10 @@ export type LeadMessageDto = {
   mediaUrl?: string | null;
   mediaType?: "image" | "document" | "video" | "audio" | null;
   mediaFilename?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
+  locationAddress?: string | null;
   externalId?: string | null;
   status: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
   sentBy?: { id: string; name: string } | null;
@@ -187,6 +191,17 @@ export type LeadMessageDto = {
   forwarded?: boolean;
   rawPayload?: {
     status?: string;
+    type?: string;
+    location?: {
+      latitude?: number;
+      longitude?: number;
+      name?: string;
+      address?: string;
+    };
+    locationLat?: number;
+    locationLng?: number;
+    locationName?: string;
+    locationAddress?: string;
     errors?: Array<{
       code?: number;
       title?: string;
@@ -351,6 +366,10 @@ export const leadsApi = {
       useTemplate?: boolean;
       file?: File;
       files?: File[];
+      locationLat?: number;
+      locationLng?: number;
+      locationName?: string;
+      locationAddress?: string;
       onUploadProgress?: (percent: number) => void;
     }
   ): Promise<LeadSendMessageResult> => {

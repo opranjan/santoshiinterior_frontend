@@ -13,6 +13,39 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { allowedWhatsAppViews, hasAnyPermission } from "@/lib/permissions";
 import { toastError, toastSuccess, toastWarning } from "@/components/ui/toast/ToastHost";
+import ChatLocationMapPicker from "@/components/chat/ChatLocationMapPicker";
+
+type ChatLocationPayload = {
+  lat: number;
+  lng: number;
+  name?: string | null;
+  address?: string | null;
+};
+
+function mapsUrl(lat: number, lng: number, label?: string | null) {
+  if (label) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${label} @${lat},${lng}`)}`;
+  }
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+function messageLocation(msg: LeadMessageDto): ChatLocationPayload | null {
+  const raw = msg.rawPayload;
+  const lat = Number(
+    msg.locationLat ?? raw?.location?.latitude ?? raw?.locationLat ?? NaN
+  );
+  const lng = Number(
+    msg.locationLng ?? raw?.location?.longitude ?? raw?.locationLng ?? NaN
+  );
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return {
+    lat,
+    lng,
+    name: msg.locationName || raw?.location?.name || raw?.locationName || null,
+    address:
+      msg.locationAddress || raw?.location?.address || raw?.locationAddress || null,
+  };
+}
 
 type Props = {
   leadId: string;
@@ -323,6 +356,86 @@ function DocumentIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+function LocationPinIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21s6.5-5.2 6.5-10.2A6.5 6.5 0 0 0 12 4.3a6.5 6.5 0 0 0-6.5 6.5C5.5 15.8 12 21 12 21Z"
+      />
+      <circle cx="12" cy="10.8" r="2.2" />
+    </svg>
+  );
+}
+
+function LocationCard({
+  lat,
+  lng,
+  name,
+  address,
+  outbound,
+}: {
+  lat: number;
+  lng: number;
+  name?: string | null;
+  address?: string | null;
+  outbound?: boolean;
+}) {
+  const href = mapsUrl(lat, lng, name || address);
+  const staticMap = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=480x220&markers=${lat},${lng},red-pushpin`;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={`mb-2 block overflow-hidden rounded-lg border transition hover:opacity-95 ${
+        outbound
+          ? "border-black/10 bg-white/70 dark:border-white/15 dark:bg-black/20"
+          : "border-[#e9edef] bg-[#f0f2f5] dark:border-gray-600 dark:bg-[#2a3942]"
+      }`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={staticMap}
+        alt={name || "Shared location"}
+        className="h-28 w-full object-cover"
+        loading="lazy"
+      />
+      <span className="block px-3 py-2">
+        <span
+          className={`flex items-center gap-1.5 text-[13px] font-semibold ${
+            outbound ? "text-[#111b21] dark:text-white" : "text-[#111b21] dark:text-[#e9edef]"
+          }`}
+        >
+          <LocationPinIcon className="h-4 w-4 shrink-0 text-[#25d366]" />
+          <span className="truncate">{name || "Shared location"}</span>
+        </span>
+        {address ? (
+          <span
+            className={`mt-0.5 block text-[11px] leading-snug ${
+              outbound ? "text-[#667781] dark:text-white/70" : "text-[#667781]"
+            }`}
+          >
+            {address}
+          </span>
+        ) : (
+          <span
+            className={`mt-0.5 block text-[11px] ${
+              outbound ? "text-[#667781] dark:text-white/70" : "text-[#667781]"
+            }`}
+          >
+            {lat.toFixed(5)}, {lng.toFixed(5)}
+          </span>
+        )}
+        <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.12em] text-[#128c7e]">
+          Open in Google Maps
+        </span>
+      </span>
+    </a>
+  );
+}
+
 function MediaAttachment({
   msg,
   outbound,
@@ -615,13 +728,22 @@ function ChatBubble({
 }) {
   const outbound = msg.direction === "OUTBOUND";
   const hasMedia = Boolean(msg.mediaUrl);
+  const location = messageLocation(msg);
   const failed = msg.status === "FAILED";
   const failText = deliveryError(msg);
   const body =
     msg.body ||
     (msg.templateName ? `[Template: ${msg.templateName}]` : "");
+  const locationPlaceholder =
+    Boolean(location) &&
+    (!body ||
+      body === "[Location]" ||
+      body === location?.name ||
+      body === location?.address ||
+      /^📍\s*-?\d/.test(body));
   const showBody =
     body &&
+    !locationPlaceholder &&
     !(hasMedia && msg.mediaType === "document" && body === msg.mediaFilename);
   const showActions = Boolean(canForward || canDelete);
 
@@ -671,13 +793,23 @@ function ChatBubble({
 
           {hasMedia ? <MediaAttachment msg={msg} outbound={outbound} /> : null}
 
+          {location ? (
+            <LocationCard
+              lat={location.lat}
+              lng={location.lng}
+              name={location.name}
+              address={location.address}
+              outbound={outbound}
+            />
+          ) : null}
+
           {showBody ? (
             <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed">
               {body}
             </p>
           ) : null}
 
-          {!hasMedia && !showBody ? (
+          {!hasMedia && !location && !showBody ? (
             <p className="text-[13.5px] leading-relaxed opacity-80">—</p>
           ) : null}
 
@@ -745,6 +877,10 @@ export default function LeadCommunicationPanel({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const attachmentsRef = useRef<PendingAttachment[]>([]);
   attachmentsRef.current = attachments;
+  const [location, setLocation] = useState<ChatLocationPayload | null>(null);
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [mapPick, setMapPick] = useState<ChatLocationPayload | null>(null);
+  const [locating, setLocating] = useState(false);
   const [chatTemplate, setChatTemplate] = useState<ChatTemplateId>("start_chat_ut");
   const [templateName, setTemplateName] = useState(firstName(clientName));
   const [templateNeed, setTemplateNeed] = useState(projectName || "");
@@ -891,6 +1027,48 @@ export default function LeadCommunicationPanel({
     });
     if (imageInputRef.current) imageInputRef.current.value = "";
     if (docInputRef.current) docInputRef.current.value = "";
+  };
+
+  const shareCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Location is not available in this browser.");
+      return;
+    }
+    setLocating(true);
+    setError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          name: "Current location",
+          address: null,
+        });
+        setLocationOpen(false);
+        setMapPick(null);
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        setError("Could not get your current location. Allow location access or pick on the map.");
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
+
+  const attachMapPick = () => {
+    if (!mapPick) {
+      setError("Tap the map to choose a location first.");
+      return;
+    }
+    setLocation({
+      lat: mapPick.lat,
+      lng: mapPick.lng,
+      name: mapPick.name || "Shared location",
+      address: mapPick.address || null,
+    });
+    setLocationOpen(false);
+    setError("");
   };
 
   const openPicker = (kind: "image" | "document") => {
@@ -1073,8 +1251,8 @@ export default function LeadCommunicationPanel({
           isMarketingLimitFailure(msg) &&
           Date.now() - new Date(msg.createdAt).getTime() < 24 * 60 * 60 * 1000
       );
-    if ((!body && !attachments.length && inSession) || sending || !canSend) return;
-    if (!inSession && !attachments.length && blockedMarketing) {
+    if ((!body && !attachments.length && !location && inSession) || sending || !canSend) return;
+    if (!inSession && !attachments.length && !location && blockedMarketing) {
       setError(
         "WhatsApp already blocked marketing templates to this number (131049). Wait 24 hours, or recategorize this template as UTILITY in WhatsApp Manager."
       );
@@ -1093,7 +1271,22 @@ export default function LeadCommunicationPanel({
           : selectedSpec?.params === 1
             ? [nameValue]
             : [];
-      if (attachments.length) {
+      if (location && inSession) {
+        const created = await leadsApi.sendMessage(leadId, {
+          locationLat: location.lat,
+          locationLng: location.lng,
+          locationName: location.name || undefined,
+          locationAddress: location.address || undefined,
+          ...(body ? { body } : {}),
+        });
+        const batch = created.messages?.length ? created.messages : [created];
+        setMessages((prev) => [...prev, ...batch]);
+        setLocation(null);
+        setMapPick(null);
+        setLocationOpen(false);
+        setText("");
+        setNotice("");
+      } else if (attachments.length) {
         const sent: LeadMessageDto[] = [];
         const leftover: PendingAttachment[] = [];
         const failures: string[] = [];
@@ -1524,6 +1717,80 @@ export default function LeadCommunicationPanel({
             />
 
             {inSession ? (
+            <>
+            {locationOpen ? (
+              <div className="mb-2 space-y-3 rounded-2xl border border-[#e9edef] bg-white p-3 dark:border-gray-700 dark:bg-[#202c33]">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#111b21] dark:text-[#e9edef]">
+                    <LocationPinIcon className="h-4 w-4 text-[#25d366]" />
+                    Share location
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLocationOpen(false)}
+                    className="rounded-full px-2 py-1 text-sm text-[#667781] hover:bg-black/5 dark:hover:bg-white/10"
+                  >
+                    ×
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  disabled={locating || sending}
+                  onClick={shareCurrentLocation}
+                  className="flex h-11 w-full items-center gap-3 rounded-xl bg-[#075e54] px-3 text-left text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                    <LocationPinIcon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    {locating ? "Getting location…" : "Send current location"}
+                  </span>
+                </button>
+                <ChatLocationMapPicker
+                  initialLat={location?.lat ?? mapPick?.lat}
+                  initialLng={location?.lng ?? mapPick?.lng}
+                  onPick={(lat, lng, address) => {
+                    setMapPick({
+                      lat,
+                      lng,
+                      name: "Shared location",
+                      address: address || null,
+                    });
+                    setError("");
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!mapPick || sending}
+                  onClick={attachMapPick}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#25d366] text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Use this location
+                </button>
+              </div>
+            ) : null}
+
+            {location ? (
+              <div className="mb-2 flex items-center gap-2 rounded-xl border border-[#e9edef] bg-white px-3 py-2 dark:border-gray-700 dark:bg-[#2a3942]">
+                <LocationPinIcon className="h-4 w-4 shrink-0 text-[#25d366]" />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-[#111b21] dark:text-[#e9edef]">
+                  {location.name ||
+                    location.address ||
+                    `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocation(null);
+                    setMapPick(null);
+                  }}
+                  className="rounded-full px-2 py-0.5 text-sm text-[#667781] hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
+
             <div className="flex items-end gap-1 sm:gap-1.5">
               <div className="flex shrink-0 items-center pb-0.5">
                 <button
@@ -1544,6 +1811,22 @@ export default function LeadCommunicationPanel({
                 >
                   <AttachIcon />
                 </button>
+                <button
+                  type="button"
+                  title="Share location"
+                  disabled={sending}
+                  onClick={() => {
+                    setLocationOpen((open) => !open);
+                    setError("");
+                  }}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full transition disabled:opacity-40 sm:h-10 sm:w-10 ${
+                    locationOpen || location
+                      ? "bg-[#25d366]/15 text-[#128c7e]"
+                      : "text-[#54656f] hover:bg-white dark:text-gray-300 dark:hover:bg-[#2a3942]"
+                  }`}
+                >
+                  <LocationPinIcon />
+                </button>
               </div>
 
               <div className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-2 dark:bg-[#2a3942]">
@@ -1559,7 +1842,9 @@ export default function LeadCommunicationPanel({
                       ? "Sending file…"
                       : attachments.length
                         ? "Add a caption (optional)"
-                        : "Type a message"
+                        : location
+                          ? "Location ready — tap Send"
+                          : "Type a message"
                   }
                   className="max-h-32 min-h-[22px] w-full resize-none bg-transparent text-[15px] leading-snug text-[#111b21] placeholder:text-[#8696a0] focus:outline-none dark:text-[#e9edef]"
                   style={{ height: "auto" }}
@@ -1573,7 +1858,7 @@ export default function LeadCommunicationPanel({
 
               <button
                 type="button"
-                disabled={sending || (!text.trim() && !attachments.length)}
+                disabled={sending || (!text.trim() && !attachments.length && !location)}
                 onClick={() => void send()}
                 title="Send message"
                 className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white transition hover:bg-[#20bd5a] disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600 sm:h-10 sm:w-10"
@@ -1585,6 +1870,7 @@ export default function LeadCommunicationPanel({
                 )}
               </button>
             </div>
+            </>
             ) : (
               <div className="flex justify-end">
                 <button
