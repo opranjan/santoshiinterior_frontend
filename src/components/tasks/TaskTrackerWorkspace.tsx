@@ -330,27 +330,27 @@ export default function TaskTrackerWorkspace() {
     return map;
   }, [items]);
 
-  const calendarEvents = useMemo<EventInput[]>(() => {
-    return items
-      .map((task) => {
-        const start = dueDateKey(task.dueDate);
-        if (!start) return null;
-        const colors = calendarColors(task);
-        return {
-          id: task.id,
-          title: task.title,
-          start,
-          allDay: true,
-          ...colors,
-          extendedProps: {
-            taskId: task.id,
-            priority: task.priority,
-            overdue: task.overdue,
-            status: task.status,
-          },
-        } satisfies EventInput;
-      })
-      .filter((row): row is EventInput => Boolean(row));
+  const calendarEvents = useMemo(() => {
+    const events: EventInput[] = [];
+    for (const task of items) {
+      const start = dueDateKey(task.dueDate);
+      if (!start) continue;
+      const colors = calendarColors(task);
+      events.push({
+        id: task.id,
+        title: task.title,
+        start,
+        allDay: true,
+        ...colors,
+        extendedProps: {
+          taskId: task.id,
+          priority: task.priority,
+          overdue: task.overdue,
+          status: task.status,
+        },
+      });
+    }
+    return events;
   }, [items]);
 
   const undatedTasks = useMemo(
