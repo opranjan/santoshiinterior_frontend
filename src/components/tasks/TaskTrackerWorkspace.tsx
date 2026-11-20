@@ -2,6 +2,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import listPlugin from "@fullcalendar/list";
+import interactionPlugin from "@fullcalendar/interaction";
+import type { EventClickArg, EventContentArg, EventInput } from "@fullcalendar/core";
 import { useAuth } from "@/context/AuthContext";
 import { hasAnyPermission } from "@/lib/permissions";
 import {
@@ -13,6 +19,44 @@ import {
   type TrackerTaskStatus,
 } from "@/services/crmApi";
 import { PageSkeleton } from "@/components/ui/loader/CrmLoader";
+
+function dueDateKey(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function calendarColors(task: TrackerTaskDto) {
+  if (task.overdue && task.status !== "COMPLETED") {
+    return { backgroundColor: "#fee2e2", borderColor: "#ef4444", textColor: "#991b1b" };
+  }
+  switch (task.status) {
+    case "IN_PROGRESS":
+      return { backgroundColor: "#dbeafe", borderColor: "#3b82f6", textColor: "#1e40af" };
+    case "IN_REVIEW":
+      return { backgroundColor: "#f3e8ff", borderColor: "#a855f7", textColor: "#6b21a8" };
+    case "COMPLETED":
+      return { backgroundColor: "#dcfce7", borderColor: "#22c55e", textColor: "#166534" };
+    default:
+      return { backgroundColor: "#efe6d8", borderColor: "#c4a574", textColor: "#5c4033" };
+  }
+}
+
+function renderTaskEvent(arg: EventContentArg) {
+  const priority = String(arg.event.extendedProps.priority || "");
+  const overdue = Boolean(arg.event.extendedProps.overdue);
+  return (
+    <div className="fc-event-title overflow-hidden px-1 text-[11px] font-medium leading-tight">
+      {overdue ? "⚠ " : ""}
+      {priority === "URGENT" || priority === "HIGH" ? "● " : ""}
+      {arg.event.title}
+    </div>
+  );
+}
 
 const TEAMS = ["Design", "Sales", "Procurement", "Site", "HR", "Inventory"] as const;
 
@@ -125,18 +169,24 @@ export default function TaskTrackerWorkspace() {
   const [savingDecision, setSavingDecision] = useState<string | null>(null);
   const [teamFilter, setTeamFilter] = useState("");
   const [memberFilter, setMemberFilter] = useState("");
-  const [mineOnly, setMineOnly] = useState(false);
+  // Non–super-admins are always scoped to their own assignments.
+  const [mineOnly, setMineOnly] = useState(!isSuperAdmin);
   const [projectFilter, setProjectFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
   useEffect(() => {
+    if (!isSuperAdmin && user?.id) {
+      setMineOnly(true);
+      setMemberFilter(user.id);
+      return;
+    }
     if (searchParams.get("mine") === "1" && user?.id) {
       setMineOnly(true);
       setMemberFilter(user.id);
     }
-  }, [searchParams, user?.id]);
+  }, [searchParams, user?.id, isSuperAdmin]);
 
   const [users, setUsers] = useState<Array<{ id: string; name: string; avatarUrl?: string | null }>>([]);
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
@@ -161,11 +211,15 @@ export default function TaskTrackerWorkspace() {
   });
 
   const load = useCallback(async () => {
+    if (!isSuperAdmin && !user?.id) return;
     setLoading(true);
     setError(null);
     try {
-      const assigneeId =
-        mineOnly && user?.id ? user.id : memberFilter || undefined;
+      const assigneeId = !isSuperAdmin
+        ? user?.id
+        : mineOnly && user?.id
+          ? user.id
+          : memberFilter || undefined;
       const data = await taskTrackerApi.list({
         team: teamFilter || undefined,
         assigneeId,
@@ -182,6 +236,7 @@ export default function TaskTrackerWorkspace() {
       setLoading(false);
     }
   }, [
+    isSuperAdmin,
     teamFilter,
     memberFilter,
     mineOnly,
@@ -274,6 +329,40 @@ export default function TaskTrackerWorkspace() {
     }
     return map;
   }, [items]);
+
+  const calendarEvents = useMemo<EventInput[]>(() => {
+    return items
+      .map((task) => {
+        const start = dueDateKey(task.dueDate);
+        if (!start) return null;
+        const colors = calendarColors(task);
+        return {
+          id: task.id,
+          title: task.title,
+          start,
+          allDay: true,
+          ...colors,
+          extendedProps: {
+            taskId: task.id,
+            priority: task.priority,
+            overdue: task.overdue,
+            status: task.status,
+          },
+        } satisfies EventInput;
+      })
+      .filter((row): row is EventInput => Boolean(row));
+  }, [items]);
+
+  const undatedTasks = useMemo(
+    () => items.filter((task) => !dueDateKey(task.dueDate)),
+    [items]
+  );
+
+  const onCalendarEventClick = (info: EventClickArg) => {
+    const taskId = String(info.event.extendedProps.taskId || info.event.id || "");
+    const task = items.find((row) => row.id === taskId);
+    if (task) void openWorkPanel(task);
+  };
 
   const resetForm = () => {
     setForm({
@@ -535,60 +624,68 @@ export default function TaskTrackerWorkspace() {
 
       {/* Filters + view */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#e8dfd2] bg-white p-3">
-        <button
-          type="button"
-          onClick={() => {
-            const next = !mineOnly;
-            setMineOnly(next);
-            setMemberFilter(next && user?.id ? user.id : "");
-          }}
-          className={`rounded-lg px-3 py-2 text-xs font-semibold ${
-            mineOnly
-              ? "bg-[#5c4033] text-white"
-              : "border border-[#e8dfd2] bg-[#faf7f2] text-[#6b5d4d]"
-          }`}
-        >
-          Assigned to me
-        </button>
-        <select
-          value={teamFilter}
-          onChange={(e) => setTeamFilter(e.target.value)}
-          className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-2.5 py-2 text-xs outline-none"
-        >
-          <option value="">All Teams</option>
-          {TEAMS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          value={mineOnly ? user?.id || "" : memberFilter}
-          onChange={(e) => {
-            setMineOnly(false);
-            setMemberFilter(e.target.value);
-          }}
-          className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-2.5 py-2 text-xs outline-none"
-        >
-          <option value="">All Members</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={projectFilter}
-          onChange={(e) => setProjectFilter(e.target.value)}
-          className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-2.5 py-2 text-xs outline-none"
-        >
-          <option value="">All Projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        {isSuperAdmin ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !mineOnly;
+                setMineOnly(next);
+                setMemberFilter(next && user?.id ? user.id : "");
+              }}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                mineOnly
+                  ? "bg-[#5c4033] text-white"
+                  : "border border-[#e8dfd2] bg-[#faf7f2] text-[#6b5d4d]"
+              }`}
+            >
+              Assigned to me
+            </button>
+            <select
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(e.target.value)}
+              className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-2.5 py-2 text-xs outline-none"
+            >
+              <option value="">All Teams</option>
+              {TEAMS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <select
+              value={mineOnly ? user?.id || "" : memberFilter}
+              onChange={(e) => {
+                setMineOnly(false);
+                setMemberFilter(e.target.value);
+              }}
+              className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-2.5 py-2 text-xs outline-none"
+            >
+              <option value="">All Members</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-2.5 py-2 text-xs outline-none"
+            >
+              <option value="">All Projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <span className="rounded-lg bg-[#5c4033] px-3 py-2 text-xs font-semibold text-white">
+            Assigned to me
+          </span>
+        )}
         <select
           value={priorityFilter}
           onChange={(e) => setPriorityFilter(e.target.value)}
@@ -913,11 +1010,47 @@ export default function TaskTrackerWorkspace() {
             </div>
           )}
         </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-[#d4c4a8] bg-white px-6 py-16 text-center text-sm text-[#8a7b68]">
-          Calendar view coming soon — use Kanban or List for now.
+      ) : view === "calendar" ? (
+        <div className="space-y-3">
+          <div className="custom-calendar overflow-hidden rounded-2xl border border-[#e8dfd2] bg-white">
+            <FullCalendar
+              plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              headerToolbar={{
+                left: "prev,next today",
+                center: "title",
+                right: "dayGridMonth,timeGridWeek,listWeek",
+              }}
+              height="auto"
+              events={calendarEvents}
+              eventClick={onCalendarEventClick}
+              eventContent={renderTaskEvent}
+              dayMaxEvents={3}
+              moreLinkClick="popover"
+              noEventsContent="No tasks with due dates in this range"
+            />
+          </div>
+          {undatedTasks.length ? (
+            <div className="rounded-2xl border border-[#e8dfd2] bg-white p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8a7b68]">
+                No due date ({undatedTasks.length})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {undatedTasks.map((task) => (
+                  <button
+                    key={task.id}
+                    type="button"
+                    onClick={() => void openWorkPanel(task)}
+                    className="rounded-lg border border-[#e8dfd2] bg-[#faf7f2] px-3 py-1.5 text-left text-xs font-medium text-[#2b2118] transition hover:border-[#c4a574]"
+                  >
+                    {task.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
       {/* Assignee / update drawer */}
       {workTask ? (

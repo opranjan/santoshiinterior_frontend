@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   inventoryApi,
   type InventoryItemDto,
@@ -64,7 +65,59 @@ export default function StockInEditor() {
   const [searchOpen, setSearchOpen] = useState<string | null>(null);
   const [matches, setMatches] = useState<InventoryItemDto[]>([]);
   const [catalogFor, setCatalogFor] = useState<Line | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const itemInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const updateDropdownPos = useCallback((key: string | null) => {
+    if (!key) {
+      setDropdownPos(null);
+      return;
+    }
+    const el = itemInputRefs.current[key];
+    if (!el) {
+      setDropdownPos(null);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    setDropdownPos({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: Math.max(rect.width, 220),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      setDropdownPos(null);
+      return;
+    }
+    updateDropdownPos(searchOpen);
+    const onReposition = () => updateDropdownPos(searchOpen);
+    window.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      window.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
+    };
+  }, [searchOpen, matches.length, updateDropdownPos]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      const input = itemInputRefs.current[searchOpen];
+      const menu = document.getElementById("stock-in-item-dropdown");
+      if (input?.contains(target) || menu?.contains(target)) return;
+      setSearchOpen(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [searchOpen]);
 
   const load = useCallback(async () => {
     if (!stockInId) return;
@@ -130,6 +183,7 @@ export default function StockInEditor() {
 
   const searchCatalog = async (key: string, q: string) => {
     setSearchOpen(key);
+    requestAnimationFrame(() => updateDropdownPos(key));
     if (!q.trim()) {
       setMatches([]);
       return;
@@ -160,18 +214,69 @@ export default function StockInEditor() {
     scheduleSave(next);
   };
 
+  const linkCatalogItem = (line: Line, item: InventoryItemDto): Line => ({
+    ...line,
+    itemId: item.id,
+    itemName: item.name,
+    hsnSac: item.hsnSac || line.hsnSac,
+    category: item.category || line.category,
+    uom: item.primaryUom || line.uom,
+    gstPercent: item.taxPercent ?? line.gstPercent,
+    cataloged: true,
+  });
+
+  const ensureLineInCatalog = async (line: Line): Promise<Line> => {
+    if (line.itemId) return line;
+    const name = line.itemName.trim();
+    if (!name) {
+      throw new Error("Enter an item name before confirming stock-in");
+    }
+    const category = (line.category || doc?.defaultCategory || "").trim();
+    if (!category) {
+      throw new Error(`Add a category for “${name}” before confirming`);
+    }
+
+    try {
+      const found = await inventoryApi.searchItems(name);
+      const exact = found.find(
+        (row) => row.name.trim().toLowerCase() === name.toLowerCase()
+      );
+      if (exact) return linkCatalogItem(line, exact);
+    } catch {
+      /* create below */
+    }
+
+    const created = await inventoryApi.createItem({
+      name,
+      category,
+      primaryUom: String(line.uom || "Nos").trim() || "Nos",
+      hsnSac: line.hsnSac || "",
+      taxPercent: Number(line.gstPercent) || 0,
+      goodsType: "RAW_MATERIAL",
+    });
+    return linkCatalogItem(line, created);
+  };
+
   const confirm = async () => {
     if (!stockInId) return;
-    const missing = lines.find((l) => (Number(l.quantity) > 0 || l.itemName) && !l.itemId);
-    if (missing) {
-      setError("Add missing items to catalog before confirming stock-in");
-      setCatalogFor(missing);
+    const active = lines.filter((l) => l.itemName.trim() || Number(l.quantity) > 0);
+    if (!active.length) {
+      setError("Add at least one item before confirming stock-in");
       return;
     }
     setError("");
     setSaving(true);
     try {
-      await persist(lines);
+      const linked: Line[] = [];
+      for (const line of lines) {
+        if (!line.itemName.trim() && !(Number(line.quantity) > 0)) {
+          linked.push(line);
+          continue;
+        }
+        linked.push(await ensureLineInCatalog(line));
+      }
+      setLines(linked);
+      await persist(linked);
       await inventoryApi.confirmStockIn(stockInId);
       router.push(`/inventory/warehouses/${warehouseId}`);
     } catch (e) {
@@ -296,8 +401,11 @@ export default function StockInEditor() {
               return (
                 <tr key={line.key} className={missing ? "bg-[#fdf6f0]" : "bg-white dark:bg-transparent"}>
                   <td className="px-3 py-2">{i + 1}</td>
-                  <td className="relative min-w-[220px] px-3 py-2">
+                  <td className="min-w-[220px] px-3 py-2">
                     <input
+                      ref={(el) => {
+                        itemInputRefs.current[line.key] = el;
+                      }}
                       className={`${fieldClass} h-9 ${missing ? "border-[#C4A574]" : ""}`}
                       placeholder="Search item"
                       value={line.itemName}
@@ -311,28 +419,11 @@ export default function StockInEditor() {
                       }}
                       onFocus={() => line.itemName && searchCatalog(line.key, line.itemName)}
                     />
-                    {searchOpen === line.key && matches.length > 0 && (
-                      <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-[#eadfcf] bg-white shadow-lg">
-                        {matches.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            className="block w-full px-3 py-2 text-left hover:bg-[#faf6ef]"
-                            onClick={() => pickItem(line.key, m)}
-                          >
-                            <div className="font-medium">{m.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {m.itemCode || "No code"} · {m.category || "Uncategorised"}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {searchOpen === line.key && line.itemName.trim() && matches.length === 0 && (
-                      <div className="absolute z-20 mt-1 w-full rounded-xl border border-[#eadfcf] bg-white p-2 text-xs text-gray-500 shadow-lg">
-                        Not in catalog. Add it first.
-                      </div>
-                    )}
+                    {missing ? (
+                      <p className="mt-1 text-[11px] text-[#9a7748]">
+                        New item — will be added to catalog on confirm
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">
                     <input
@@ -421,6 +512,58 @@ export default function StockInEditor() {
         </table>
       </div>
       {error && <p className="text-sm text-error-500">{error}</p>}
+
+      {searchOpen &&
+      dropdownPos &&
+      (lines.find((l) => l.key === searchOpen)?.itemName || "").trim() &&
+      typeof document !== "undefined" &&
+      createPortal(
+        <div
+          id="stock-in-item-dropdown"
+          style={{
+            position: "fixed",
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: dropdownPos.width,
+            zIndex: 100060,
+          }}
+          className="rounded-xl border border-[#eadfcf] bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        >
+          {matches.length > 0 ? (
+            <div className="max-h-56 overflow-auto py-1">
+              {matches.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-[#faf6ef] dark:hover:bg-white/5"
+                  onClick={() => pickItem(searchOpen, m)}
+                >
+                  <div className="font-medium text-[#1c1610] dark:text-white">{m.name}</div>
+                  <div className="text-xs text-gray-500">
+                    {m.itemCode || "No code"} · {m.category || "Uncategorised"}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="p-3 text-xs text-gray-500">
+              <p className="mb-2">Not in catalog yet.</p>
+              <button
+                type="button"
+                className="rounded-lg bg-[#C4A574] px-2.5 py-1.5 text-[11px] font-semibold text-[#1c1610]"
+                onClick={() => {
+                  const line = lines.find((l) => l.key === searchOpen) || null;
+                  setSearchOpen(null);
+                  if (line) setCatalogFor(line);
+                }}
+              >
+                Add to catalog
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
       <InventoryItemFormModal
         open={Boolean(catalogFor)}
