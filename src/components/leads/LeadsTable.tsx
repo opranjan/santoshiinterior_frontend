@@ -392,6 +392,56 @@ const CHECKBOX_COL_WIDTH = 48;
 const COLUMN_MIN_WIDTH = 72;
 const COLUMN_MAX_WIDTH = 480;
 const LEADS_COL_WIDTHS_KEY = "crm.leads.columnWidths.v1";
+const LEADS_VISIBLE_COLS_KEY = "crm.leads.visibleColumns.v1";
+
+/** Columns that can be toggled / exported (Actions stays UI-only). */
+const TOGGLEABLE_COLUMNS = columns.filter((col) => col !== "Actions");
+const REQUIRED_VISIBLE_COLUMNS: LeadColumn[] = ["Client Name"];
+const EXPORTABLE_COLUMNS = TOGGLEABLE_COLUMNS;
+
+const DEFAULT_VISIBLE_COLUMNS: Record<LeadColumn, boolean> = {
+  "Client Name": true,
+  Status: true,
+  Phone: true,
+  Email: true,
+  "Follow Up": true,
+  Project: true,
+  "Lead Owner": true,
+  "Sales Owner": true,
+  Budget: true,
+  Scope: true,
+  "Project Type": false,
+  Source: true,
+  Store: false,
+  Description: false,
+  "Latest Remark": false,
+  "Tentative Start": false,
+  FY: false,
+  "Created Date": true,
+  "Last Update": true,
+  Actions: true,
+};
+
+function loadVisibleColumns(userId?: string | null): Record<LeadColumn, boolean> {
+  if (typeof window === "undefined") return { ...DEFAULT_VISIBLE_COLUMNS };
+  try {
+    const key = userId
+      ? `${LEADS_VISIBLE_COLS_KEY}.${userId}`
+      : LEADS_VISIBLE_COLS_KEY;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return { ...DEFAULT_VISIBLE_COLUMNS };
+    const parsed = JSON.parse(raw) as Partial<Record<LeadColumn, boolean>>;
+    const next = { ...DEFAULT_VISIBLE_COLUMNS };
+    for (const col of columns) {
+      if (typeof parsed[col] === "boolean") next[col] = parsed[col]!;
+    }
+    for (const col of REQUIRED_VISIBLE_COLUMNS) next[col] = true;
+    next.Actions = true;
+    return next;
+  } catch {
+    return { ...DEFAULT_VISIBLE_COLUMNS };
+  }
+}
 
 const DEFAULT_COLUMN_WIDTHS: Record<LeadColumn, number> = {
   "Client Name": 190,
@@ -505,6 +555,7 @@ function leadQuoteHref(lead: Lead) {
 
 export default function LeadsTable() {
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const canDeleteLeads = hasAnyPermission(user, LEAD_DELETE_PERMISSIONS);
   const canCall = hasAnyPermission(user, [
     "calls.make",
@@ -530,6 +581,12 @@ export default function LeadsTable() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [convertTarget, setConvertTarget] = useState<Lead | null>(null);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const columnsMenuRef = useRef<HTMLDivElement | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Record<LeadColumn, boolean>>(
+    () => loadVisibleColumns(user?.id)
+  );
   const [columnWidths, setColumnWidths] = useState<Record<LeadColumn, number>>(
     () => ({ ...DEFAULT_COLUMN_WIDTHS })
   );
@@ -544,12 +601,115 @@ export default function LeadsTable() {
   }, []);
 
   useEffect(() => {
+    setVisibleColumns(loadVisibleColumns(user?.id));
+  }, [user?.id]);
+
+  useEffect(() => {
     try {
       window.localStorage.setItem(LEADS_COL_WIDTHS_KEY, JSON.stringify(columnWidths));
     } catch {
       /* ignore quota / private mode */
     }
   }, [columnWidths]);
+
+  useEffect(() => {
+    try {
+      const key = user?.id
+        ? `${LEADS_VISIBLE_COLS_KEY}.${user.id}`
+        : LEADS_VISIBLE_COLS_KEY;
+      window.localStorage.setItem(key, JSON.stringify(visibleColumns));
+    } catch {
+      /* ignore */
+    }
+  }, [visibleColumns, user?.id]);
+
+  useEffect(() => {
+    if (!columnsOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (columnsMenuRef.current?.contains(event.target as Node)) return;
+      setColumnsOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [columnsOpen]);
+
+  const isColVisible = useCallback(
+    (col: LeadColumn) => Boolean(visibleColumns[col]),
+    [visibleColumns]
+  );
+
+  const visibleTableColumns = useMemo(
+    () => columns.filter((col) => isColVisible(col)),
+    [isColVisible]
+  );
+
+  const toggleColumnVisibility = (col: LeadColumn, checked: boolean) => {
+    if (REQUIRED_VISIBLE_COLUMNS.includes(col) && !checked) return;
+    if (col === "Actions" && !checked) return;
+    setVisibleColumns((prev) => ({ ...prev, [col]: checked }));
+  };
+
+  const displayPhone = useCallback(
+    (phone?: string | null) => {
+      if (isSuperAdmin) return String(phone || "").trim() || "—";
+      return maskPhone(phone);
+    },
+    [isSuperAdmin]
+  );
+
+  const exportLeadsExcel = async () => {
+    try {
+      setExporting(true);
+      const XLSX = await import("xlsx");
+      const exportCols = EXPORTABLE_COLUMNS.filter((col) => isColVisible(col));
+      if (!exportCols.length) {
+        toastError("Turn on at least one column before exporting");
+        return;
+      }
+
+      const rows = filteredLeads.map((lead) => {
+        const nextFu = lead.followUps[lead.followUps.length - 1];
+        const followUpLabel = nextFu
+          ? `${nextFu.type}${nextFu.nextDate ? ` · ${formatShortFollowUp(nextFu.nextDate, nextFu.nextTime)}` : ""}`
+          : "";
+        const values: Record<string, string | number> = {
+          "Client Name": lead.clientName || "",
+          Status: lead.status || "",
+          Phone: displayPhone(lead.phone),
+          Email: lead.email || "",
+          "Follow Up": followUpLabel,
+          Project: lead.convertedProjectName || lead.projectName || "",
+          "Lead Owner": lead.assignedTo || "",
+          "Sales Owner": lead.salesOwner || "",
+          Budget: lead.budget || "",
+          Scope: lead.scope || "",
+          "Project Type": lead.projectType || "",
+          Source: lead.source || "",
+          Store: lead.store || "",
+          Description: lead.description || "",
+          "Latest Remark": lead.latestRemark || "",
+          "Tentative Start": lead.tentativeStart || "",
+          FY: lead.financialYear || "",
+          "Created Date": formatDateTime(lead.createdAt),
+          "Last Update": formatDateTime(lead.updatedAt),
+        };
+        const row: Record<string, string | number> = {};
+        for (const col of exportCols) row[col] = values[col] ?? "";
+        return row;
+      });
+
+      const sheet = XLSX.utils.json_to_sheet(rows, { header: exportCols as unknown as string[] });
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, "Leads");
+      const stamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(book, `leads-export-${stamp}.xlsx`);
+      toastSuccess(`Exported ${rows.length} lead(s) · ${exportCols.length} column(s)`);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Excel export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const onColumnResizeMove = useCallback((e: MouseEvent) => {
     const active = resizingRef.current;
@@ -602,7 +762,7 @@ export default function LeadsTable() {
 
   const tableMinWidth =
     CHECKBOX_COL_WIDTH +
-    columns.reduce((sum, col) => sum + columnWidths[col], 0);
+    visibleTableColumns.reduce((sum, col) => sum + columnWidths[col], 0);
 
   const fetchLeads = async () => {
     const data = await leadsApi.list({
@@ -1419,6 +1579,74 @@ export default function LeadsTable() {
               </button>
             )}
           </div>
+          <div className="relative" ref={columnsMenuRef}>
+            <button
+              type="button"
+              onClick={() => setColumnsOpen((v) => !v)}
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold ${
+                columnsOpen
+                  ? "border-[#c4a574] bg-[#f6efe4] text-[#1c1610]"
+                  : "border-[#eadfcf] bg-white text-[#5c5348] hover:bg-[#fbf8f3] dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#d4c8b8]"
+              }`}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M4 5h6v14H4V5zm10 0h6v14h-6V5z" stroke="currentColor" strokeWidth="1.8" />
+              </svg>
+              Columns
+            </button>
+            {columnsOpen ? (
+              <div className="absolute right-0 z-40 mt-2 w-60 rounded-2xl border border-[#eadfcf] bg-white py-2 shadow-xl dark:border-[#3a342c] dark:bg-[#1a1714]">
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8a7b68]">
+                  Show / hide fields
+                </p>
+                <div className="max-h-72 overflow-y-auto">
+                  {TOGGLEABLE_COLUMNS.map((col) => {
+                    const locked = REQUIRED_VISIBLE_COLUMNS.includes(col);
+                    return (
+                      <label
+                        key={col}
+                        className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-sm text-[#1c1610] hover:bg-[#fbf8f3] dark:text-[#f4efe6] dark:hover:bg-white/5"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(visibleColumns[col])}
+                          disabled={locked}
+                          onChange={(e) => toggleColumnVisibility(col, e.target.checked)}
+                          className="h-4 w-4 rounded border-[#eadfcf] accent-[#c4a574]"
+                        />
+                        <span className="min-w-0 flex-1">{col}</span>
+                        {locked ? (
+                          <span className="text-[10px] uppercase tracking-wide text-[#8a7b68]">
+                            Required
+                          </span>
+                        ) : null}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="border-t border-[#eadfcf] px-3 pt-2 text-[11px] text-[#8a7b68] dark:border-[#3a342c]">
+                  Hidden columns stay hidden in Excel for every role.
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={exporting || loading || !filteredLeads.length}
+            onClick={() => void exportLeadsExcel()}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#eadfcf] bg-white px-4 text-sm font-semibold text-[#5c5348] hover:bg-[#fbf8f3] disabled:opacity-50 dark:border-[#3a342c] dark:bg-[#1c1914] dark:text-[#d4c8b8]"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5M5 18h14"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {exporting ? "Exporting…" : "Export Excel"}
+          </button>
           <Link
             href="/sales/leads/new"
             className="inline-flex h-11 items-center rounded-xl bg-[#1c1610] px-5 text-sm font-semibold text-[#e8d5b5] hover:bg-black"
@@ -1719,7 +1947,7 @@ export default function LeadsTable() {
             >
               <colgroup>
                 <col style={{ width: CHECKBOX_COL_WIDTH }} />
-                {columns.map((heading) => (
+                {visibleTableColumns.map((heading) => (
                   <col key={heading} style={{ width: columnWidths[heading] }} />
                 ))}
               </colgroup>
@@ -1738,7 +1966,7 @@ export default function LeadsTable() {
                       aria-label="Select all"
                     />
                   </TableCell>
-                  {columns.map((heading) => {
+                  {visibleTableColumns.map((heading) => {
                     const isClient = heading === "Client Name";
                     const filterKey = COLUMN_FILTER_KEYS.includes(
                       heading as ColumnFilterKey
@@ -1854,6 +2082,7 @@ export default function LeadsTable() {
                         </div>
                       </TableCell>
 
+                      {isColVisible("Status") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Status")}
@@ -1897,14 +2126,18 @@ export default function LeadsTable() {
                           </span>
                         </div>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Phone") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-700 text-theme-sm dark:text-gray-300"
                         style={colStyle("Phone")}
                       >
-                        <span className="block truncate">{maskPhone(lead.phone)}</span>
+                        <span className="block truncate">{displayPhone(lead.phone)}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Email") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400"
                         style={colStyle("Email")}
@@ -1913,7 +2146,9 @@ export default function LeadsTable() {
                           {lead.email || "—"}
                         </span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Follow Up") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Follow Up")}
@@ -1952,7 +2187,9 @@ export default function LeadsTable() {
                           </button>
                         )}
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Project") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Project")}
@@ -1985,7 +2222,9 @@ export default function LeadsTable() {
                           </div>
                         )}
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Lead Owner") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Lead Owner")}
@@ -2041,49 +2280,63 @@ export default function LeadsTable() {
                           </select>
                         </div>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Sales Owner") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Sales Owner")}
                       >
                         <span className="block truncate">{lead.salesOwner || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Budget") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Budget")}
                       >
                         <span className="block truncate">{lead.budget || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Scope") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Scope")}
                       >
                         <span className="block truncate">{lead.scope || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Project Type") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Project Type")}
                       >
                         <span className="block truncate">{lead.projectType || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Source") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Source")}
                       >
                         <span className="block truncate">{lead.source || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Store") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Store")}
                       >
                         <span className="block truncate">{lead.store || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Description") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400"
                         style={colStyle("Description")}
@@ -2092,7 +2345,9 @@ export default function LeadsTable() {
                           {lead.description || "—"}
                         </span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Latest Remark") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-500 text-theme-sm dark:text-gray-400"
                         style={colStyle("Latest Remark")}
@@ -2101,21 +2356,27 @@ export default function LeadsTable() {
                           {lead.latestRemark || "—"}
                         </span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Tentative Start") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("Tentative Start")}
                       >
                         <span className="block truncate">{lead.tentativeStart || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("FY") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-gray-600 text-theme-sm dark:text-gray-300"
                         style={colStyle("FY")}
                       >
                         <span className="block truncate">{lead.financialYear || "—"}</span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Created Date") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Created Date")}
@@ -2127,7 +2388,9 @@ export default function LeadsTable() {
                           {relativeTime(lead.createdAt)}
                         </span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Last Update") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Last Update")}
@@ -2139,7 +2402,9 @@ export default function LeadsTable() {
                           {relativeTime(lead.updatedAt)}
                         </span>
                       </TableCell>
+                      ) : null}
 
+                      {isColVisible("Actions") ? (
                       <TableCell
                         className="overflow-hidden px-3 py-3 text-start"
                         style={colStyle("Actions")}
@@ -2201,6 +2466,7 @@ export default function LeadsTable() {
                           ) : null}
                         </div>
                       </TableCell>
+                      ) : null}
                     </TableRow>
                   );
                 })}
